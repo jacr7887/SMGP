@@ -1,0 +1,149 @@
+{% extends "home.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Detalle Comisión #{{ object.pk }}{% endblock %}
+
+{% block content %}
+<div class="container" role="main" aria-labelledby="main-heading">
+    <section>
+        <h1 id="main-heading">📄 Detalle Registro de Comisión #{{ object.pk|escape }}</h1>
+
+        <div class="header-actions mb-4">
+            <a href="{% url 'myapp:registro_comision_list' %}" class="nav_link">↩️ Volver al Listado</a>
+        </div>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show compact-form" role="alert" style="margin-bottom: 1rem;">
+                    {{ message|escape }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <div class="form-main-container">
+            <fieldset class="mb-4 dark-group">
+                <legend class="dark-label">ℹ️ Información General de la Comisión</legend>
+                <div class="dark-grid">
+                    <div class="dark-group"><span class="dark-label">🆔 ID Comisión:</span><span>{{ object.pk|escape }}</span></div>
+                    <div class="dark-group">
+                        <span class="dark-label">👤 Inter. Beneficiario:</span>
+                        <span>
+                            {% if object.intermediario %}
+                                <a href="{% url 'myapp:intermediario_detail' object.intermediario.pk %}">
+                                    {{ object.intermediario.nombre_completo|default:object.intermediario.codigo|escape|default:"Ver Intermediario" }}
+                                </a>
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="dark-group"><span class="dark-label">📋 Tipo:</span><span>{{ object.get_tipo_comision_display|escape }}</span></div>
+                    <div class="dark-group"><span class="dark-label">💰 Monto Comisión:</span><span>${{ object.monto_comision|floatformat:2|intcomma|default:"0.00" }}</span></div>
+                    <div class="dark-group"><span class="dark-label">💲 Base Cálculo:</span><span>${{ object.monto_base_calculo|floatformat:2|intcomma|default:"0.00" }}</span></div>
+                    <div class="dark-group"><span class="dark-label">📊 % Aplicado:</span><span>{{ object.porcentaje_aplicado|floatformat:2|default:"0.00" }}%</span></div>
+                    <div class="dark-group">
+                        <span class="dark-label">🚦 Estado Pago:</span>
+                        <span>
+                            <span class="badge {% if object.estatus_pago_comision == 'PAGADA' %}badge-success{% elif object.estatus_pago_comision == 'PENDIENTE' %}badge-warning{% elif object.estatus_pago_comision == 'ANULADA' %}badge-danger{% else %}badge-secondary{% endif %}">
+                                {{ object.get_estatus_pago_comision_display|escape }}
+                            </span>
+                        </span>
+                    </div>
+                    <div class="dark-group"><span class="dark-label">📅 Fecha Cálculo:</span><span>{{ object.fecha_calculo|date:"d/m/Y H:i:s"|default:"-" }}</span></div>
+                    <div class="dark-group"><span class="dark-label">🗓️ Fecha Pago Int.:</span><span>{{ object.fecha_pago_a_intermediario|date:"d/m/Y"|default:"Pendiente o N/A" }}</span></div>
+                    <div class="dark-group">
+                        <span class="dark-label">🧑‍💻 Liquidada por:</span>
+                        <span>
+                            {% if object.usuario_que_liquido %}
+                                {# Intentar get_full_name, si no existe (o es vacío), usar username #}
+                                {% with liquidador_nombre=object.usuario_que_liquido.get_full_name %}
+                                    {% if liquidador_nombre %}
+                                        {{ liquidador_nombre|escape }}
+                                    {% else %}
+                                        {{ object.usuario_que_liquido.username|escape|default:"Usuario Desconocido" }}
+                                    {% endif %}
+                                {% endwith %}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+            </fieldset>
+
+            <fieldset class="mb-4 dark-group">
+                <legend class="dark-label">🔗 Origen de la Comisión</legend>
+                <div class="dark-grid">
+                    <div class="dark-group">
+                        <span class="dark-label">🧾 Factura Origen:</span>
+                        <span>
+                            {% if object.factura_origen %}
+                                <a href="{% url 'myapp:factura_detail' object.factura_origen.pk %}">{{ object.factura_origen.numero_recibo|default_if_none:"Ver Factura"|escape }}</a>
+                                (Monto: ${{ object.factura_origen.monto|floatformat:2|intcomma }})
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="dark-group">
+                        <span class="dark-label">💳 Pago del Cliente:</span>
+                        <span>
+                            {% if object.pago_cliente %}
+                                <a href="{% url 'myapp:pago_detail' object.pago_cliente.pk %}">{{ object.pago_cliente.referencia_pago|default_if_none:"Ver Pago"|escape }}</a>
+                                (Monto: ${{ object.pago_cliente.monto_pago|floatformat:2|intcomma }})
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% if object.contrato_individual %}
+                    <div class="dark-group">
+                        <span class="dark-label">📄 Cont. Individual:</span>
+                        <span><a href="{% url 'myapp:contrato_individual_detail' object.contrato_individual.pk %}">{{ object.contrato_individual.numero_contrato|default_if_none:"Ver Contrato"|escape }}</a></span>
+                    </div>
+                    {% endif %}
+                    {% if object.contrato_colectivo %}
+                    <div class="dark-group">
+                        <span class="dark-label">🏢 Cont. Colectivo:</span>
+                        <span><a href="{% url 'myapp:contrato_colectivo_detail' object.contrato_colectivo.pk %}">{{ object.contrato_colectivo.numero_contrato|default_if_none:"Ver Contrato"|escape }}</a></span>
+                    </div>
+                    {% endif %}
+                    {% if object.tipo_comision == 'OVERRIDE' %}
+                    <div class="dark-group">
+                        <span class="dark-label">👨‍💼 Inter. Vendedor (quien generó):</span>
+                        <span>
+                            {% if object.intermediario_vendedor %}
+                                <a href="{% url 'myapp:intermediario_detail' object.intermediario_vendedor.pk %}">
+                                {% with vendedor_nombre=object.intermediario_vendedor.nombre_completo %}
+                                    {% if vendedor_nombre %}
+                                        {{ vendedor_nombre|escape }}
+                                    {% else %}
+                                        {{ object.intermediario_vendedor.codigo|escape|default:"Vendedor Desconocido" }}
+                                    {% endif %}
+                                {% endwith %}
+                                </a>
+                            {% else %}
+                                <span class="text-warning">Dato de Vendedor Faltante</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% endif %}
+                </div>
+            </fieldset>
+            
+            {% if object.estatus_pago_comision == 'PENDIENTE' and perms.myapp.change_registrocomision %}
+            <div class="form-actions mt-4">
+                 <form method="post" action="{% url 'myapp:marcar_comisiones_pagadas' %}" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="comisiones_a_pagar_ids" value="{{ object.pk }}">
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button type="submit" class="btn-success">✅ Marcar esta Comisión como Pagada</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock content %}

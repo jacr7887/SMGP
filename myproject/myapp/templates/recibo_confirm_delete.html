@@ -1,0 +1,63 @@
+{% extends "home.html" %} {% load humanize %} {% load i18n %} {% block content
+%}
+<article aria-label="Confirmación de Eliminación">
+  <h1>Confirmar Eliminación de Recibo</h1>
+  <div class="delete-warning" role="alert">
+    <p>⚠️ Está a punto de eliminar permanentemente el siguiente registro:</p>
+    <h2>Recibo #{{ object.numero_recibo }}</h2>
+  </div>
+  <section aria-label="Detalle del Recibo">
+    <dl class="detail-list">
+      <dt>Contrato Individual:</dt>
+      <dd>
+        {{ object.contrato_individual.numero_contrato|default:"-"|escape }}
+      </dd>
+      <dt>Contrato Colectivo:</dt>
+      <dd>
+        {{ object.contrato_colectivo.numero_contrato|default:"-"|escape }}
+      </dd>
+      <dt>Vigencia:</dt>
+      <dd>
+        {{ object.vigencia_recibo_desde|date:"d/m/Y" }} - {{
+        object.vigencia_recibo_hasta|date:"d/m/Y" }}
+      </dd>
+      <dt>Monto Total:</dt>
+      <dd>{{ object.monto|floatformat:2|intcomma }}</dd>
+      <dt>Estado Actual:</dt>
+      <dd>{{ object.get_estatus_emision_display|escape }}</dd>
+    </dl>
+  </section>
+  <section aria-label="Impacto de Eliminación">
+    <h2>Elementos Relacionados Afectados</h2>
+    {% if object.pago_set.all %}
+    <div class="related-items">
+      <p>Se eliminarán los siguientes pagos asociados:</p>
+      <ul>
+        {% for pago in object.pago_set.all %}
+        <li>
+          Pago #{{ pago.id }} - {{ pago.monto_pago|floatformat:2|intcomma }} ({{
+          pago.fecha_pago|date:"d/m/Y" }})
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% else %}
+    <p>No existen pagos asociados que se verán afectados.</p>
+    {% endif %}
+  </section>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-actions">
+      <button type="submit" class="danger" aria-label="Confirmar eliminación">
+        Confirmar Eliminación
+      </button>
+      <a
+        href="{% url 'recibo_detail' object.pk %}"
+        class="cancel"
+        aria-label="Cancelar eliminación"
+        >Cancelar</a
+      >
+    </div>
+  </form>
+</article>
+{% endblock %}

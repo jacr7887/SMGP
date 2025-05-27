@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    {% load humanize %}
+    <title>Factura {{ factura.numero_recibo }}</title>
+    <style type="text/css">
+        /* --- Propiedades Generales de la Página (Legal) --- */
+        @page {
+            size: legal;
+            margin: 1.5cm;
+        }
+
+        /* --- Definición de Frames (Ajustados para Legal) --- */
+        @frame header_frame {
+            -pdf-frame-content: header_content;
+            left: 1.5cm; width: 18.6cm;
+            top: 1cm; height: 2.5cm; /* Reducida altura del header */
+        }
+        @frame content_frame {
+            left: 1.5cm; width: 18.6cm;
+            top: 4cm;     /* Ajustado top (1cm + 2.5cm + 0.5cm espacio) */
+            height: 29cm; /* Aumentada altura disponible */
+        }
+        @frame footer_frame {
+            -pdf-frame-content: footer_content;
+            left: 1.5cm; width: 18.6cm;
+            bottom: 1cm; height: 1cm;
+        }
+        /* --- Fin Definición de Frames --- */
+
+        /* --- Estilos Generales (Ajustes menores de espaciado) --- */
+        body { font-family: "Helvetica", sans-serif; font-size: 9.5pt; color: #333; line-height: 1.3; } /* Tamaño base reducido */
+        #header_content { text-align: center; }
+        #header_content .company-details { text-align: left; font-size: 9pt; }
+        #header_content h1 { margin: 0; font-size: 16pt; color: #000; padding-top: 0.8cm; } /* Tamaño H1 reducido */
+        #footer_content { text-align: center; font-size: 8pt; color: #666; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 0.6cm; } /* Menos margen inferior */
+        th, td { border: 1px solid #ccc; padding: 4pt; text-align: left; vertical-align: top; } /* Menos padding */
+        th { background-color: #f2f2f2; font-weight: bold; padding: 5pt 4pt; }
+        .section-title { font-size: 11pt; font-weight: bold; margin-top: 0.7cm; margin-bottom: 0.3cm; border-bottom: 1px solid #000; padding-bottom: 2pt; }
+        .text-right { text-align: right; }
+        .text-bold { font-weight: bold; }
+        .totals-table td { border: none; padding: 1.5pt 4pt; } /* Menos padding vertical */
+        .totals-table .label { font-weight: bold; text-align: right; padding-right: 8pt; }
+        .totals-table .value { text-align: right; }
+        .totals-table .grand-total td { border-top: 1px solid #000; font-size: 10.5pt; padding-top: 3pt; }
+        .info-grid { width: 100%; margin-bottom: 0.3cm; }
+        .info-grid td { border: none; padding: 1pt 0; vertical-align: middle; } /* Alinear verticalmente */
+        .info-grid .label { font-weight: bold; width: 25%; padding-right: 5pt; } /* Ancho de etiqueta reducido */
+        .info-grid .value { width: 75%; }
+        .observaciones { margin-top: 0.6cm; padding: 0.4cm; border: 1px dashed #ccc; font-size: 8.5pt; background-color: #f9f9f9; }
+
+        /* --- Estilos Sección Firmas (Margen Reducido) --- */
+        .signature-section {
+            margin-top: 1cm; /* --- Reducido significativamente --- */
+            width: 100%;
+            page-break-inside: avoid;
+        }
+        .signature-table { width: 100%; border: none; margin-top: 0.5cm;}
+        .signature-table td { width: 45%; text-align: center; border: none; padding: 1cm 0 0 0; vertical-align: bottom; }
+        .signature-line { border-top: 1px solid #000; margin: 0 1cm; height: 1px; }
+        .signature-title { margin-top: 4pt; font-size: 9pt; font-weight: bold; }
+        .signature-details { font-size: 8pt; color: #555; margin-top: 2pt; }
+        .signature-spacer { width: 10%; border: none; }
+
+    </style>
+</head>
+<body>
+    {# --- Contenido del Encabezado --- #}
+    <div id="header_content">
+        <div class="company-details">
+            <strong>TU EMPRESA S.A.</strong><br>
+            RIF: J-12345678-9<br>
+            Dirección Fiscal Completa, Ciudad, Estado<br>
+            Teléfono: +58 XXX-XXXXXXX | Email: info@tuempresa.com
+        </div>
+        <h1>FACTURA</h1>
+    </div>
+
+    {# --- Contenido del Pie de Página --- #}
+    <div id="footer_content">
+        <pdf:pagenumber /> / <pdf:pagecount />
+    </div>
+
+    {# --- Contenido Principal --- #}
+    <div id="main_content">
+
+        <table class="info-grid">
+             <tr>
+                <td class="label">N° Factura:</td><td class="value">{{ factura.numero_recibo|default:"N/A" }}</td>
+                <td class="label">Fecha Emisión:</td><td class="value">{{ factura.fecha_creacion|date:"d/m/Y" }}</td>
+             </tr>
+             <tr>
+                 <td class="label">Período Servicio:</td><td class="value">{{ factura.vigencia_recibo_desde|date:"d/m/Y"|default:"-" }} - {{ factura.vigencia_recibo_hasta|date:"d/m/Y"|default:"-" }}</td>
+                 <td class="label">Estado Factura:</td><td class="value">{{ factura.get_estatus_factura_display|upper|default:"-" }}</td>
+             </tr>
+        </table>
+
+        <div class="section-title">Datos del Cliente / Contrato</div>
+        {# --- Tabla Info Cliente/Contrato REESTRUCTURADA (2 columnas) --- #}
+        <table class="info-grid">
+             <tr>
+                 <td class="label">Cliente:</td>
+                 <td class="value">
+                     {% if factura.contrato_individual and factura.contrato_individual.afiliado %}{{ factura.contrato_individual.afiliado.get_full_name|default:"(Afiliado sin nombre)" }}{% elif factura.contrato_colectivo %}{{ factura.contrato_colectivo.razon_social|default:"(Colectivo sin razón social)" }}{% else %}{{ factura.primer_nombre|default:'' }} {{ factura.segundo_nombre|default:'' }} {{ factura.primer_apellido|default:'' }} {{ factura.segundo_apellido|default:''|default:"(Cliente no asociado)" }}{% endif %}
+                 </td>
+             </tr>
+             <tr>
+                 <td class="label">RIF / C.I.:</td>
+                 <td class="value">
+                     {% if factura.contrato_individual and factura.contrato_individual.afiliado %}{{ factura.contrato_individual.afiliado.cedula|default:"N/A" }}{% elif factura.contrato_colectivo %}{{ factura.contrato_colectivo.rif|default:"N/A" }}{% else %}N/A{% endif %}
+                 </td>
+             </tr>
+             <tr>
+                 <td class="label">N° Contrato:</td>
+                 <td class="value">{% if factura.contrato_individual %}{{ factura.contrato_individual.numero_contrato|default:"N/A" }}{% elif factura.contrato_colectivo %}{{ factura.contrato_colectivo.numero_contrato|default:"N/A" }}{% else %}N/A{% endif %}</td>
+            </tr>
+            <tr>
+                 <td class="label">Ramo:</td>
+                 <td class="value">{% if factura.contrato_individual %}{{ factura.contrato_individual.ramo|default:"N/A" }}{% elif factura.contrato_colectivo %}{{ factura.contrato_colectivo.ramo|default:"N/A" }}{% else %}N/A{% endif %}</td>
+            </tr>
+             <tr>
+                 <td class="label">Intermediario:</td>
+                 <td class="value">{% if factura.intermediario %}{{ factura.intermediario.nombre_completo|default:"(Intermediario sin nombre)" }} (Cód: {{ factura.intermediario.codigo|default:'S/C' }}){% else %}Directo{% endif %}</td>
+             </tr>
+        </table>
+        {# --- FIN Tabla Info Cliente/Contrato REESTRUCTURADA --- #}
+
+        <div class="section-title">Detalle de Cargos</div>
+        <table>
+            <thead><tr><th>Descripción</th><th class="text-right">Monto Base</th></tr></thead>
+            <tbody>
+                <tr>
+                    <td>Servicio Póliza de Salud{% if factura.contrato_individual %} / Contrato {{ factura.contrato_individual.numero_contrato|default:"N/A" }}{% elif factura.contrato_colectivo %} / Contrato {{ factura.contrato_colectivo.numero_contrato|default:"N/A" }}{% endif %}<br>Período: {{ factura.vigencia_recibo_desde|date:"d/m/Y"|default:"-" }} al {{ factura.vigencia_recibo_hasta|date:"d/m/Y"|default:"-" }}</td>
+                    <td class="text-right">${{ base_imponible|floatformat:2|intcomma }}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <table class="totals-table" style="width: 45%; float: right;">
+            <tr>
+                <td class="label">Monto Prima (Exento IVA):</td>
+                <td class="value">${{ base_imponible|floatformat:2|intcomma }}</td>
+            </tr>
+            {# La línea del IGTF se ha eliminado correctamente #}
+            <tr class="grand-total">
+                <td class="label">TOTAL A PAGAR:</td>
+                <td class="value text-bold">${{ total_a_pagar|floatformat:2|intcomma }}</td>
+            </tr>
+             {% if factura.monto_pendiente > 0 and factura.monto_pendiente != total_a_pagar %}
+             <tr>
+                 <td class="label" style="font-size: 9pt;">Monto Pendiente:</td>
+                 <td class="value" style="font-size: 9pt;">${{ factura.monto_pendiente|floatformat:2|intcomma }}</td>
+            </tr>
+             {% endif %}
+        </table>
+        <div style="clear: both;"></div>
+
+        {% if factura.observaciones %}
+        <div class="observaciones"><span class="text-bold">Observaciones:</span><br>{{ factura.observaciones|escape|linebreaksbr }}</div>
+        {% endif %}
+
+        {% if pagos_asociados %}
+            <div class="section-title">Historial de Pagos Aplicados</div>
+            <table>
+                <thead><tr><th>Fecha Pago</th><th>Monto Pagado</th><th>Método</th><th>Referencia</th></tr></thead>
+                <tbody>
+                    {% for pago in pagos_asociados %}
+                    <tr>
+                        <td>{{ pago.fecha_pago|date:"d/m/Y"|default:"-" }}</td>
+                        <td class="text-right">${{ pago.monto_pago|floatformat:2|intcomma|default:"0.00" }}</td>
+                        <td>{{ pago.get_metodo_pago_display|default:"-" }}</td>
+                        <td>{{ pago.referencia|escape|default:"-" }}</td>
+                    </tr>
+                    {% endfor %}
+                     <tr><td colspan="1" class="text-bold text-right">Total Pagado:</td><td class="text-right text-bold">${{ total_pagado|floatformat:2|intcomma|default:"0.00" }}</td><td colspan="2"></td></tr>
+                </tbody>
+            </table>
+        {% endif %}
+
+        {# --- Sección de Firmas (Con margen reducido) --- #}
+        <div class="signature-section">
+            <table class="signature-table">
+                <tr style="vertical-align: bottom;">
+                    <td>
+                        <div class="signature-line"></div>
+                        <p class="signature-title">Firma del Agente / Intermediario</p>
+                        <p class="signature-details">
+                            {% if factura.intermediario %}
+                                {{ factura.intermediario.nombre_completo|default:"" }}<br>
+                                C.I./RIF: {{ factura.intermediario.rif_o_ci|default:"N/A" }}
+                            {% else %}
+                                (Venta Directa)
+                            {% endif %}
+                        </p>
+                    </td>
+                    <td class="signature-spacer"></td>
+                    <td>
+                        <div class="signature-line"></div>
+                        <p class="signature-title">Firma del Contratante / Cliente</p>
+                         <p class="signature-details">
+                            {% if factura.contrato_individual and factura.contrato_individual.afiliado %}
+                                {{ factura.contrato_individual.afiliado.get_full_name|default:"" }}<br>
+                                C.I.: {{ factura.contrato_individual.afiliado.cedula|default:"N/A" }}
+                            {% elif factura.contrato_colectivo %}
+                                {{ factura.contrato_colectivo.razon_social|default:"" }}<br>
+                                RIF: {{ factura.contrato_colectivo.rif|default:"N/A" }}
+                            {% else %}
+                                {{ factura.get_full_name_factura|default:"(No especificado)" }}<br>
+                                (ID no disponible)
+                            {% endif %}
+                        </p>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        {# --- FIN Sección de Firmas --- #}
+
+        <div style="margin-top: 0.8cm; font-size: 8pt; text-align: center; border-top: 1px solid #ccc; padding-top: 0.4cm;">Información legal requerida / Datos bancarios para pagos / etc.</div>
+
+    </div>
+
+</body>
+</html>

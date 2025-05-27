@@ -1,0 +1,38 @@
+{% extends 'base.html' %} {% block content %}
+<h1>Dashboard Principal</h1>
+
+<h2>Métricas Principales</h2>
+<ul>
+  <li>Total Contratos: {{ metricas.total_contratos }}</li>
+  <li>Contratos Activos: {{ metricas.contratos_activos }}</li>
+  <li>Reclamaciones Pendientes: {{ metricas.reclamaciones_pendientes }}</li>
+  <li>Ingresos Totales: {{ metricas.ingresos_totales }}</li>
+</ul>
+
+<h2>Distribución de Ramos (Gráfica JavaScript)</h2>
+<div id="chart-ramos"></div>
+
+<h2>Tendencia de Reclamaciones (Gráfica JavaScript)</h2>
+<div id="chart-reclamaciones"></div>
+
+<script>
+  // --- JavaScript para Gráfica de Distribución de Ramos ---
+  const dataRamos = JSON.parse("{{ graficos_data.distribucion_ramos|safe }}"); // Obtener datos del contexto
+
+  // *** Aquí iría tu código JavaScript usando Chart.js, D3.js u otra librería
+  // *** para tomar 'dataRamos' y dibujar un gráfico de pie en el div 'chart-ramos'
+
+  console.log("Datos para gráfica de ramos:", dataRamos); // Para depuración - Ver los datos en la consola del navegador
+
+  // --- JavaScript para Gráfica de Tendencia de Reclamaciones ---
+  const dataReclamaciones = JSON.parse(
+    "{{ graficos_data.tendencia_reclamaciones|safe }}"
+  ); // Obtener datos del contexto
+
+  // *** Aquí iría tu código JavaScript usando Chart.js, D3.js u otra librería
+  // *** para tomar 'dataReclamaciones' y dibujar un gráfico de barras en el div 'chart-reclamaciones'
+
+  console.log("Datos para gráfica de reclamaciones:", dataReclamaciones); // Para depuración - Ver los datos en la consola del navegador
+</script>
+
+{% endblock %}

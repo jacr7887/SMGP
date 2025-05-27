@@ -1,0 +1,116 @@
+{% extends "home.html" %}
+{% load static %}
+
+{% block content %}
+<div class="dark-container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading">
+      {% if form.instance.pk %}✏️ Editar{% else %}➕ Nueva{% endif %} Tarifa
+    </h1>
+
+    <div class="header-actions">
+      <a href="{% url 'myapp:tarifa_list' %}" class="nav_link" aria-label="Volver al listado de tarifas">
+        ⬅️ Volver al Listado
+      </a>
+    </div>
+
+    <form method="post" class="compact-form" enctype="multipart/form-data" aria-labelledby="form-instructions" novalidate>
+      {% csrf_token %}
+
+      {# --- BLOQUE DE ERRORES GENERALES --- #}
+      {% if form.non_field_errors %}
+          <div class="alert alert-danger error-summary">
+              <h4>Errores Generales:</h4>
+              <ul>
+                  {% for error in form.non_field_errors %}
+                      <li>{{ error }}</li>
+                  {% endfor %}
+              </ul>
+          </div>
+      {% endif %}
+      {# --- FIN BLOQUE ERRORES GENERALES --- #}
+
+      {# --- CAMPOS DE Tarifa --- #}
+
+      <fieldset class="dark-group" data-section="informacion-tarifa">
+        <legend class="dark-label">💲 Información de la Tarifa</legend>
+
+        {# Campo activo (Heredado) #}
+        <div class="dark-group {% if form.activo.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.activo.id_for_label }}">✅ Tarifa Activa</label>
+            <label class="switch">
+                {{ form.activo }}
+                <span class="slider"></span>
+            </label>
+            {% if form.activo.errors %}<ul class="error-messages">{% for error in form.activo.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.activo.help_text %}<small class="form-text text-muted">{{ form.activo.help_text }}</small>{% endif %}
+        </div>
+
+        {# Campo ramo #}
+        <div class="dark-group {% if form.ramo.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.ramo.id_for_label }}">🌿 Ramo</label>
+            {{ form.ramo }} {# Asume Select #}
+            {% if form.ramo.errors %}<ul class="error-messages">{% for error in form.ramo.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.ramo.help_text %}<small class="form-text text-muted">{{ form.ramo.help_text }}</small>{% endif %}
+        </div>
+
+        {# Campo rango_etario #}
+        <div class="dark-group {% if form.rango_etario.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.rango_etario.id_for_label }}">🎂 Rango Etario</label>
+            {{ form.rango_etario }} {# Asume Select #}
+            {% if form.rango_etario.errors %}<ul class="error-messages">{% for error in form.rango_etario.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.rango_etario.help_text %}<small class="form-text text-muted">{{ form.rango_etario.help_text }}</small>{% endif %}
+        </div>
+
+        {# Campo fecha_aplicacion #}
+        <div class="dark-group {% if form.fecha_aplicacion.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.fecha_aplicacion.id_for_label }}">📅 Fecha de Aplicación</label>
+            {{ form.fecha_aplicacion }} {# Asume DateInput type=date #}
+            {% if form.fecha_aplicacion.errors %}<ul class="error-messages">{% for error in form.fecha_aplicacion.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.fecha_aplicacion.help_text %}<small class="form-text text-muted">{{ form.fecha_aplicacion.help_text }}</small>{% endif %}
+        </div>
+
+        {# Campo monto_anual #}
+        <div class="dark-group {% if form.monto_anual.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.monto_anual.id_for_label }}">💰 Monto Base Anual</label>
+            {{ form.monto_anual }} {# Asume Input Number #}
+            {% if form.monto_anual.errors %}<ul class="error-messages">{% for error in form.monto_anual.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.monto_anual.help_text %}<small class="form-text text-muted">{{ form.monto_anual.help_text }}</small>{% endif %}
+        </div>
+
+        {# Campo tipo_fraccionamiento #}
+        <div class="dark-group {% if form.tipo_fraccionamiento.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.tipo_fraccionamiento.id_for_label }}">🗓️ Fraccionamiento Aplicable (Opcional)</label>
+            {{ form.tipo_fraccionamiento }} {# Asume Select #}
+            {% if form.tipo_fraccionamiento.errors %}<ul class="error-messages">{% for error in form.tipo_fraccionamiento.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.tipo_fraccionamiento.help_text %}<small class="form-text text-muted">{{ form.tipo_fraccionamiento.help_text }}</small>{% endif %}
+        </div>
+
+        {# Campo comision_intermediario #}
+        <div class="dark-group {% if form.comision_intermediario.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.comision_intermediario.id_for_label }}">🤝 Comisión Intermediario (%)</label>
+            {{ form.comision_intermediario }} {# Asume Input Number #}
+            {% if form.comision_intermediario.errors %}<ul class="error-messages">{% for error in form.comision_intermediario.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.comision_intermediario.help_text %}<small class="form-text text-muted">{{ form.comision_intermediario.help_text }}</small>{% endif %}
+        </div>
+
+      {# Renderizar campos ocultos #}
+      {% for field in form.hidden_fields %}
+          {{ field }}
+      {% endfor %}
+
+      <div class="form-actions">
+        <button type="submit" class="btn-success">{% if form.instance.pk %}💾 Actualizar Tarifa{% else %}➕ Crear Tarifa{% endif %}</button>
+        <a href="{% url 'myapp:tarifa_list' %}" class="btn-danger">🚫 Cancelar</a>
+      </div>
+    </form>
+  </section>
+</div>
+
+{% endblock content %}
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    inicializarCalculosTarifa({ decimales: 2 });
+  });
+</script>

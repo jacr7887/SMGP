@@ -1,0 +1,10 @@
+{% extends "home.html" %} {% block content %} {% load humanize %}
+<div role="main" aria-labelledby="main-content">
+  <h1 id="main-content">👤 Resumen de Afiliado</h1>
+  <div class="detalles-afiliado">
+    <p>Nombre: {{ afiliado.nombre_completo }}</p>
+    <p>Contratos Asociados: {{ afiliado.contrato_set.count }}</p>
+    <p>Reclamaciones Realizadas: {{ afiliado.reclamacion_set.count }}</p>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,111 @@
+{% extends "home.html" %}
+{% load static humanize %}
+
+{% block content %}
+<div class="container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading">🗑️ Eliminar Reclamación #{{ object.id }}</h1>
+
+    <div class="alert-warning" role="alert" aria-labelledby="warning-heading">
+      <h2 id="warning-heading" class="danger">⚠️ Atención Crítica</h2>
+      <p>Estás a punto de eliminar permanentemente esta reclamación y todos sus datos asociados.</p>
+    </div>
+
+    <!-- Resumen de Datos -->
+    <div class="dark-group" data-section="resumen">
+      <h2 class="dark-label">📋 Resumen del Registro</h2>
+      
+      <div class="grid-2-col">
+        <div class="dark-group">
+          <span class="dark-label">📌 Tipo:</span>
+          <div class="badge {% if object.tipo_reclamacion == 'MEDICA' %}badge-warning{% else %}badge-success{% endif %}">
+            {{ object.get_tipo_reclamacion_display }}
+          </div>
+        </div>
+        
+        <div class="dark-group">
+          <span class="dark-label">🔄 Estado:</span>
+          <div class="badge {% if object.estado == 'CERRADA' %}badge-success{% else %}badge-warning{% endif %}">
+            {{ object.get_estado_display }}
+          </div>
+        </div>
+
+        <div class="dark-group full-width">
+          <span class="dark-label">📄 Descripción:</span>
+          <div>{{ object.descripcion_reclamo|truncatewords:15|escape }}</div>
+        </div>
+
+        <div class="dark-group">
+          <span class="dark-label">ℹ️ Diagnóstico:</span>
+          <span>{{ reclamacion.diagnostico_principal|escape|default:"-" }}</span>
+        </div>
+        
+        <div class="dark-group">
+          <span class="dark-label">📎 Documentos:</span>
+          <div>
+            {% if object.documentos_adjuntos %}
+              {{ object.documentos_adjuntos.name|truncatechars:20 }}
+            {% else %}
+              Sin archivos
+            {% endif %}
+          </div>
+        </div>
+        
+        <div class="dark-group">
+
+        <div class="dark-group">
+          <span class="dark-label">📅 Fecha:</span>
+          <div>{{ object.fecha_reclamo|date:"d/m/Y" }}</div>
+        </div>
+
+        <div class="dark-group">
+          <span class="dark-label">💰 Monto:</span>
+          <div>{{ object.monto_reclamado|floatformat:2|intcomma }} USD</div>
+        </div>
+
+        <div class="dark-group full-width">
+          <span class="dark-label">📄 Contratos Vinculados:</span>
+          <div>
+            {% if object.contrato_individual %}
+              Individual: {{ object.contrato_individual|truncatechars:30 }}
+            {% endif %}
+            {% if object.contrato_colectivo %}
+              | Colectivo: {{ object.contrato_colectivo|truncatechars:30 }}
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="dark-group full-width">
+          <span class="dark-label">👤 Asignado a:</span>
+          <div>
+            {% if object.usuario_asignado %}
+              {{ object.usuario_asignado.get_full_name|default:object.usuario_asignado.username }}
+            {% else %}
+              <em>Sin asignación</em>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirmación Definitiva -->
+    <form method="post" class="compact-form" aria-label="Formulario de confirmación de eliminación">
+      {% csrf_token %}
+      
+      <div class="dark-group">
+        <p class="danger">🔒 Esta acción no se puede deshacer. Verifica cuidadosamente los datos antes de confirmar.</p>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-warning" aria-label="Confirmar eliminación permanente">
+          🗑️ Eliminar Permanentemente
+        </button>
+        <a href="{% url 'myapp:reclamacion_detail' object.pk %}" class="nav_link" aria-label="Cancelar y volver al detalle">
+          🚫 Cancelar
+        </a>
+      </div>
+    </form>
+  </section>
+</div>
+
+{% endblock %}

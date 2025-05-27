@@ -1,0 +1,21 @@
+<div class="pagination">
+  <span class="step-links">
+      {% if page_obj.has_previous %}
+          <a href="?page=1{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.sort %}&sort={{ request.GET.sort }}{% endif %}{% if request.GET.direction %}&direction={{ request.GET.direction }}{% endif %}" 
+             class="btn btn-pagination">⏮️ Primera</a>
+          <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.sort %}&sort={{ request.GET.sort }}{% endif %}{% if request.GET.direction %}&direction={{ request.GET.direction }}{% endif %}" 
+             class="btn btn-pagination">◀️ Anterior</a>
+      {% endif %}
+
+      <span class="current">
+          Página 📄 {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+      </span>
+
+      {% if page_obj.has_next %}
+          <a href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.sort %}&sort={{ request.GET.sort }}{% endif %}{% if request.GET.direction %}&direction={{ request.GET.direction }}{% endif %}" 
+             class="btn btn-pagination">Siguiente ▶️</a>
+          <a href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.sort %}&sort={{ request.GET.sort }}{% endif %}{% if request.GET.direction %}&direction={{ request.GET.direction }}{% endif %}" 
+             class="btn btn-pagination">Última ⏭️</a>
+      {% endif %}
+  </span>
+</div>

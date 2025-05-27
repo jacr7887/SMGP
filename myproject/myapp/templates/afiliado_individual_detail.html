@@ -1,0 +1,186 @@
+{% extends "home.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block content %}
+<div class="container" role="main" aria-labelledby="main-heading">
+  <section>
+    {# --- Título Principal --- #}
+    <h1 id="main-heading">👤 Detalle del Afiliado Individual: {{ afiliado.nombre_completo|escape|default:"ID" }} {{ afiliado.pk }}</h1>
+
+    {# --- Contenedor Centrado para Botones de Acción --- #}
+    <div class="detail-actions-container mb-4"> {# Contenedor para centrar botones #}
+      {% if perms.myapp.change_afiliadoindividual %}
+        {# Botón Editar con clase btn-success (o usa btn-warning si prefieres) #}
+        <a href="{% url 'myapp:afiliado_individual_update' afiliado.pk %}" class="btn btn-success" aria-label="Editar este afiliado">
+          ✏️ Editar
+        </a>
+      {% endif %}
+      {% if perms.myapp.delete_afiliadoindividual %}
+         {# Botón Eliminar con clase btn-danger #}
+        <a href="{% url 'myapp:afiliado_individual_delete' afiliado.pk %}" class="btn btn-danger delete-link" aria-label="Eliminar este afiliado">
+          ❌ Eliminar
+        </a>
+      {% endif %}
+      {# Botón Volver - Usamos nav_link como en la versión anterior #}
+      <a href="{% url 'myapp:afiliado_individual_list' %}" class="nav_link" aria-label="Volver al listado de afiliados">
+        ⬅️ Volver al Listado
+      </a>
+    </div>
+
+    {# --- Detalles del Afiliado Agrupados en Secciones --- #}
+    <div class="form-main-container"> {# Contenedor principal para los detalles #}
+
+      {# --- Información de Identificación y Personal --- #}
+      <fieldset class="mb-4">
+        <legend>ℹ️ Identificación y Datos Personales</legend>
+        <div class="dark-grid">
+            <div class="dark-group">
+                {# Icono añadido #}
+                <span class="dark-label">👤 Primer Nombre:</span>
+                <span>{{ afiliado.primer_nombre|escape }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">👤 Segundo Nombre:</span>
+                <span>{{ afiliado.segundo_nombre|escape|default:"-" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">👤 Primer Apellido:</span>
+                <span>{{ afiliado.primer_apellido|escape }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">👤 Segundo Apellido:</span>
+                <span>{{ afiliado.segundo_apellido|escape|default:"-" }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">🗣️ Nombre Completo:</span> {# Icono diferente #}
+                <span>{{ afiliado.nombre_completo|escape }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">🔖 Tipo Identificación:</span>
+                <span>{{ afiliado.get_tipo_identificacion_display|escape }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🆔 Cédula/Identificación:</span>
+                <span>{{ afiliado.cedula|escape }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">📅 Fecha Nacimiento:</span>
+                <span>{{ afiliado.fecha_nacimiento|date:"d/m/Y" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🎂 Edad:</span>
+                <span>{{ afiliado.edad|default:"N/A" }} años</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">💍 Estado Civil:</span>
+                <span>{{ afiliado.get_estado_civil_display|escape }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">⚧️ Sexo:</span>
+                <span>{{ afiliado.get_sexo_display|escape }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">👪 Parentesco:</span>
+                <span>{{ afiliado.get_parentesco_display|escape }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🌍 Nacionalidad:</span>
+                <span>{{ afiliado.nacionalidad|escape|default:"-" }}</span>
+            </div>
+        </div>
+      </fieldset>
+
+      {# --- Información de Contacto y Ubicación --- #}
+      <fieldset class="mb-4">
+        <legend>📞 Contacto y Ubicación</legend>
+         <div class="dark-grid">
+            <div class="dark-group">
+                <span class="dark-label">📞 Teléfono Habitación:</span>
+                <span>{{ afiliado.telefono_habitacion|escape|default:"-" }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">🏢 Teléfono Oficina:</span>
+                <span>{{ afiliado.telefono_oficina|escape|default:"-" }}</span>
+            </div>
+             <div class="dark-group" style="grid-column: span 2;">
+                <span class="dark-label">🏠 Dirección Habitación:</span>
+                <p style="margin:0;">{{ afiliado.direccion_habitacion|escape|linebreaksbr|default:"-" }}</p>
+            </div>
+             <div class="dark-group" style="grid-column: span 2;">
+                <span class="dark-label">📍 Dirección Oficina:</span>
+                 <p style="margin:0;">{{ afiliado.direccion_oficina|escape|linebreaksbr|default:"-" }}</p>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🗺️ Estado:</span>
+                <span>{{ afiliado.get_estado_display|escape|default:"-" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🏘️ Municipio:</span>
+                <span>{{ afiliado.municipio|escape|default:"-" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🏙️ Ciudad:</span>
+                <span>{{ afiliado.ciudad|escape|default:"-" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">📮 Zona Postal:</span>
+                <span>{{ afiliado.zona_postal|escape|default:"-" }}</span>
+            </div>
+        </div>
+      </fieldset>
+
+      {# --- Información Administrativa y de Sistema --- #}
+      <fieldset>
+        <legend>⚙️ Datos Administrativos</legend>
+        <div class="dark-grid">
+            <div class="dark-group">
+                <span class="dark-label">🗓️ Fecha Ingreso:</span>
+                <span>{{ afiliado.fecha_ingreso|date:"d/m/Y"|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🤝 Intermediario Asociado:</span>
+                <span>
+                    {% if afiliado.intermediario %} {# Comprobar si el atributo existe y no es None #}
+                        {% if perms.myapp.view_intermediario %}
+                            <a href="{% url 'myapp:intermediario_detail' afiliado.intermediario.pk %}">{{ afiliado.intermediario.nombre_completo|escape }}</a>
+                        {% else %}
+                            {{ afiliado.intermediario.nombre_completo|escape }}
+                        {% endif %}
+                    {% else %}
+                        No hay intermediario asociado.
+                    {% endif %}
+                </span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🔑 Código Validación:</span>
+                <span>{{ afiliado.codigo_validacion|escape|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">💡 Estado Activo:</span>
+                <span class="badge {% if afiliado.activo %}badge-success{% else %}badge-danger{% endif %}">
+                    {{ afiliado.activo|yesno:"Activo,Inactivo" }}
+                </span>
+                {% if help_text_activo %}
+                    <small class="form-text text-muted" style="display:block; margin-top: 5px;">{{ help_text_activo|escape }}</small>
+                {% endif %}
+            </div>
+             <div class="dark-group">
+               <span class="dark-label">➕ Fecha Creación:</span> {# Icono añadido #}
+               <span>{{ afiliado.fecha_creacion|date:"d/m/Y H:i:s" }}</span>
+             </div>
+             <div class="dark-group">
+               <span class="dark-label">🔄 Última Modificación:</span> {# Icono añadido #}
+               <span>{{ afiliado.fecha_modificacion|date:"d/m/Y H:i:s" }}</span>
+             </div>
+        </div>
+      </fieldset>
+
+    </div> {# Fin de form-main-container #}
+
+    {# --- Sección Opcional para Relaciones --- #}
+    {# ... (Puedes añadir las tablas de contratos/reclamaciones aquí si quieres) ... #}
+
+  </section>
+</div>
+{% endblock content %}

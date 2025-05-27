@@ -1,0 +1,76 @@
+{% extends "home.html" %}
+{% load static %}
+{% load humanize %} {# Añadido para posible uso futuro #}
+
+{% block content %}
+<div class="dark-container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading" class="dark-title">⚠️ Eliminar Intermediario: {{ object.codigo }}</h1>
+
+     {# Botones de Volver #}
+    <div class="header-actions">
+        <a href="{% url 'myapp:intermediario_detail' object.pk %}" class="nav_link" aria-label="Cancelar y volver al detalle del intermediario">
+            ⬅️ Cancelar y Volver al Detalle
+        </a>
+         <a href="{% url 'myapp:intermediario_list' %}" class="nav_link" aria-label="Volver al listado de intermediarios">
+            ⬅️ Volver al Listado
+        </a>
+    </div>
+
+    <div class="delete-confirmation mt-3" data-section="confirmacion-eliminacion"> {# Añadido margen #}
+      <h2 class="dark-label">⚠️ Confirmación de Eliminación</h2> {# Usar clase dark-label si es consistente #}
+      <p>Estás a punto de eliminar permanentemente el siguiente intermediario. Verifica los datos:</p>
+
+      {# --- Resumen Completo --- #}
+      <div class="detail-summary"> {# Contenedor para el resumen #}
+
+          <div class="detail-section">
+              <h3 class="section-title visually-hidden">Datos Principales</h3>
+              <div class="dark-group"><span class="dark-label">🔢 ID:</span> <span class="data-value">{{ object.pk }}</span></div>
+              <div class="dark-group"><span class="dark-label">🔑 Código:</span> <span class="data-value">{{ object.codigo|escape }}</span></div>
+              <div class="dark-group"><span class="dark-label">👤 Nombre Completo:</span> <span class="data-value">{{ object.nombre_completo|escape }}</span></div>
+              <div class="dark-group"><span class="dark-label">🆔 RIF:</span> <span class="data-value">{{ object.rif|escape|default:"-" }}</span></div>
+              <div class="dark-group"><span class="dark-label">💲 % Comisión:</span> <span class="data-value">{{ object.porcentaje_comision|floatformat:2 }}%</span></div>
+               <div class="dark-group"><span class="dark-label">💡 Activo:</span> <span class="badge {% if object.activo %}badge-success{% else %}badge-danger{% endif %}">{{ object.activo|yesno:"Sí,No" }}</span></div>
+          </div>
+
+          <div class="detail-section">
+               <h3 class="section-title visually-hidden">Contacto y Dirección</h3>
+               <div class="dark-group"><span class="dark-label">📧 Email:</span> <span class="data-value">{{ object.email_contacto|escape|default:"-" }}</span></div>
+               <div class="dark-group"><span class="dark-label">📞 Teléfono:</span> <span class="data-value">{{ object.telefono_contacto|escape|default:"-" }}</span></div>
+               <div class="dark-group" style="grid-column: span 2;"><span class="dark-label">📍 Dirección Fiscal:</span> <span class="data-value">{{ object.direccion_fiscal|escape|truncatechars:50|default:"-" }}</span></div>
+          </div>
+
+           <div class="detail-section">
+               <h3 class="section-title visually-hidden">Relaciones</h3>
+               <div class="dark-group"><span class="dark-label">🔗 Interm. Relacionado:</span> <span class="data-value">{{ object.intermediario_relacionado.nombre_completo|escape|default:"-" }}</span></div>
+               <div class="dark-group"><span class="dark-label">👥 Usuarios Gestores:</span> <span class="data-value">{{ object.usuarios.count }}</span></div>
+          </div>
+
+          <div class="detail-section">
+              <h3 class="section-title visually-hidden">Datos Base (Heredados)</h3>
+              <div class="dark-group"><span class="dark-label">➕ F. Creación:</span> <span class="data-value">{{ object.fecha_creacion|date:"d/m/Y H:i" }}</span></div>
+              <div class="dark-group"><span class="dark-label">🔄 F. Modificación:</span> <span class="data-value">{{ object.fecha_modificacion|date:"d/m/Y H:i" }}</span></div>
+          </div>
+
+      </div> {# --- Fin Resumen --- #}
+
+      <div class="alert-warning mt-4" role="alert"> {# Clase y margen #}
+        <p><strong>¡Atención!</strong> Esta acción no se puede deshacer.</p>
+        <p>¿Estás completamente seguro de que deseas continuar?</p>
+      </div>
+
+      <form method="post">
+        {% csrf_token %}
+        <div class="form-actions"> {# Clase requerida #}
+          <button type="submit" class="btn-warning">❌ Sí, eliminar permanentemente</button>
+          <a href="{% url 'myapp:intermediario_detail' object.pk %}" class="btn-success">🚫 No, cancelar</a>
+        </div>
+      </form>
+    </div> {# --- Fin delete-confirmation --- #}
+  </section>
+</div>
+
+<link rel="stylesheet" href="{% static 'styles.css' %}">
+<script src="{% static 'scripts.js' %}"></script>
+{% endblock %}

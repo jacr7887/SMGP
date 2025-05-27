@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}🧙 SMGP ✨{% endblock %}</title>
+    {% load i18n %}
+    {% load static %}
+    {% load humanize %}
+    {# {% load querystring_tags %} #}
+
+    <link rel="stylesheet" href="{% static 'styles.css' %}" />
+    <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
+    <script src="{% static 'plotly.js' %}"></script>
+
+    <link rel="icon" type="image/png" sizes="64x64" href="{% static 'favicon-64x64.png' %}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'favicon-32x32.png' %}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'favicon-16x16.png' %}">
+    <link rel="shortcut icon" href="{% static 'favicon.ico' %}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'apple-touch-icon.png' %}">
+
+    {% if form.media.css %}{{ form.media.css }}{% endif %}
+    
+    <style>
+      body{margin:0;padding:0;background-color:#0f1224;color:#ffffff;font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;}
+      .loading{position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(15,18,36,0.8);display:flex;justify-content:center;align-items:center;z-index:9999;}
+      .spinner{width:50px;height:50px;border:5px solid rgba(255,255,255,0.3);border-radius:50%;border-top-color:#ffffff;animation:spin 1s ease-in-out infinite;}
+      @keyframes spin{to{transform:rotate(360deg);}}
+      .user_menu_item_button { display: flex; align-items: center; background: none; border: none; color: inherit; cursor: pointer; font-family: inherit; font-size: inherit; line-height: inherit; padding: 8px 15px; text-align: left; width: 100%; }
+      .user_menu_item_button:hover { background-color: rgba(255, 255, 255, 0.1); }
+      .user_menu_item_button .item_icon { margin-right: 10px; }
+      .nav_icon { margin-right: 10px; display: inline-block; width: 1.5em; text-align: center; }
+      .nav_link-sidebar { display: flex; align-items: center; }
+      img.emoji { height: 1.1em; width: 1.1em; margin: 0 .07em 0 .1em; vertical-align: -0.15em; display: inline-block; }
+
+      /* Estilos para el menú de notificaciones */
+      .notification_item {
+        position: relative; /* Para posicionar el botón de cierre */
+        padding-right: 30px; /* Espacio para el botón de cierre */
+        /* Asegúrate de que los estilos de .notification_item no se rompan */
+      }
+      .notification_item a.notification_link_content {
+        display: flex; /* Para alinear icono y texto */
+        align-items: flex-start;
+        text-decoration: none;
+        color: inherit; /* Heredar color del texto del dropdown */
+        padding: 8px 10px; /* Ajusta el padding del enlace */
+      }
+      .notification_item a.notification_link_content:hover {
+        background-color: rgba(255,255,255,0.05); /* Un hover sutil para el contenido */
+      }
+      .notification_icon { /* El del HTML ya tiene estilos, pero para asegurar */
+        margin-right: 8px; 
+        flex-shrink: 0;
+      }
+      .notification_content {
+        flex-grow: 1;
+      }
+      .notification_text { margin: 0 0 3px 0; font-size: 0.9em; word-break: break-word; }
+      .notification_time { margin: 0; font-size: 0.75em; color: #888; }
+      .notification_item.unread .notification_text { font-weight: bold; }
+      .notification_item .mark-notification-as-read-btn {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        background: none;
+        border: none;
+        color: #999; /* Color del botón X */
+        font-size: 1.1rem; /* Tamaño del botón X */
+        line-height: 1;
+        padding: 2px 5px;
+        cursor: pointer;
+        z-index: 2; /* Para estar encima del contenido del enlace */
+      }
+      .notification_item .mark-notification-as-read-btn:hover {
+        color: #fff; /* Color al pasar el mouse */
+      }
+      .notification_footer {
+        text-align: center; padding: 8px 0; border-top: 1px solid #444; margin-top: 5px;
+      }
+      .notification_footer a {
+        font-size: 0.8em; color: #aaa; text-decoration: none;
+      }
+      .notification_footer a:hover {
+        color: #fff; text-decoration: underline;
+      }
+      .notification_empty { text-align: center; padding: 10px; color: #888; font-style: italic; }
+    </style>
+    {% block extra_css %}{% endblock %}
+    {% block extra_head %}{% endblock %}
+  </head>
+  <body>
+    <div class="loading" id="loadingIndicator" style="display: none">
+      <div class="spinner"></div>
+    </div>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="sidebar_header">
+          <div class="sidebar-brand-container" style="display: flex; align-items: center; gap: 0.6rem;">
+            <img src="{% static 'favicon-96x96.png' %}" alt="SMGP Logo" class="sidebar-brand-logo" style="height: 48px; width: auto; vertical-align: middle;">
+            <h2 style="margin: 0; font-size: 1.2rem;">SMGP ✨</h2>
+          </div>
+          <button class="sidebar_toggle" id="sidebarToggle" aria-label="Alternar menú">☰</button>
+        </div>
+        <div class="sidebar_content">
+          <ul class="nav_menu">
+            <li class="nav_item {% if active_tab == 'dashboard' or request.resolver_match.url_name == 'home' %}active{% endif %}">
+                <a href="{% url 'myapp:home' %}" class="nav_link-sidebar"><span class="nav_icon">🏠</span><span class="nav_text">Inicio</span></a>
+            </li>
+            {% if user.is_authenticated %}
+                <li class="nav_item {% if active_tab == 'reportes' %}active{% endif %}">
+                    <a href="{% url 'myapp:reporte_general' %}" class="nav_link-sidebar">
+                        <span class="nav_icon">📊</span><span class="nav_text">Reporte General</span>
+                    </a>
+                </li>
+            {% endif %}
+            {% if perms.myapp.view_usuario %}
+               <li class="nav_item {% if active_tab == 'usuarios' %}active{% endif %}">
+                   <a href="{% url 'myapp:usuario_list' %}" class="nav_link-sidebar">
+                       <span class="nav_icon">👤</span><span class="nav_text">Usuarios</span>
+                   </a>
+               </li>
+            {% endif %}
+            {% if perms.myapp.view_intermediario %}
+                <li class="nav_item {% if active_tab == 'intermediarios' %}active{% endif %}">
+                    <a href="{% url 'myapp:intermediario_list' %}" class="nav_link-sidebar"><span class="nav_icon">🤝</span><span class="nav_text">Intermediarios</span></a>
+                </li>
+            {% endif %}
+            {% if perms.myapp.view_registrocomision %}
+                <li class="nav_item {% if active_tab == 'comisiones' or active_tab == 'liquidacion_comisiones' %}open active{% endif %}">
+                    <a href="#" class="nav_link-sidebar submenu_toggle">
+                        <span class="nav_icon">💸</span><span class="nav_text">Comisiones</span><span class="nav_arrow">▼</span>
+                    </a>
+                    <ul class="submenu">
+                        <li><a href="{% url 'myapp:registro_comision_list' %}" class="submenu_link {% if active_tab == 'comisiones' %}active{% endif %}">Registros de Comisión</a></li>
+                        <li><a href="{% url 'myapp:liquidacion_comisiones' %}" class="submenu_link {% if active_tab == 'liquidacion_comisiones' %}active{% endif %}">Liquidación Pendientes</a></li>
+                        <li><a href="{% url 'myapp:historial_liquidaciones_list' %}" class="submenu_link {% if active_tab == 'historial_liquidaciones' %}active{% endif %}">Historial de Liquidaciones</a></li>
+
+                    </ul>
+                </li>
+            {% endif %}
+            {% if perms.myapp.view_tarifa %}
+                <li class="nav_item {% if active_tab == 'tarifas' %}active{% endif %}">
+                    <a href="{% url 'myapp:tarifa_list' %}" class="nav_link-sidebar"><span class="nav_icon">🏷️</span><span class="nav_text">Tarifas</span></a>
+                </li>
+            {% endif %}
+            {% if perms.myapp.view_afiliadoindividual or perms.myapp.view_afiliadocolectivo %}
+            <li class="nav_item {% if active_tab == 'afiliados_individuales' or active_tab == 'afiliados_colectivos' %}open active{% endif %}">
+              <a href="#" class="nav_link-sidebar submenu_toggle"><span class="nav_icon">👥</span><span class="nav_text">Afiliados</span><span class="nav_arrow">▼</span></a>
+              <ul class="submenu">
+                {% if perms.myapp.view_afiliadoindividual %}<li><a href="{% url 'myapp:afiliado_individual_list' %}" class="submenu_link {% if active_tab == 'afiliados_individuales' %}active{% endif %}">Individuales</a></li>{% endif %}
+                {% if perms.myapp.view_afiliadocolectivo %}<li><a href="{% url 'myapp:afiliado_colectivo_list' %}" class="submenu_link {% if active_tab == 'afiliados_colectivos' %}active{% endif %}">Colectivos</a></li>{% endif %}
+              </ul>
+            </li>
+            {% endif %}
+            {% if perms.myapp.view_contratoindividual or perms.myapp.view_contratocolectivo %}
+            <li class="nav_item {% if active_tab == 'contratos_individuales' or active_tab == 'contratos_colectivos' %}open active{% endif %}">
+              <a href="#" class="nav_link-sidebar submenu_toggle"><span class="nav_icon">📝</span><span class="nav_text">Contratos</span><span class="nav_arrow">▼</span></a>
+              <ul class="submenu">
+                {% if perms.myapp.view_contratoindividual %}<li><a href="{% url 'myapp:contrato_individual_list' %}" class="submenu_link {% if active_tab == 'contratos_individuales' %}active{% endif %}">Individuales</a></li>{% endif %}
+                {% if perms.myapp.view_contratocolectivo %}<li><a href="{% url 'myapp:contrato_colectivo_list' %}" class="submenu_link {% if active_tab == 'contratos_colectivos' %}active{% endif %}">Colectivos</a></li>{% endif %}
+              </ul>
+            </li>
+            {% endif %}
+            {% if perms.myapp.view_factura %}
+                <li class="nav_item {% if active_tab == 'facturas' %}active{% endif %}">
+                    <a href="{% url 'myapp:factura_list' %}" class="nav_link-sidebar"><span class="nav_icon">🧾</span><span class="nav_text">Facturas</span></a>
+                </li>
+            {% endif %}
+            {% if perms.myapp.view_reclamacion %}
+                <li class="nav_item {% if active_tab == 'reclamaciones' %}active{% endif %}">
+                    <a href="{% url 'myapp:reclamacion_list' %}" class="nav_link-sidebar"><span class="nav_icon">🆘</span><span class="nav_text">Reclamaciones</span></a>
+                </li>
+            {% endif %}
+            {% if perms.myapp.view_pago %}
+                <li class="nav_item {% if active_tab == 'pagos' %}active{% endif %}">
+                    <a href="{% url 'myapp:pago_list' %}" class="nav_link-sidebar"><span class="nav_icon">💰</span><span class="nav_text">Pagos</span></a>
+                </li>
+            {% endif %}
+            {% if user.is_staff %}
+            <li class="nav_item {% if active_tab == 'auditorias' or active_tab == 'licencia' %}open active{% endif %}">
+                <a href="#" class="nav_link-sidebar submenu_toggle"><span class="nav_icon">🔒</span><span class="nav_text">Admin</span><span class="nav_arrow">▼</span></a>
+                <ul class="submenu">
+                     {% if perms.myapp.view_auditoriasistema %}<li><a href="{% url 'myapp:auditoria_sistema_list' %}" class="submenu_link {% if active_tab == 'auditorias' %}active{% endif %}">🗃️ Auditoría</a></li>{% endif %}
+                     {% if perms.myapp.change_licenseinfo %}<li><a href="{% url 'myapp:activate_license' %}" class="submenu_link {% if active_tab == 'licencia' %}active{% endif %}">🔑 Licencia</a></li>{% endif %}
+                </ul>
+            </li>
+            {% endif %}
+             <li class="nav_item">
+                <form id="logout-form-sidebar" method="post" action="{% url 'myapp:logout' %}" style="display: none;">
+                    {% csrf_token %}
+                </form>
+                <a href="#" onclick="event.preventDefault(); document.getElementById('logout-form-sidebar').submit();" class="nav_link-sidebar">
+                    <span class="nav_icon">🚪</span>
+                    <span class="nav_text">Cerrar Sesión</span>
+                </a>
+            </li>
+          </ul>
+        </div>
+      </aside>
+
+      <div class="main_content">
+        <header class="topbar">
+            <div class="topbar_left">
+              <button class="sidebar_toggle mobile_only" id="mobileSidebarToggle" aria-label="Alternar menú móvil">☰</button>
+              <div class="breadcrumbs"><span class="breadcrumb_item">Home</span>{% block breadcrumbs %}{% endblock %}</div>
+            </div>
+            <div class="topbar_right">
+              <div class="notification_menu"> {# El contenedor principal del menú de notificaciones #}
+                  <button class="notification_toggle" aria-label="Ver notificaciones" aria-expanded="false">
+                      <span class="notification_icon">🔔</span>
+                      <span class="notification_badge" {% if notifications_count <= 0 %}style="display: none;"{% endif %}>
+                          {{ notifications_count|default:"0" }}
+                      </span>
+                  </button>
+                  <div class="notification_dropdown" aria-labelledby="notificationToggleBtn"> {# El dropdown en sí #}
+                      <div class="notification_header">
+                          <h3>Notificaciones</h3>
+                      </div>
+                      <div class="notification_list"> {# El contenedor de los items individuales #}
+                          {% for notification in notifications %}
+                          <div class="notification_item {% if not notification.leida %}unread{% endif %}"
+                               id="notification-item-{{ notification.pk }}"
+                               style="position: relative; padding: 0;"> {# Ajuste de padding para que el <a> ocupe todo #}
+                              
+                              <a href="{{ notification.url_destino|default:'#' }}" 
+                                 class="notification_link_content" 
+                                 data-notification-id="{{ notification.pk }}" {# El ID para la acción de clic en el contenido #}
+                                 style="display: flex; align-items: flex-start; text-decoration: none; color: inherit; padding: 8px 30px 8px 10px;"> {# Padding derecho para el botón X #}
+                                  <div class="notification_icon" style="margin-right: 8px; flex-shrink: 0;">
+                                      {% if notification.tipo == 'warning' %}⚠️
+                                      {% elif notification.tipo == 'success' %}✅
+                                      {% elif notification.tipo == 'error' %}❌
+                                      {% elif notification.tipo == 'system' %}⚙️
+                                      {% else %}ℹ️
+                                      {% endif %}
+                                  </div>
+                                  <div class="notification_content" style="flex-grow: 1;">
+                                      <p class="notification_text" style="margin: 0 0 3px 0; font-size: 0.9em; word-break: break-word;">{{ notification.mensaje|escape|truncatewords_html:10 }}</p>
+                                      <p class="notification_time" style="margin: 0; font-size: 0.75em; color: #888;">{{ notification.fecha_creacion|timesince }} atrás</p>
+                                  </div>
+                              </a>
+                              <button type="button" class="mark-notification-as-read-btn" 
+                                      aria-label="Marcar como leída" 
+                                      data-notification-id="{{ notification.pk }}"
+                                      style="position: absolute; top: 2px; right: 2px; background: none; border: none; color: #aaa; font-size: 1.2rem; line-height: 1; cursor: pointer; padding: 0.1rem 0.3rem; z-index: 2;">
+                                  ×
+                              </button>
+                          </div>
+                          {% empty %}
+                               <div class="notification_empty">No hay notificaciones nuevas</div>
+                          {% endfor %}
+                           {# Este 'notification_empty' podría ser redundante si el de arriba funciona bien #}
+                           {# <div class="notification_empty" style="display: none;">No hay notificaciones nuevas</div> #}
+                           {% if notifications_count > 0 %} {# Mostrar solo si hay notificaciones en total #}
+                           <div class="notification_footer">
+                               <a href="#" id="mark-all-notifications-read">Marcar todas como leídas</a>
+                           </div>
+                           {% endif %}
+                      </div>
+                  </div>
+              </div>
+              <div class="user_menu">
+                  <button class="user_menu_toggle" aria-label="Menú de usuario">
+                      <span class="user_avatar">👤</span>
+                      <span class="user_name">{{ request.user.get_full_name|default:request.user.username }}</span>
+                  </button>
+                  <div class="user_menu_dropdown">
+                      <a href="{% url 'myapp:usuario_detail' request.user.pk %}" class="user_menu_item">
+                          <span class="item_icon">👤</span><span class="item_text">Mi Perfil</span>
+                      </a>
+                      <a href="{% url 'myapp:usuario_update' request.user.pk %}" class="user_menu_item">
+                          <span class="item_icon">⚙️</span><span class="item_text">Configuración</span>
+                      </a>
+                      <div class="divider"></div>
+                      <form action="{% url 'myapp:logout' %}" method="post" style="margin: 0;">
+                          {% csrf_token %}
+                          <button type="submit" class="user_menu_item_button">
+                              <span class="item_icon">🚪</span><span class="item_text">Cerrar Sesión</span>
+                          </button>
+                      </form>
+                  </div>
+              </div>
+            </div>
+        </header>
+
+        <main class="page_content" role="main">
+          {% if messages %}
+             <div class="messages_container" aria-live="polite">
+               {% for message in messages %}
+               <div class="alert alert-{{ message.tags|default:'info' }} fade show" role="alert">
+                    {% if message.tags == 'success' %}<i class="fas fa-check-circle me-2"></i>
+                    {% elif message.tags == 'warning' %}<i class="fas fa-exclamation-triangle me-2"></i>
+                    {% elif message.tags == 'error' or message.tags == 'danger' %}<i class="fas fa-times-circle me-2"></i>
+                    {% elif message.tags == 'info' %}<i class="fas fa-info-circle me-2"></i>
+                    {% endif %}
+                    <span>{{ message }}</span>
+               </div>
+               {% endfor %}
+             </div>
+          {% endif %}
+          {% block content %}{% endblock %}
+        </main>
+
+        <footer class="footer">
+          <img src="{% static 'favicon-96x96.png' %}" alt="SMGP Logo" class="footer-brand-logo" style="height: 96px; width: auto;">
+          <p style="margin: 0;">© {% now "Y" %} Sistema Mágico de Gestión de Pólizas 🧙‍♀️✨</p>
+        </footer>
+      </div>
+    </div>
+
+    {# Scripts generales que ya tenías #}
+    <script>
+      function showLoading(){ const l=document.getElementById("loadingIndicator"); if(l)l.style.display="flex"; }
+      function hideLoading(){ const l=document.getElementById("loadingIndicator"); if(l)l.style.display="none"; }
+      document.addEventListener("DOMContentLoaded", function() {
+        document.querySelectorAll(".close_alert").forEach(function(a) { a.addEventListener("click", function() { this.closest('.alert').style.opacity = "0"; setTimeout(() => { this.closest('.alert').style.display = "none" }, 300); }); });
+        setTimeout(function() { document.querySelectorAll(".alert").forEach(function(a) { if (window.getComputedStyle(a).display !== 'none') { a.style.opacity = "0"; setTimeout(() => { a.style.display = "none" }, 300); } }); }, 5000);
+        document.querySelectorAll(".submenu_toggle").forEach(function(a) {
+            if (!a.classList.contains('export-trigger')) {
+                a.addEventListener("click", function(b) {
+                    b.preventDefault();
+                    const parentLi = this.parentElement;
+                    const alreadyOpen = parentLi.classList.contains("open");
+                    document.querySelectorAll(".nav_item.open").forEach(other_item => {
+                        if (other_item !== parentLi) other_item.classList.remove("open");
+                    });
+                    if (!alreadyOpen) {
+                        parentLi.classList.add("open");
+                    } else {
+                         parentLi.classList.remove("open");
+                    }
+                });
+            }
+        });
+        document.querySelectorAll(".user_menu_toggle, .notification_toggle").forEach(function(a) { a.addEventListener("click", function() { const parentMenu = this.parentElement; parentMenu.classList.toggle("open"); const otherMenuSelector = parentMenu.classList.contains('user_menu') ? '.notification_menu.open' : '.user_menu.open'; document.querySelector(otherMenuSelector)?.classList.remove('open'); }); });
+        document.addEventListener("click", function(a) { if (!a.target.closest(".user_menu") && !a.target.closest(".notification_menu")) { document.querySelectorAll(".user_menu.open, .notification_menu.open").forEach(function(b) { b.classList.remove("open"); }); } });
+        document.getElementById("sidebarToggle")?.addEventListener("click", function(){ document.querySelector(".layout")?.classList.toggle("sidebar_collapsed"); });
+        document.getElementById("mobileSidebarToggle")?.addEventListener("click", function(){ document.querySelector(".layout")?.classList.toggle("sidebar_mobile_open"); });
+        document.querySelectorAll("form:not([data-no-loading])").forEach(function(a) {
+            if (!a.closest('.search-container')) {
+                a.addEventListener("submit", function(){ showLoading(); });
+            }
+        });
+      });
+    </script>
+
+    <script src="{% static 'jquery-3.7.1.min.js' %}"></script>
+    {% if form.media.js %}{{ form.media.js }}{% endif %}
+    
+    {# URL para el script de notificaciones #}
+    <script id="mark-notification-read-url" data-url="{% url 'myapp:mark_notification_read' %}" type="application/json"></script>
+    
+    {# Tu archivo de scripts generales #}
+    <script src="{% static 'scripts.js' %}"></script>
+
+    {# Script para Twemoji #}
+    <script>
+      window.addEventListener('load', () => {
+        try {
+            if (typeof twemoji !== 'undefined') {
+                 twemoji.parse(document.body, {
+                    folder: 'svg',
+                    ext: '.svg',
+                    base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/'
+                 });
+            } else {
+                 console.error("Error: Objeto twemoji no encontrado.");
+            }
+        } catch (e) {
+             console.error("Error ejecutando twemoji.parse(): ", e);
+        }
+      });
+    </script>
+
+    {# Bloque para JavaScript específico de cada página que herede de base.html #}
+    {% block extra_js %}
+    {# Aquí es donde iría el script de notificaciones si no está en scripts.js #}
+    <script>
+    // JavaScript para la interactividad de las notificaciones
+    document.addEventListener('DOMContentLoaded', function() {
+        const notificationDropdownContainer = document.querySelector('.notification_menu'); // Contenedor del dropdown
+        const notificationBadge = document.querySelector('.notification_badge');
+        const markAllReadLink = document.getElementById('mark-all-notifications-read');
+        
+        const markNotificationReadScriptTag = document.getElementById('mark-notification-read-url');
+        const markNotificationReadUrl = markNotificationReadScriptTag ? markNotificationReadScriptTag.dataset.url : null;
+
+        if (!markNotificationReadUrl) {
+            console.warn("Notificaciones: URL para marcar como leídas no encontrada (mark-notification-read-url). La interactividad estará limitada.");
+            // No retornamos para que el resto del JS de la página pueda funcionar
+        }
+
+        function getCsrfToken() {
+            const csrfInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+            return csrfInput ? csrfInput.value : null;
+        }
+
+        function updateNotificationBadge(newCount) {
+            if (notificationBadge) {
+                notificationBadge.textContent = newCount;
+                notificationBadge.style.display = newCount > 0 ? '' : 'none';
+            }
+        }
+
+        function handleNotificationResponse(data, notificationIdToRemove = null) {
+            if (data.status === 'success') {
+                const listContainer = notificationDropdownContainer?.querySelector('.notification_list');
+                if (notificationIdToRemove) {
+                    const notificationItem = document.getElementById(`notification-item-${notificationIdToRemove}`);
+                    if (notificationItem) {
+                        notificationItem.remove();
+                    }
+                } else { // Para "marcar todas"
+                    if(listContainer) listContainer.querySelectorAll('.notification_item.unread').forEach(item => item.remove());
+                }
+                updateNotificationBadge(data.new_count);
+
+                if (listContainer && listContainer.querySelectorAll('.notification_item').length === 0) {
+                    const emptyMessage = listContainer.querySelector('.notification_empty');
+                    if (emptyMessage) emptyMessage.style.display = 'block';
+                    // Ocultar footer si no hay notificaciones
+                    const footer = listContainer.querySelector('.notification_footer');
+                    if (footer) footer.style.display = 'none';
+                }
+                console.log('Notificación marcada:', data.message);
+
+            } else {
+                console.error('Error desde el servidor al marcar notificación:', data.message);
+                // Considera mostrar un toast o alerta más amigable
+                // alert('Error: ' + data.message); 
+            }
+        }
+        
+        if (notificationDropdownContainer) {
+            notificationDropdownContainer.addEventListener('click', function(event) {
+                const targetButton = event.target.closest('.mark-notification-as-read-btn');
+                const targetLinkContent = event.target.closest('.notification_link_content');
+
+                if (targetButton && markNotificationReadUrl) { // Clic en el botón "X"
+                    event.preventDefault();
+                    event.stopPropagation(); // Evitar que se active el enlace principal
+
+                    const notificationId = targetButton.dataset.notificationId;
+                    const csrfToken = getCsrfToken();
+
+                    if (!csrfToken) { console.error('CSRF Token no encontrado.'); return; }
+
+                    targetButton.disabled = true;
+
+                    const formData = new FormData();
+                    formData.append('notification_id', notificationId);
+
+                    fetch(markNotificationReadUrl, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': csrfToken },
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => handleNotificationResponse(data, notificationId))
+                    .catch(error => {
+                        console.error('Error AJAX al marcar individual:', error);
+                        targetButton.disabled = false;
+                    });
+
+                } else if (targetLinkContent && markNotificationReadUrl) { // Clic en el contenido de la notificación
+                    // Opcional: Marcar como leída al hacer clic en el contenido si no tiene un botón "X" explícito
+                    // o si quieres que el clic en el contenido también la marque como leída antes de redirigir.
+                    // Por ahora, el botón "X" es el único que marca como leída individualmente.
+                    // Si la notificación tiene una URL, el navegador redirigirá.
+                    // Si quieres marcarla como leída ANTES de redirigir:
+                    const notificationId = targetLinkContent.dataset.notificationId;
+                    const urlDestino = targetLinkContent.parentElement.dataset.urlDestino; // El data-url-destino está en el div.notification_item
+
+                    // Lógica para marcar como leída ANTES de redirigir (si es necesario)
+                    // ... (similar al fetch de arriba, pero sin quitar el item inmediatamente si hay urlDestino)
+                    // Si la redirección ocurre, la página recargará y la notificación ya no aparecerá si fue marcada.
+                    // console.log("Clic en contenido de notificación ID:", notificationId, "URL:", urlDestino);
+                }
+            });
+        }
+
+        if (markAllReadLink && markNotificationReadUrl) {
+            markAllReadLink.addEventListener('click', function(event) {
+                event.preventDefault();
+                const csrfToken = getCsrfToken();
+                if (!csrfToken) { console.error('CSRF Token no encontrado.'); return; }
+
+                const formData = new FormData();
+                formData.append('mark_all', 'true');
+
+                fetch(markNotificationReadUrl, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => handleNotificationResponse(data))
+                .catch(error => console.error('Error AJAX marcando todas como leídas:', error));
+            });
+        }
+    });
+    </script>
+    {% endblock extra_js %}
+    
+    {% block extra_scripts %}{% endblock %}
+
+  </body>
+</html>

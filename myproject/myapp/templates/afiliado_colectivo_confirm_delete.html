@@ -1,0 +1,126 @@
+{% extends "home.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading">⚠️ Confirmar Eliminación de Afiliado Colectivo</h1>
+
+    <p>Estás a punto de eliminar permanentemente al siguiente afiliado colectivo:</p>
+
+    <div class="detail-summary" aria-label="Resumen del colectivo a eliminar">
+
+        <div class="detail-section" data-section="empresa" aria-labelledby="section-heading-empresa">
+            <h2 id="section-heading-empresa" class="section-title visually-hidden">Información de la Empresa</h2>
+            <div class="dark-group">
+                <span class="dark-label">🏢 Razón Social:</span>
+                <span>{{ object.razon_social|escape|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🔖 RIF:</span>
+                <span>{{ object.rif|escape|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🏭 Tipo Empresa:</span>
+                <span>{{ object.get_tipo_empresa_display|escape|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">💡 Estado Activo:</span>
+                <span class="badge {% if object.activo %}badge-success{% else %}badge-danger{% endif %}">
+                    {{ object.activo|yesno:"Activo,Inactivo" }}
+                </span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">#️⃣ ID Interno:</span>
+                <span>{{ object.pk }}</span>
+            </div>
+        </div>
+
+        <div class="detail-section" data-section="contacto" aria-labelledby="section-heading-contacto">
+            <h2 id="section-heading-contacto" class="section-title visually-hidden">Información de Contacto</h2>
+            <div class="dark-group">
+                <span class="dark-label">📞 Teléfono Contacto:</span>
+                <span>{{ object.telefono_contacto|escape|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">📧 Email Contacto:</span>
+                <span>{{ object.email_contacto|escape|default:"N/A" }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">🤝 Intermediario Asociado:</span>
+                <span>{{ object.intermediario|escape|default:"N/A" }}</span>
+            </div>
+        </div>
+
+        <div class="detail-section" data-section="ubicacion" aria-labelledby="section-heading-ubicacion">
+            <h2 id="section-heading-ubicacion" class="section-title visually-hidden">Ubicación Comercial</h2>
+             <div class="dark-group">
+                <span class="dark-label">📍 Dirección Comercial:</span>
+                <span>{{ object.direccion_comercial|escape|truncatechars:50|default:"N/A" }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">🗺️ Estado:</span>
+                <span>{{ object.get_estado_display|escape|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🏘️ Municipio:</span>
+                <span>{{ object.municipio|escape|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🏙️ Ciudad:</span>
+                <span>{{ object.ciudad|escape|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">📮 Zona Postal:</span>
+                <span>{{ object.zona_postal|escape|default:"N/A" }}</span>
+            </div>
+        </div>
+
+        {# Campos Heredados / Property #}
+        <div class="detail-section" data-section="heredado" aria-labelledby="section-heading-heredado">
+            <h2 id="section-heading-heredado" class="section-title visually-hidden">Campos Base (Heredados/Propiedad)</h2>
+             <div class="dark-group">
+                <span class="dark-label">👤 Nombre Completo (Propiedad):</span>
+                <span>{{ object.nombre_completo|escape|default:"N/A" }}</span>
+             </div>
+        </div>
+        <div class="detail-section" data-section="heredado" aria-labelledby="section-heading-heredado">
+            <h2 id="section-heading-heredado" class="section-title visually-hidden">Campos Base (Heredados/Propiedad)</h2>
+             <div class="dark-group">
+             {# --- CAMPOS AÑADIDOS --- #}
+            <div class="dark-group">
+                <span class="dark-label">➕ Fecha Creación:</span>
+                <span>{{ object.fecha_creacion|date:"d/m/Y H:i"|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🔄 Fecha Modificación:</span>
+                <span>{{ object.fecha_modificacion|date:"d/m/Y H:i"|default:"N/A" }}</span>
+            </div>
+
+    </div> {# Fin Resumen de Datos #}
+
+    <div class="alert-warning" role="alert">
+      <p><strong>¡Atención!</strong> Esta acción no se puede deshacer. Se eliminará toda la información asociada a este afiliado colectivo.</p>
+      <p>¿Estás completamente seguro de que deseas continuar?</p>
+    </div>
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-actions">
+        <button type="submit" class="btn-warning" aria-label="Confirmar la eliminación permanente de este colectivo">
+            ❌ Sí, eliminar permanentemente
+        </button>
+        <a href="{% url 'myapp:afiliado_colectivo_detail' object.pk %}" class="btn-success" aria-label="Cancelar y volver a la vista anterior">
+            🚫 No, cancelar
+        </a>
+        {# Alternativa: volver a la lista #}
+        {# <a href="{% url 'myapp:afiliado_colectivo_list' %}" class="btn-success" aria-label="Cancelar y volver al listado"> #}
+        {#     🚫 No, cancelar #}
+        {# </a> #}
+      </div>
+    </form>
+
+  </section>
+</div>
+
+{% endblock content %}

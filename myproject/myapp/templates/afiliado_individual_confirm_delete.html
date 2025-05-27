@@ -1,0 +1,201 @@
+{% extends "home.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading">⚠️ Confirmar Eliminación de Afiliado Individual</h1>
+
+    <p>Estás a punto de eliminar permanentemente al siguiente afiliado individual:</p>
+
+    {# --- Resumen de Datos Clave (TODOS los campos) --- #}
+    <div class="detail-summary" aria-label="Resumen del afiliado a eliminar">
+
+        <div class="detail-section" data-section="identificacion" aria-labelledby="section-heading-identificacion">
+          <h2 id="section-heading-identificacion" class="section-title visually-hidden">Información de Identificación</h2> {# Oculto pero útil para ARIA #}
+          <div class="dark-group">
+            <span class="dark-label">👤 Nombre Completo:</span>
+            <span>{{ object.nombre_completo|escape|default:"N/A" }}</span>
+          </div>
+          <div class="dark-group">
+            <span class="dark-label">🎂 Edad:</span>
+            <span>{{ object.edad|default:"N/A" }}</span>
+          </div>
+           <div class="dark-group">
+            <span class="dark-label">🆔 Cédula:</span>
+            <span>{{ object.cedula|escape|default:"N/A" }}</span>
+          </div>
+          <div class="dark-group">
+            <span class="dark-label">🔖 Tipo ID:</span>
+            <span>{{ object.get_tipo_identificacion_display|escape|default:"N/A" }}</span>
+          </div>
+          <div class="dark-group">
+            <span class="dark-label">📅 Fecha de Nacimiento:</span>
+            <span>{{ object.fecha_nacimiento|date:"d/m/Y"|default:"N/A" }}</span>
+          </div>
+           <div class="dark-group">
+            <span class="dark-label">⚧️ Sexo:</span>
+            <span>{{ object.get_sexo_display|escape|default:"N/A" }}</span>
+          </div>
+          <div class="dark-group">
+            <span class="dark-label">🌍 Nacionalidad:</span>
+            <span>{{ object.nacionalidad|escape|default:"N/A" }}</span>
+          </div>
+          <div class="dark-group">
+            <span class="dark-label">💍 Estado Civil:</span>
+            <span>{{ object.get_estado_civil_display|escape|default:"N/A" }}</span>
+          </div>
+          <div class="dark-group">
+            <span class="dark-label">👪 Parentesco:</span>
+            <span>{{ object.get_parentesco_display|escape|default:"N/A" }}</span>
+          </div>
+           <div class="dark-group">
+            <span class="dark-label">#️⃣ ID Interno:</span>
+            <span>{{ object.pk }}</span>
+          </div>
+        </div>
+
+        <div class="detail-section" data-section="contacto" aria-labelledby="section-heading-contacto">
+          <h2 id="section-heading-contacto" class="section-title visually-hidden">Información de Contacto</h2>
+          <div class="dark-group">
+            <span class="dark-label">📞 Teléfono Habitación:</span>
+            <span>{{ object.telefono_habitacion|escape|default:"N/A" }}</span>
+          </div>
+          <div class="dark-group">
+            <span class="dark-label">🏢 Teléfono Oficina:</span>
+            <span>{{ object.telefono_oficina|escape|default:"N/A" }}</span>
+          </div>
+          <div class="dark-group">
+            <span class="dark-label">🏠 Dirección Habitación:</span>
+            <span>{{ object.direccion_habitacion|escape|truncatechars:50|default:"N/A" }}</span> {# Truncado para brevedad #}
+          </div>
+          <div class="dark-group">
+            <span class="dark-label">📍 Dirección Oficina:</span>
+            <span>{{ object.direccion_oficina|escape|truncatechars:50|default:"N/A" }}</span> {# Truncado para brevedad #}
+          </div>
+        </div>
+
+        <div class="detail-section" data-section="ubicacion" aria-labelledby="section-heading-ubicacion">
+            <h2 id="section-heading-ubicacion" class="section-title visually-hidden">Ubicación Geográfica</h2>
+            <div class="dark-group">
+                <span class="dark-label">🗺️ Estado:</span>
+                <span>{{ object.get_estado_display|escape|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🏘️ Municipio:</span>
+                <span>{{ object.municipio|escape|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🏙️ Ciudad:</span>
+                <span>{{ object.ciudad|escape|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">📮 Zona Postal:</span>
+                <span>{{ object.zona_postal|escape|default:"N/A" }}</span>
+            </div>
+        </div>
+
+        <div class="detail-section" data-section="sistema" aria-labelledby="section-heading-sistema">
+          <h2 id="section-heading-sistema" class="section-title visually-hidden">Información del Sistema</h2>
+          <div class="dark-group">
+            <span class="dark-label">🗓️ Fecha de Ingreso:</span>
+            <span>{{ object.fecha_ingreso|date:"d/m/Y"|default:"N/A" }}</span>
+          </div>
+          <div class="dark-group">
+            <span class="dark-label">🤝 Intermediario Asociado:</span>
+            <span>{{ object.intermediario|escape|default:"N/A" }}</span>
+          </div>
+          <div class="dark-group">
+            <span class="dark-label">💡 Estado Activo:</span>
+            <span class="badge {% if object.activo %}badge-success{% else %}badge-danger{% endif %}">
+                {{ object.activo|yesno:"Activo,Inactivo" }}
+            </span>
+          </div>
+          <div class="dark-group">
+            <span class="dark-label">🔑 Código de Validación:</span>
+            <span>{{ object.codigo_validacion|escape|default:"N/A" }}</span>
+          </div>
+        </div>
+
+        <div class="detail-section" data-section="heredado" aria-labelledby="section-heading-heredado">
+            <h2 id="section-heading-heredado" class="section-title visually-hidden">Campos Base (Heredados)</h2>
+             <div class="dark-group">
+                <span class="dark-label">📛 Primer Nombre:</span>
+                <span>{{ object.primer_nombre|escape|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">📛 Segundo Nombre:</span>
+                <span>{{ object.segundo_nombre|escape|default:"" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">📛 Primer Apellido:</span>
+                <span>{{ object.primer_apellido|escape|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">📛 Segundo Apellido:</span>
+                <span>{{ object.segundo_apellido|escape|default:"" }}</span>
+            </div>
+            {# Incluir otros heredados si existen y son relevantes para confirmar #}
+        </div>
+        <div class="detail-section" data-section="sistema" aria-labelledby="section-heading-sistema">
+          <h2 id="section-heading-sistema" class="section-title visually-hidden">Información del Sistema</h2>
+          <div class="dark-group">
+            <span class="dark-label">🗓️ Fecha de Ingreso:</span>
+            <span>{{ object.fecha_ingreso|date:"d/m/Y"|default:"N/A" }}</span>
+          </div>
+          <div class="dark-group">
+            <span class="dark-label">🤝 Intermediario Asociado:</span>
+            <span>{{ object.intermediario|escape|default:"N/A" }}</span>
+          </div>
+          <div class="dark-group">
+            <span class="dark-label">💡 Estado Activo:</span>
+            <span class="badge {% if object.activo %}badge-success{% else %}badge-danger{% endif %}">
+                {{ object.activo|yesno:"Activo,Inactivo" }}
+            </span>
+          </div>
+          <div class="dark-group">
+            <span class="dark-label">🔑 Código de Validación:</span>
+            <span>{{ object.codigo_validacion|escape|default:"N/A" }}</span>
+          </div>
+          {# --- CAMPOS AÑADIDOS --- #}
+          <div class="dark-group">
+            <span class="dark-label">➕ Fecha Creación:</span>
+            <span>{{ object.fecha_creacion|date:"d/m/Y H:i"|default:"N/A" }}</span>
+          </div>
+          <div class="dark-group">
+            <span class="dark-label">🔄 Fecha Modificación:</span>
+            <span>{{ object.fecha_modificacion|date:"d/m/Y H:i"|default:"N/A" }}</span>
+          </div>
+
+    </div> {# --- Fin Resumen de Datos --- #}
+
+    {# --- Advertencia --- #}
+    <div class="alert-warning" role="alert">
+      <p><strong>¡Atención!</strong> Esta acción no se puede deshacer. Se eliminará toda la información asociada a este afiliado.</p>
+      <p>¿Estás completamente seguro de que deseas continuar?</p>
+    </div>
+
+    {# --- Formulario de Confirmación --- #}
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-actions">
+         {# Botón de Confirmación (Destructivo) #}
+        <button type="submit" class="btn-warning" aria-label="Confirmar la eliminación permanente de este afiliado">
+            ❌ Sí, eliminar permanentemente
+        </button>
+         {# Enlace de Cancelación (Seguro) - Vuelve a la vista detalle o lista #}
+         <a href="{% url 'myapp:afiliado_individual_detail' object.pk %}" class="btn-success" aria-label="Cancelar y volver a la vista anterior">
+             🚫 No, cancelar
+         </a>
+
+         <a href="{% url 'myapp:afiliado_individual_list' %}" class="btn-success" aria-label="Cancelar y volver al listado">
+             🚫 No, cancelar
+         </a>
+
+      </div>
+    </form>
+
+  </section>
+</div>
+
+{% endblock content %}

@@ -1,0 +1,215 @@
+{% extends "home.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}🧾 Detalle Factura: {{ object.numero_recibo|default:"N/A" }}{% endblock title %}
+
+{% block content %}
+<div class="dark-container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading">🧾 Detalle Factura: {{ object.numero_recibo|escape|default:"[Sin Número]" }}</h1>
+
+
+        <div class="header-actions mb-4">
+            <div class="detail-actions-container">
+                {% if perms.myapp.change_factura %}
+                <a href="{% url 'myapp:factura_update' pk=object.pk %}" class="btn btn-success" style="margin-right: 10px;">✏️ Editar</a>
+                {% endif %}
+                {% if perms.myapp.delete_factura %}
+                <a href="{% url 'myapp:factura_delete' pk=object.pk %}" class="btn btn-danger delete-link" style="margin-right: 10px;">❌ Eliminar</a>
+                {% endif %}
+                 {% if perms.myapp.view_factura %}
+                     <a href="{% url 'myapp:factura_pdf' pk=object.pk %}" class="btn btn-info" style="margin-right: 10px;" target="_blank" aria-label="Ver factura en formato PDF">🖨️ Imprimir Factura PDF</a>
+                 {% endif %}
+                <a href="{% url 'myapp:factura_list' %}" class="nav_link">🔙 Volver al Listado</a>
+            </div>
+        </div>
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show compact-form" role="alert" style="margin-bottom: 1rem;">
+                {{ message|escape }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="form-main-container"> {# Tu clase #}
+
+      <fieldset class="mb-4 dark-group">
+        <legend class="dark-label">🧾 Detalles de la Factura</legend>
+        <div class="dark-grid">
+            <div class="dark-group"><span class="dark-label">#️⃣ ID Interno:</span><span>{{ object.id }}</span></div>
+            <div class="dark-group"><span class="dark-label">🔖 Número Recibo:</span><span>{{ object.numero_recibo|escape|default:"-" }}</span></div>
+            <div class="dark-group"><span class="dark-label">🗓️ Vigencia Desde:</span><span>{{ object.vigencia_recibo_desde|date:"d/m/Y"|default:"-" }}</span></div>
+            <div class="dark-group"><span class="dark-label">🗓️ Vigencia Hasta:</span><span>{{ object.vigencia_recibo_hasta|date:"d/m/Y"|default:"-" }}</span></div>
+            <div class="dark-group"><span class="dark-label">⏳ Días Período:</span><span>{{ object.dias_periodo_cobro|default:"-" }}</span></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="mb-4 dark-group">
+        <legend class="dark-label">🔗 Contrato e Intermediario</legend>
+        <div class="dark-grid">
+            <div class="dark-group"><span class="dark-label">📄 Contrato Asociado:</span>
+                <span>
+                    {% if contrato_asociado_url %}
+                        <a href="{{ contrato_asociado_url }}">{{ contrato_asociado_display|escape }}</a>
+                    {% else %}
+                        {{ contrato_asociado_display|escape|default:"N/A" }}
+                    {% endif %}
+                </span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🤝 Intermediario:</span>
+                <span>
+                    {% if intermediario_final_obj %}
+                        {% if perms.myapp.view_intermediario %}
+                        <a href="{% url 'myapp:intermediario_detail' intermediario_final_obj.pk %}">
+                            {{ intermediario_final_obj.nombre_completo|default:intermediario_final_obj.codigo|escape }} ({{ intermediario_final_obj.codigo }})
+                        </a>
+                        {% else %}
+                            {{ intermediario_final_obj.nombre_completo|default:intermediario_final_obj.codigo|escape }} ({{ intermediario_final_obj.codigo }})
+                        {% endif %}
+                    {% else %}
+                        <span class="text-muted">No Asignado</span>
+                    {% endif %}
+                </span>
+            </div>                    
+            <div class="dark-group"><span class="dark-label">🌿 Ramo (del Contrato):</span>
+                <span>
+                    {% if object.contrato_individual %}{{ object.contrato_individual.get_ramo_display|escape|default:"-" }}
+                    {% elif object.contrato_colectivo %}{{ object.contrato_colectivo.get_ramo_display|escape|default:"-" }}
+                    {% else %}-{% endif %}
+                </span>
+            </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="mb-4 dark-group">
+        <legend class="dark-label">💲 Montos y Estado de Pago</legend>
+        <div class="dark-grid"> {# Asegúrate que .dark-grid exista o usa .dark-group directamente #}
+            <div class="dark-group">
+                <span class="dark-label">💰 Monto Total Factura:</span>
+                <span>${{ object.monto|floatformat:2|intcomma|default:"0.00" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">⏳ Monto Pendiente:</span>
+                <span>${{ object.monto_pendiente|floatformat:2|intcomma|default:"0.00" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">💵 Total Pagado (Directo):</span>
+                <span>${{ total_pagado|floatformat:2|intcomma|default:"0.00" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🔢 Cant. Pagos Registrados:</span>
+                <span>{{ cantidad_pagos|default:"0" }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">🚦 Estatus Factura:</span>
+                <span>
+                    <span class="badge {% if object.estatus_factura == 'PAGADA' %}badge-success{% elif object.estatus_factura == 'VENCIDA' %}badge-danger{% elif object.estatus_factura == 'PENDIENTE' %}badge-warning{% elif object.estatus_factura == 'GENERADA' %}badge-info{% elif object.estatus_factura == 'ANULADA' %}badge-dark{% else %}badge-secondary{% endif %}">
+                        {{ estatus_factura_display|escape|default:"-" }}
+                    </span>
+                </span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">📦 Estatus Emisión:</span>
+                <span>{{ estatus_emision_display|escape|default:"-" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">💲 Aplica IGTF:</span>
+                <span>{% if object.aplica_igtf %}✅ Sí{% else %}❌ No{% endif %}</span>
+            </div>
+            <div class="dark-group"><span class="dark-label">🔗 N° Rel. Ingreso:</span><span>{{ object.relacion_ingreso|escape|default:"-" }}</span></div>
+            <div class="dark-group"><span class="dark-label">🔢 Rec. Pend. (Cache):</span><span>{{ object.recibos_pendientes_cache|default:"0" }}</span></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="mb-4 dark-group">
+        <legend class="dark-label">📝 Observaciones de la Factura</legend>
+        <div class="dark-group" style="grid-column: 1 / -1;">
+             {% if object.observaciones %}
+                 <p>{{ object.observaciones|escape|linebreaksbr }}</p>
+             {% else %}
+                 <span>- Sin observaciones -</span>
+             {% endif %}
+        </div>
+      </fieldset>
+
+      <fieldset class="dark-group">
+        <legend class="dark-label">⏳ Metadatos</legend>
+        <div class="dark-grid">
+            <div class="dark-group"><span class="dark-label">💡 Registro Activo:</span>
+                <span>
+                    <span class="badge {% if object.activo %}badge-success{% else %}badge-danger{% endif %}">
+                        {{ object.activo|yesno:"Sí,No" }}
+                    </span>
+                </span>
+            </div>
+            <div class="dark-group"><span class="dark-label">➕ Fecha Creación:</span><span>{{ object.fecha_creacion|date:"d/m/Y H:i:s"|default:"-" }}</span></div>
+            <div class="dark-group"><span class="dark-label">🔄 Fecha Modificación:</span><span>{{ object.fecha_modificacion|date:"d/m/Y H:i:s"|default:"-" }}</span></div>
+        </div>
+      </fieldset>
+
+    </div> {# Fin form-main-container #}
+
+    {# --- Tabla de Pagos Asociados --- #}
+    <div class="mt-4"> {# Un poco de margen superior #}
+        <fieldset class="dark-group">
+            <legend class="dark-label">💰 Pagos Registrados para esta Factura ({{ cantidad_pagos }})</legend>
+            {% if pagos_asociados %}
+                 <div class="table-container">
+                     <table class="data-table table-sm">
+                         <thead>
+                             <tr role="row">
+                                <th scope="col">ID Pago</th>
+                                <th scope="col">Fecha</th>
+                                <th scope="col" class="text-end">Monto</th>
+                                <th scope="col">Método</th>
+                                <th scope="col">Referencia</th>
+                                <th scope="col">Estado Pago</th>
+                                <th scope="col" class="actions-header">Acciones</th>
+                            </tr>
+                        </thead>
+                         <tbody>
+                             {% for pago in pagos_asociados %}
+                             <tr role="row">
+                                 <td data-label="ID Pago:">{{ pago.pk }}</td>
+                                 <td data-label="Fecha:">{{ pago.fecha_pago|date:"d/m/y" }}</td>
+                                 <td data-label="Monto:" class="text-end">${{ pago.monto_pago|default:"0.00"|floatformat:2|intcomma }}</td>
+                                 <td data-label="Método:">{{ pago.get_forma_pago_display|default:"-" }}</td>
+                                 <td data-label="Referencia:">{{ pago.referencia_pago|escape|default:"-" }}</td>
+                                 <td data-label="Estado Pago:">
+                                     <span class="badge {% if pago.activo %}badge-success{% else %}badge-secondary{% endif %}">
+                                         {{ pago.activo|yesno:"Activo,Inactivo" }}
+                                     </span>
+                                 </td>
+                                 <td data-label="Acciones:" class="actions">
+                                     <div class="action-group">
+                                         {% if perms.myapp.view_pago %}
+                                         <a href="{% url 'myapp:pago_detail' pago.pk %}" class="action-icon" title="Ver Detalle del Pago">👁️</a>
+                                         {% endif %}
+                                         {% if perms.myapp.change_pago %}
+                                         <a href="{% url 'myapp:pago_update' pago.pk %}" class="action-icon" title="Editar Pago">✏️</a>
+                                         {% endif %}
+                                     </div>
+                                 </td>
+                             </tr>
+                             {% endfor %}
+                         </tbody>
+                     </table>
+                 </div>
+             {% else %}
+                  <p class="ms-2">No hay pagos registrados para esta factura.</p> {# ms-2 para un pequeño margen #}
+             {% endif %}
+             {% if perms.myapp.add_pago %} {# Botón para añadir nuevo pago a ESTA factura #}
+                <div class="form-actions mt-3">
+                    <a href="{% url 'myapp:pago_create' %}?factura_id={{ object.pk }}" class="btn-success">➕ Registrar Nuevo Pago para esta Factura</a>
+                </div>
+             {% endif %}
+        </fieldset>
+    </div>
+    {# --- Fin Tabla de Pagos --- #}
+
+  </section>
+</div>
+{% endblock content %}

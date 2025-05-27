@@ -1,0 +1,216 @@
+{% extends "home.html" %}
+{% load static %}
+{% load humanize %} {# Mantener si lo usas #}
+
+{% block content %}
+<div class="dark-container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading">
+      {% if form.instance.pk %}✏️ Editar Afiliado Colectivo{% else %}➕ Nuevo Afiliado Colectivo{% endif %}
+       {% if form.instance.pk %}: {{ form.instance.razon_social|escape }}{% endif %}
+    </h1>
+
+    <div class="header-actions">
+      <a href="{% url 'myapp:afiliado_colectivo_list' %}" class="nav_link" aria-label="Volver al listado de colectivos">
+        ⬅️ Volver al Listado
+      </a>
+       {% if form.instance.pk and perms.myapp.view_afiliadocolectivo %}
+            <a href="{% url 'myapp:afiliado_colectivo_detail' form.instance.pk %}" class="nav_link" aria-label="Ver detalles de este afiliado colectivo">
+                👁️ Ver Detalle
+            </a>
+       {% endif %}
+    </div>
+
+    <form method="post" class="compact-form" enctype="multipart/form-data" aria-labelledby="main-heading" novalidate>
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+          <div class="alert alert-danger error-summary" role="alert">
+              <h4>⚠️ Errores Generales:</h4>
+              <ul>
+                  {% for error in form.non_field_errors %}
+                      <li>{{ error|escape }}</li>
+                  {% endfor %}
+              </ul>
+          </div>
+      {% endif %}
+
+      <fieldset class="dark-group" data-section="datos-empresa">
+        <legend class="dark-label">🏢 Datos de la Empresa</legend>
+
+        {# Campo razon_social #}
+        <div class="dark-group {% if form.razon_social.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.razon_social.id_for_label }}">🏢 Razón Social</label>
+            {{ form.razon_social }}
+            {% if form.razon_social.errors %}
+                <ul class="error-messages" role="alert">{% for error in form.razon_social.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>
+            {% endif %}
+            {% if form.razon_social.help_text %}
+                <small class="form-text text-muted" id="{{ form.razon_social.id_for_label }}-help">{{ form.razon_social.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo rif #}
+        <div class="dark-group {% if form.rif.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.rif.id_for_label }}">🔖 RIF</label>
+            {{ form.rif }}
+            {% if form.rif.errors %}
+                <ul class="error-messages" role="alert">{% for error in form.rif.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>
+            {% endif %}
+            {% if form.rif.help_text %}
+                <small class="form-text text-muted" id="{{ form.rif.id_for_label }}-help">{{ form.rif.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo tipo_empresa #}
+        <div class="dark-group {% if form.tipo_empresa.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.tipo_empresa.id_for_label }}">🏭 Tipo Empresa</label>
+            {{ form.tipo_empresa }}
+            {% if form.tipo_empresa.errors %}
+                <ul class="error-messages" role="alert">{% for error in form.tipo_empresa.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>
+            {% endif %}
+            {% if form.tipo_empresa.help_text %}
+                <small class="form-text text-muted" id="{{ form.tipo_empresa.id_for_label }}-help">{{ form.tipo_empresa.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo activo (Switch) #}
+        <div class="dark-group {% if form.activo.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.activo.id_for_label }}">💡 Estado Activo</label>
+            <label class="switch">
+                {# Asumiendo CheckboxInput para activo #}
+                <input type="checkbox" name="{{ form.activo.name }}" id="{{ form.activo.id_for_label }}" {% if form.activo.value %}checked{% endif %}>
+                <span class="slider"></span>
+            </label>
+            {% if form.activo.errors %}
+                <ul class="error-messages" role="alert">{% for error in form.activo.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>
+            {% endif %}
+            {% if form.activo.help_text %}
+                <small class="form-text text-muted" id="{{ form.activo.id_for_label }}-help">{{ form.activo.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+      </fieldset> {# Cierre fieldset Datos Empresa #}
+
+      <fieldset class="dark-group" data-section="contacto-ubicacion">
+         <legend class="dark-label">📞 Contacto y Ubicación</legend>
+
+        {# Campo telefono_contacto #}
+        <div class="dark-group {% if form.telefono_contacto.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.telefono_contacto.id_for_label }}">📞 Teléfono Contacto</label>
+            {{ form.telefono_contacto }}
+            {% if form.telefono_contacto.errors %}
+                <ul class="error-messages" role="alert">{% for error in form.telefono_contacto.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>
+            {% endif %}
+            {% if form.telefono_contacto.help_text %}
+                <small class="form-text text-muted" id="{{ form.telefono_contacto.id_for_label }}-help">{{ form.telefono_contacto.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo email_contacto #}
+        <div class="dark-group {% if form.email_contacto.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.email_contacto.id_for_label }}">📧 Email Contacto</label>
+            {{ form.email_contacto }}
+            {% if form.email_contacto.errors %}
+                <ul class="error-messages" role="alert">{% for error in form.email_contacto.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>
+            {% endif %}
+            {% if form.email_contacto.help_text %}
+                <small class="form-text text-muted" id="{{ form.email_contacto.id_for_label }}-help">{{ form.email_contacto.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo direccion_comercial #}
+        <div class="dark-group {% if form.direccion_comercial.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.direccion_comercial.id_for_label }}">📍 Dirección Comercial</label>
+            {{ form.direccion_comercial }}
+            {% if form.direccion_comercial.errors %}
+                <ul class="error-messages" role="alert">{% for error in form.direccion_comercial.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>
+            {% endif %}
+            {% if form.direccion_comercial.help_text %}
+                <small class="form-text text-muted" id="{{ form.direccion_comercial.id_for_label }}-help">{{ form.direccion_comercial.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo estado #}
+        <div class="dark-group {% if form.estado.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.estado.id_for_label }}">🗺️ Estado</label>
+            {{ form.estado }}
+            {% if form.estado.errors %}
+                <ul class="error-messages" role="alert">{% for error in form.estado.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>
+            {% endif %}
+            {% if form.estado.help_text %}
+                <small class="form-text text-muted" id="{{ form.estado.id_for_label }}-help">{{ form.estado.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo municipio #}
+        <div class="dark-group {% if form.municipio.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.municipio.id_for_label }}">🏘️ Municipio</label>
+            {{ form.municipio }}
+            {% if form.municipio.errors %}
+                <ul class="error-messages" role="alert">{% for error in form.municipio.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>
+            {% endif %}
+            {% if form.municipio.help_text %}
+                <small class="form-text text-muted" id="{{ form.municipio.id_for_label }}-help">{{ form.municipio.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo ciudad #}
+        <div class="dark-group {% if form.ciudad.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.ciudad.id_for_label }}">🏙️ Ciudad</label>
+            {{ form.ciudad }}
+            {% if form.ciudad.errors %}
+                <ul class="error-messages" role="alert">{% for error in form.ciudad.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>
+            {% endif %}
+            {% if form.ciudad.help_text %}
+                <small class="form-text text-muted" id="{{ form.ciudad.id_for_label }}-help">{{ form.ciudad.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo zona_postal #}
+        <div class="dark-group {% if form.zona_postal.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.zona_postal.id_for_label }}">📮 Zona Postal</label>
+            {{ form.zona_postal }}
+            {% if form.zona_postal.errors %}
+                <ul class="error-messages" role="alert">{% for error in form.zona_postal.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>
+            {% endif %}
+            {% if form.zona_postal.help_text %}
+                <small class="form-text text-muted" id="{{ form.zona_postal.id_for_label }}-help">{{ form.zona_postal.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+         {# Campo intermediario #}
+         {# --- CORRECCIÓN: Mover el if/endif para que envuelva solo este campo --- #}
+         {% if 'intermediario' in form.fields %}
+         <div class="dark-group {% if form.intermediario.errors %}error{% endif %}">
+             <label class="dark-label" for="{{ form.intermediario.id_for_label }}">🤝 Intermediario Asociado</label>
+             {{ form.intermediario }}
+             {% if form.intermediario.errors %}
+                 <ul class="error-messages" role="alert">{% for error in form.intermediario.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>
+             {% endif %}
+             {% if form.intermediario.help_text %}
+                 <small class="form-text text-muted" id="{{ form.intermediario.id_for_label }}-help">{{ form.intermediario.help_text|escape }}</small>
+             {% endif %}
+         </div>
+         {% endif %} {# --- FIN CORRECCIÓN: Cierre del if intermediario --- #}
+
+      </fieldset> {# Cierre fieldset Contacto y Ubicación #}
+
+      {# --- ELIMINADO </fieldset> EXTRA --- #}
+      {# --- ELIMINADO {% endif %} SUELTO --- #}
+
+      {# Campos ocultos #}
+      {% for field in form.hidden_fields %}
+          {{ field }}
+      {% endfor %}
+
+      {# Acciones #}
+      <div class="form-actions">
+        <button type="submit" class="btn-success">{% if form.instance.pk %}💾 Actualizar Colectivo{% else %}➕ Crear Colectivo{% endif %}</button>
+        <a href="{% url 'myapp:afiliado_colectivo_list' %}" class="btn-danger">🚫 Cancelar</a>
+      </div>
+    </form>
+  </section>
+</div>
+
+{% endblock content %}

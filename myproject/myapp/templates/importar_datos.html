@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% load static %}
+{% load widget_tweaks %}
+
+{% block title %}Portal de Invocación ✨{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Estilos adicionales específicos para esta página si son necesarios */
+    .import-form-container {
+        margin: 2rem auto;
+    }
+    .import-instructions {
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        background: rgba(var(--info-rgb, 52, 152, 219), 0.1);
+        border-left: 4px solid var(--info);
+        border-radius: 15px;
+        font-size: 0.95rem;
+        color: var(--text-muted);
+    }
+    .import-instructions ul {
+        list-style-type: '✨';
+        padding-left: 1.5rem;
+        margin-top: 0.5rem;
+    }
+     .import-instructions li {
+        margin-bottom: 0.5rem;
+     }
+     .import-instructions code {
+        background: rgba(255,255,255,0.1);
+        padding: 0.1em 0.4em;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 0.9em;
+     }
+    .error-list-import {
+        list-style: none;
+        padding: 0;
+        margin-top: 1rem;
+        color: #fc8181;
+    }
+    .error-list-import li {
+        background: rgba(var(--danger-rgb, 220, 53, 69), 0.15);
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        margin-bottom: 0.5rem;
+        border: 1px solid rgba(var(--danger-rgb, 220, 53, 69), 0.4);
+        font-size: 0.9rem;
+    }
+    .error-list-import strong {
+       color: #f8b4b4;
+       margin-right: 5px;
+    }
+    .selected-file-display {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 250px;
+        display: inline-block;
+        vertical-align: middle;
+        margin-left: 0.5rem; /* Añadir un poco de espacio al lado del botón */
+    }
+    /* Si necesitas que el botón y el span estén en la misma línea dentro del dark-group */
+    .custom-file-input-wrapper > .file-button-trigger,
+    .custom-file-input-wrapper > .selected-file-display {
+        display: inline-block; /* o flex si prefieres controlarlos con flexbox */
+        vertical-align: middle;
+    }
+    .custom-file-input-wrapper > .btn { /* Ajustar margen si es necesario */
+        margin-right: 0.5rem;
+    }
+
+</style>
+{% endblock %}
+
+
+{% block content %}
+<div class="form-main-container import-form-container">
+
+    <h1 class="main-title">📜 Portal de Invocación 📜</h1>
+
+    <div class="import-instructions">
+        <p>¡Bienvenido, Adepto! Usa este portal para transmutar datos desde Microsoft Excel/Google Sheets directamente a la base de datos.</p>
+        <ul>
+            <li>Recuerda que son los mismos archivos que descargaste del menú "Exportar Datos" en "Herramientas 🛠️".</li>
+            <li>Los formatos aceptados son <code>.csv</code> (codificado en UTF-8, preferiblemente con BOM), <code>.xlsx</code>, <code>.xls</code>, <code>.ots</code>.</li>
+            <li>La magia es poderosa pero precisa. ¡Datos incorrectos pueden causar perturbaciones en la base de datos 😰🗄️!</li>
+            <li>El orden correcto de importación es el siguiente: <code>Intermediarios</code>, <code>Tarifas</code>, <code>Afiliados</code>, <code>Contratos</code>, <code>Reclamaciones</code> , <code>Facturas</code> y <code>Pagos</code>  </li>
+        </ul>
+    </div>
+
+    {% if messages %}
+        <div class="messages_container">
+            {% for message in messages %}
+                <div class="alert {% if message.tags %}alert-{{ message.tags }}{% else %}alert-info{% endif %}" role="alert">
+                    {% if message.level == DEFAULT_MESSAGE_LEVELS.DEBUG %} <i class="fas fa-bug"></i>
+                    {% elif message.level == DEFAULT_MESSAGE_LEVELS.INFO %} <i class="fas fa-info-circle"></i>
+                    {% elif message.level == DEFAULT_MESSAGE_LEVELS.SUCCESS %} <i class="fas fa-check-circle"></i>
+                    {% elif message.level == DEFAULT_MESSAGE_LEVELS.WARNING %} <i class="fas fa-exclamation-triangle"></i>
+                    {% elif message.level == DEFAULT_MESSAGE_LEVELS.ERROR %} <i class="fas fa-times-circle"></i>
+                    {% endif %}
+                    <div>{{ message|escape }}</div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if form.non_field_errors or critical_error %}
+        <div class="alert alert-danger" role="alert">
+            <p><strong>¡Fallo en el encantamiento!</strong></p>
+            {% if critical_error %} <p>{{ critical_error|escape }}</p> {% endif %}
+            {% for error in form.non_field_errors %} <p>{{ error|escape }}</p> {% endfor %}
+        </div>
+    {% endif %}
+
+     {% if base_errors or row_errors or validation_errors %}
+     <div class="error-summary">
+         <h4>Errores Encontrados en el Pergamino Digital</h4>
+         <p>La transmutación no se completó debido a los siguientes problemas:</p>
+         {% if base_errors %}
+             <h5>Errores Generales:</h5>
+             <ul class="error-list-import">{% for error in base_errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>
+         {% endif %}
+         {% if row_errors %}
+             <h5>Errores por Fila:</h5>
+             <ul class="error-list-import">{% for error in row_errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>
+         {% endif %}
+         {% if validation_errors %}
+              <h5>Errores de Validación por Fila:</h5>
+             <ul class="error-list-import">{% for error in validation_errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>
+         {% endif %}
+     </div>
+     {% endif %}
+
+    <form method="post" enctype="multipart/form-data" class="compact-form">
+        {% csrf_token %}
+        <fieldset>
+            <legend>Selecciona la Esencia y el Pergamino</legend>
+            <div class="dark-grid">
+
+                <div class="dark-group {% if form.modelo.errors %}error{% endif %}">
+                    <label for="{{ form.modelo.id_for_label }}" class="dark-label">
+                        Tipo de Esencia (Modelo): <span title="Campo obligatorio">*</span>
+                    </label>
+                    {% with describedby_id_val=form.modelo.id_for_label|add:"_helptext" %}
+                        {% render_field form.modelo class+="dark-input" aria-describedby=describedby_id_val %}
+                    {% endwith %}
+                    {% if form.modelo.help_text %}<small id="{{ form.modelo.id_for_label }}_helptext" class="form-text text-muted">{{ form.modelo.help_text|safe }}</small>{% endif %}
+                    {% if form.modelo.errors %}<ul class="error-messages">{% for error in form.modelo.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+
+                <div class="dark-group {% if form.archivo.errors %}error{% endif %} custom-file-input-wrapper">
+                    <label for="{{ form.archivo.id_for_label }}" class="dark-label">
+                       Pergamino Digital (Archivo): <span title="Campo obligatorio">*</span>
+                    </label>
+
+                    {% render_field form.archivo class+="custom-file-actual-input visually-hidden" id=form.archivo.id_for_label %}
+                
+                   <button type="button"
+                           class="file-button-trigger btn btn-secondary"
+                           {% if form.archivo.field.disabled %}disabled{% endif %}>
+                       ✨ Subir Excel...
+                   </button>
+
+                   <span class="selected-file-display" data-default-text="Ningún archivo seleccionado">
+                       Ningún archivo seleccionado
+                   </span>
+                   {# Fin de los elementos directos #}
+
+                   {% if form.archivo.help_text %}
+                       <small id="{{ form.archivo.id_for_label }}_helptext" class="form-text text-muted">{{ form.archivo.help_text|safe }}</small>
+                   {% endif %}
+                   {% if form.archivo.errors %}
+                       <ul class="error-messages">
+                           {% for error in form.archivo.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                       </ul>
+                   {% endif %}
+               </div>
+               {# ================================================================ #}
+
+            </div> {# Fin dark-grid #}
+        </fieldset>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-success" {% if form.fields.modelo.disabled %}disabled{% endif %}>
+                 <span class="nav_icon">🪄</span> Iniciar Transmutación (Importar)
+            </button>
+            <a href="{% url 'myapp:home' %}" class="btn btn-danger">
+                Cancelar Ritual
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% endblock %}

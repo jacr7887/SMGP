@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="dark-container" role="main" aria-labelledby="busqueda-heading">
+    <h1 id="busqueda-heading" class="dark-title"> Búsqueda Avanzada</h1>
+
+    <form method="get" class="compact-form" role="search">
+        <div class="dark-grid triple">
+            <div class="dark-group">
+                <label class="dark-label" for="modelo">Modelo:</label>
+                <select id="modelo" name="modelo" class="custom-select" required>
+                    <option value="">Seleccione un modelo</option>
+                    <option value="contratoindividual">Contrato Individual</option>
+                    <option value="afiliadoindividual">Afiliado Individual</option>
+                    <option value="afiliadocolectivo">Afiliado Colectivo</option>
+                    <option value="contratocolectivo">Contrato Colectivo</option>
+                    <option value="reclamacion">Reclamación</option>
+                    <option value="intermediario">Intermediario</option>
+                    <option value="factura">Factura</option>
+                    <option value="pago">Pago</option>
+                    <option value="tarifa">Tarifa</option>
+                    <option value="auditoriasistema">Auditoria Sistema</option>
+                    <option value="usuario">Usuario</option>
+                </select>
+            </div>
+
+            <div class="dark-group">
+                <label class="dark-label" for="campo">Campo:</label>
+                <select id="campo" name="campo" class="custom-select" required>
+                    <option value="">Seleccione un campo</option>
+                </select>
+            </div>
+
+            <div class="dark-group">
+                <label class="dark-label" for="valor">Valor:</label>
+                <input type="text" id="valor" name="valor" class="custom-input" placeholder="Ingrese el valor a buscar" required />
+            </div>
+        </div>
+
+        <div class="dark-grid double">
+            <div class="dark-group">
+                <label class="dark-label" for="fecha_desde">Fecha Desde:</label>
+                <input type="date" id="fecha_desde" name="fecha_desde" class="custom-input" />
+            </div>
+
+            <div class="dark-group">
+                <label class="dark-label" for="fecha_hasta">Fecha Hasta:</label>
+                <input type="date" id="fecha_hasta" name="fecha_hasta" class="custom-input" />
+            </div>
+        </div>
+
+        <div class="form-actions dark-actions">
+            <button type="submit" class="btn-success" aria-label="Realizar búsqueda avanzada">
+                 Buscar
+            </button>
+        </div>
+    </form>
+
+    {% if resultados %}
+    <section class="results" aria-labelledby="resultados-heading">
+        <h2 id="resultados-heading" class="dark-title">Resultados de la Búsqueda</h2>
+        <div class="dark-grid">
+            <div class="dark-group">
+                <p class="dark-label">Total encontrados: <span class="badge">{{ total_resultados }}</span></p>
+
+                <div class="results-list">
+                    {% for resultado in resultados %}
+                    <div class="dark-group result-item">
+                        {% if resultado.activo %}
+                        <span class="badge badge-success">Activo</span>
+                        {% else %}
+                        <span class="badge badge-danger">Inactivo</span>
+                        {% endif %}
+                        {{ resultado }}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </section>
+    {% endif %}
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const modeloSelect = document.getElementById('modelo');
+        const campoSelect = document.getElementById('campo');
+
+        modeloSelect.addEventListener('change', function() {
+            const modelo = this.value;
+
+            if (modelo) {
+                fetch(`/buscar/get-campos/?modelo=${modelo}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log(data); // Agrega esta línea para verificar la respuesta JSON
+                        campoSelect.innerHTML = '<option value="">Seleccione un campo</option>';
+                        data.campos.forEach(campo => {
+                            const option = document.createElement('option');
+                            option.value = campo[0];
+                            option.textContent = campo[1];
+                            campoSelect.appendChild(option);
+                        });
+                        campoSelect.disabled = false;
+                    })
+                    .catch(error => console.error('Error:', error));
+            } else {
+                campoSelect.innerHTML = '<option value="">Primero seleccione un modelo</option>';
+                campoSelect.disabled = true;
+            }
+        });
+    });
+</script>
+{% endblock %}

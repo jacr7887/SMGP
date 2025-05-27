@@ -1,0 +1,79 @@
+{% extends "home.html" %}
+{% load static humanize %}
+{% load querystring_tags %} {# Si usas query_transform #}
+
+{% block content %}
+<div class="dark-container" role="main" aria-labelledby="main-heading"> {# Tu clase #}
+  <section>
+    <h1 id="main-heading">🗑️ Confirmar Eliminación de Tarifa #{{ object.id }}</h1> {# Título ajustado #}
+
+    <div class="header-actions">
+        {# Enlace a detalle usa object.pk #}
+        <a href="{% url 'myapp:tarifa_detail' object.pk %}" class="nav_link" aria-label="Cancelar y volver al detalle de la tarifa">
+            ⬅️ Cancelar y Volver al Detalle
+        </a>
+         <a href="{% url 'myapp:tarifa_list' %}" class="nav_link" aria-label="Volver al listado de tarifas">
+            ⬅️ Volver al Listado
+        </a>
+    </div>
+
+    <div class="delete-confirmation mt-3" data-section="confirmacion-eliminacion"> {# Margen añadido #}
+        <h2 class="dark-label">⚠️ Confirmación de Eliminación</h2> {# Tu clase dark-label #}
+        <p>Estás a punto de eliminar permanentemente el siguiente registro de tarifa. Verifica los datos:</p>
+
+        {# --- Resumen de Datos Clave (Usando tu estructura) --- #}
+        <div class="detail-summary mb-3"> {# Añadido margen inferior #}
+            <div class="detail-section"> 
+                <h3 class="section-title visually-hidden">Datos Principales de la Tarifa</h3>
+                <div class="dark-group"><span class="dark-label">#️⃣ Codigo de Tarifa:</span><span class="data-value">{{ object.codigo_tarifa|default:"No disponible" }}</span></div>
+                 <div class="dark-group"><span class="dark-label">#️⃣ ID:</span><span class="data-value">{{ object.pk }}</span></div>
+                 <div class="dark-group"><span class="dark-label">🌿 Ramo:</span><span class="data-value">{{ object.get_ramo_display|escape }}</span></div>
+                 <div class="dark-group"><span class="dark-label">🔞 Rango Etario:</span><span class="data-value">{{ object.get_rango_etario_display|escape }}</span></div>
+                 <div class="dark-group"><span class="dark-label">📅 F. Aplicación:</span><span class="data-value">{{ object.fecha_aplicacion|date:"d/m/Y" }}</span></div>
+                 <div class="dark-group"><span class="dark-label">💰 Monto Anual:</span><span class="data-value">${{ object.monto_anual|floatformat:2|intcomma }}</span></div>
+                 <div class="dark-group"><span class="dark-label">쪼 Fraccionamiento:</span><span class="data-value">{{ object.get_tipo_fraccionamiento_display|escape|default:"Anual (Base)" }}</span></div>
+                 <div class="dark-group"><span class="dark-label">💡 Activo:</span><span class="badge {% if object.activo %}badge-success{% else %}badge-danger{% endif %}">{{ object.activo|yesno:"Sí,No" }}</span></div>
+            </div>
+             {# Omitimos la sección de auditoría aquí, es menos relevante para confirmar borrado #}
+        </div>
+        {# --- Fin Resumen de Datos --- #}
+
+        {# --- NUEVO: Lógica de Advertencia Mejorada --- #}
+        {# Asume que la vista pasa 'tarifa_en_uso' (booleano) al contexto #}
+        {% if tarifa_en_uso %}
+            <div class="alert alert-danger mt-4" role="alert"> {# Alerta de Peligro si está en uso #}
+                <p><strong>¡Acción Bloqueada!</strong> Esta tarifa **no puede ser eliminada** porque está siendo utilizada actualmente por uno o más contratos.</p>
+                <p>Para poder eliminarla, primero debe desvincularla o asignar otra tarifa a los contratos asociados.</p>
+            </div>
+        {% else %}
+            <div class="alert alert-warning mt-4" role="alert"> {# Advertencia normal si NO está en uso #}
+                <p><strong>¡Atención!</strong> Esta acción no se puede deshacer.</p>
+                <p>¿Estás completamente seguro de que deseas eliminar esta tarifa?</p>
+            </div>
+        {% endif %}
+        {# --- FIN NUEVO --- #}
+
+
+        {# --- Formulario de Confirmación --- #}
+        <form method="post" class="delete-form mt-3" aria-label="Formulario de confirmación de eliminación"> {# Margen añadido #}
+            {% csrf_token %}
+            <div class="form-actions"> {# Tu clase #}
+                {# --- Botón Deshabilitado si está en uso --- #}
+                <button type="submit" class="btn-warning" {% if tarifa_en_uso %}disabled title="No se puede eliminar: Tarifa en uso por contratos"{% endif %} aria-label="Confirmar la eliminación permanente de esta tarifa">
+                    🗑️ {% if tarifa_en_uso %}Eliminar (Bloqueado){% else %}Eliminar Definitivamente{% endif %}
+                </button>
+                {# --- Fin Botón Deshabilitado --- #}
+
+                {# Botón Cancelar siempre activo #}
+                <a href="{% url 'myapp:tarifa_detail' object.pk %}" class="btn-success" aria-label="Cancelar y volver al detalle de la tarifa"> {# Tu clase #}
+                    🚫 No, cancelar
+                </a>
+            </div>
+        </form>
+        {# --- Fin Formulario --- #}
+
+    </div> {# Fin delete-confirmation #}
+  </section>
+</div>
+
+{% endblock content %}

@@ -1,0 +1,174 @@
+{% extends "home.html" %}
+{% load static %}
+{% load humanize %}
+{% load querystring_tags %} {# Si usas query_transform para los botones #}
+
+{% block content %}
+<div class="container" role="main" aria-labelledby="main-heading"> {# Tu clase container #}
+  <section>
+    {# Ajustar título para más claridad #}
+    <h1 id="main-heading">💲 Detalle de Tarifa: {{ tarifa.get_ramo_display }} - {{ tarifa.get_rango_etario_display }} (Desde: {{ tarifa.fecha_aplicacion|date:"d/m/Y" }})</h1>
+
+    {# --- Botones de Acción (Sin cambios) --- #}
+    <div class="detail-actions-container mb-4"> {# Tu clase #}
+      {% if perms.myapp.change_tarifa %}
+        <a href="{% url 'myapp:tarifa_update' tarifa.pk %}" class="btn btn-success" aria-label="Editar esta tarifa">✏️ Editar</a>
+      {% endif %}
+      {% if perms.myapp.delete_tarifa %}
+        <a href="{% url 'myapp:tarifa_delete' tarifa.pk %}" class="btn btn-danger delete-link" aria-label="Eliminar esta tarifa">❌ Eliminar</a>
+      {% endif %}
+      <a href="{% url 'myapp:tarifa_list' %}" class="nav_link" aria-label="Volver al listado de tarifas">⬅️ Volver al Listado</a>
+    </div>
+
+    <div class="form-main-container"> {# Tu clase #}
+
+      {# --- Información de la Tarifa (Sin cambios estructurales) --- #}
+      <fieldset class="mb-4">
+        <legend>💲 Información de la Tarifa</legend>
+        <div class="dark-grid"> {# Tu clase #}
+            <div class="dark-group">
+                <p><strong>#️⃣ Código de Tarifa:</strong> {{ object.codigo_tarifa|default:"No generado o no disponible" }}</p> <!-- AÑADIDO AQUÍ -->
+
+                <span class="dark-label">🌿 Ramo:</span>
+                <span>{{ tarifa.get_ramo_display|escape }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🔞 Rango Etario:</span>
+                <span>{{ tarifa.get_rango_etario_display|escape }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">📅 Fecha de Aplicación:</span>
+                <span>{{ tarifa.fecha_aplicacion|date:"d/m/Y" }}</span>
+            </div>
+             <div class="dark-group">
+                 <span class="dark-label">💰 Monto Anual Base:</span>
+                 <span>${{ tarifa.monto_anual|floatformat:2|intcomma }}</span>
+             </div>
+             <div class="dark-group">
+                <span class="dark-label">쪼 Tipo Fraccionamiento:</span>
+                <span>{{ tarifa.get_tipo_fraccionamiento_display|escape|default:"Anual (Base)" }}</span> {# Usar get_display o default #}
+            </div>
+             <div class="dark-group">
+                 <span class="dark-label">💲 Comisión Intermediario (%):</span>
+                 <span>{{ tarifa.comision_intermediario|floatformat:2|default:"-" }}%</span>
+             </div>
+             <div class="dark-group">
+                <span class="dark-label">💡 Tarifa Activa:</span>
+                 <span class="badge {% if tarifa.activo %}badge-success{% else %}badge-danger{% endif %}">{{ tarifa.activo|yesno:"Sí,No" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">#️⃣ ID Interno Tarifa:</span>
+                <span>{{ tarifa.pk }}</span>
+            </div>
+        </div>
+      </fieldset>
+
+      {# --- Montos Calculados (Sin cambios) --- #}
+      <fieldset class="mb-4">
+        <legend>📊 Montos Calculados (Fraccionados)</legend>
+        <div class="dark-grid">
+            <div class="dark-group">
+                <span class="dark-label">💰 Monto Semestral:</span>
+                <span>${{ tarifa.monto_semestral|floatformat:2|intcomma }}</span> {# Property #}
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">💰 Monto Trimestral:</span>
+                <span>${{ tarifa.monto_trimestral|floatformat:2|intcomma }}</span> {# Property #}
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">💰 Monto Mensual:</span>
+                <span>${{ tarifa.monto_mensual|floatformat:2|intcomma }}</span> {# Property #}
+            </div>
+        </div>
+      </fieldset>
+
+      {# --- Datos Base (Sin cambios) --- #}
+      <fieldset>
+        <legend>📄 Datos Base (Heredados)</legend>
+        <div class="dark-grid">
+             <div class="dark-group">
+               <span class="dark-label">➕ Fecha Creación:</span>
+               <span>{{ tarifa.fecha_creacion|date:"d/m/Y H:i:s" }}</span>
+             </div>
+             <div class="dark-group">
+               <span class="dark-label">🔄 Fecha Modificación:</span>
+               <span>{{ tarifa.fecha_modificacion|date:"d/m/Y H:i:s" }}</span>
+             </div>
+        </div>
+      </fieldset>
+
+    </div>
+
+    {# --- Sección Contratos Asociados (CORREGIDA) --- #}
+    <div class="form-main-container mt-4"> {# Tu clase #}
+        <fieldset>
+            <legend>🔗 Contratos que Aplicaron esta Tarifa</legend> {# Título más preciso #}
+
+             {# Contratos Individuales #}
+             {# --- USA related_name '%(class)s_set' -> contratoindividual_set --- #}
+             {% with contratos_ind=tarifa.contratoindividual_set.all %}
+                 <h4 class="mt-3">📄 Contratos Individuales ({{ contratos_ind.count }})</h4>
+                 {% if contratos_ind %}
+                     <div class="table-container">
+                         <table class="data-table">
+                             <thead><tr><th>N° Contrato</th><th>Afiliado</th><th>Inicio Vig.</th><th>Monto Total</th><th>Estatus</th><th>Acciones</th></tr></thead>
+                             <tbody>
+                                 {% for contrato_ind in contratos_ind %}
+                                 <tr>
+                                     <td>{{ contrato_ind.numero_contrato }}</td>
+                                     <td>{{ contrato_ind.afiliado.nombre_completo|escape|default:"-" }}</td>
+                                     <td>{{ contrato_ind.fecha_inicio_vigencia|date:"d/m/Y"|default:"-" }}</td>
+                                     <td class="text-end">${{ contrato_ind.monto_total|floatformat:2|intcomma }}</td>
+                                     <td><span class="badge {% if contrato_ind.estatus == 'VIGENTE' %}badge-success{% elif contrato_ind.estatus == 'VENCIDO' %}badge-danger{% else %}badge-warning{% endif %}">{{ contrato_ind.get_estatus_display }}</span></td>
+                                     <td class="actions"><div class="action-group">
+                                         {% if perms.myapp.view_contratoindividual %}
+                                         <a href="{% url 'myapp:contrato_individual_detail' contrato_ind.pk %}" class="action-icon" title="Ver Contrato">👁️</a>
+                                         {% endif %}
+                                     </div></td>
+                                 </tr>
+                                 {% endfor %}
+                             </tbody>
+                         </table>
+                     </div>
+                 {% else %}
+                      <p>No hay contratos individuales asociados directamente a esta tarifa.</p>
+                 {% endif %}
+             {% endwith %}
+
+             {# Contratos Colectivos #}
+             {# --- USA related_name '%(class)s_set' -> contratocolectivo_set --- #}
+             {% with contratos_col=tarifa.contratocolectivo_set.all %}
+                 <h4 class="mt-3">📑 Contratos Colectivos ({{ contratos_col.count }})</h4>
+                  {% if contratos_col %}
+                     <div class="table-container">
+                         <table class="data-table">
+                               <thead><tr><th>N° Contrato</th><th>Razón Social</th><th>Inicio Vig.</th><th>Monto Total</th><th>Estatus</th><th>Acciones</th></tr></thead>
+                             <tbody>
+                                 {% for contrato_col in contratos_col %}
+                                 <tr>
+                                     <td>{{ contrato_col.numero_contrato }}</td>
+                                     <td>{{ contrato_col.razon_social|escape }}</td>
+                                      <td>{{ contrato_col.fecha_inicio_vigencia|date:"d/m/Y"|default:"-" }}</td>
+                                     <td class="text-end">${{ contrato_col.monto_total|floatformat:2|intcomma }}</td>
+                                     <td><span class="badge {% if contrato_col.estatus == 'VIGENTE' %}badge-success{% elif contrato_col.estatus == 'VENCIDO' %}badge-danger{% else %}badge-warning{% endif %}">{{ contrato_col.get_estatus_display }}</span></td>
+                                     <td class="actions"><div class="action-group">
+                                         {% if perms.myapp.view_contratocolectivo %}
+                                         <a href="{% url 'myapp:contrato_colectivo_detail' contrato_col.pk %}" class="action-icon" title="Ver Contrato">👁️</a>
+                                         {% endif %}
+                                     </div></td>
+                                 </tr>
+                                 {% endfor %}
+                             </tbody>
+                         </table>
+                     </div>
+                 {% else %}
+                       <p>No hay contratos colectivos asociados directamente a esta tarifa.</p>
+                 {% endif %}
+             {% endwith %}
+
+        </fieldset> {# Cierre fieldset Relaciones #}
+    </div> {# Cierre form-main-container Relaciones #}
+
+  </section>
+</div> {# Cierre container #}
+{% endblock content %}

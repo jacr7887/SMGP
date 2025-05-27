@@ -1,0 +1,31 @@
+{# myapp/templates/kpi_card.html #}
+{% load humanize %}
+
+<div class="glass-card kpi-card {{ card_extra_class }} h-100"> {# Usamos glass-card y tu kpi-card si la definiste, más una clase extra para color #}
+    <div class="kpi-content-wrapper"> {# Un wrapper interno para padding/flex si es necesario #}
+        <div class="kpi-text-content">
+            <div class="kpi-label">{{ label }}</div>
+            <div class="kpi-value"> {# Quitado display-5 si no es tuya #}
+                {% if unit == '$' %}{{ unit }}{% endif %}
+                {% if value|stringformat:"s" != "Error" and value|stringformat:"s" != "Calculando..." and value is not None %}
+                    {{ value|intcomma }}
+                {% else %}
+                    {{ value|default:"N/A" }}
+                {% endif %}
+                {% if unit == '%' %}{{ unit }}{% endif %}
+            </div>
+        </div>
+        {% if icon_class %}
+        <div class="kpi-icon"> {# Tu clase kpi-icon #}
+            {# Asumiendo que usas Font Awesome via <i> #}
+            <i class="{{ icon_class }} fa-3x"></i> {# Tamaño fa-3x es de FontAwesome #}
+        </div>
+        {% endif %}
+    </div>
+    {% if footer_text %}
+    <div class="kpi-footer"> {# Una clase específica para el footer si la necesitas #}
+        <span>{{ footer_text }}</span>
+    </div>
+    {% endif %}
+</div>
+

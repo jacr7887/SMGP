@@ -1,0 +1,119 @@
+# EN MPC/.gitignore (RAÍZ DEL REPOSITORIO)
+
+# Python bytecode / optimizados / DLLs
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+ENV/
+VENV/
+.ENV/
+.VENV/
+
+# Archivos de configuración y secretos
+myproject/.env # Asumiendo que tu .env principal está dentro de myproject
+.env # Si tienes uno en la raíz también
+.env.* # Para cubrir .env.local, .env.production, etc., en la raíz o subdirectorios si usas el patrón así
+
+# Bases de datos locales (si db.sqlite3 está dentro de myproject)
+myproject/db.sqlite3
+myproject/db.sqlite3-journal
+
+# Media subida por usuarios
+myproject/mediafiles/
+
+# Archivos estáticos (carpeta donde Django recolecta para producción)
+myproject/staticfiles/ # Asumiendo que esta es tu STATIC_ROOT o donde se recolectan
+                       # Si se llama diferente o está en otro lugar, ajusta.
+
+# Carpetas de Django generadas/cache
+myproject/django_cache/
+
+# Archivos de IDEs y editores
+.vscode/
+*.code-workspace
+.idea/
+*.iml
+*~
+nbproject/
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+myproject/logs/ # Si tus logs de Django están en myproject/logs/
+logs/          # Si tienes una carpeta de logs en la raíz MPC/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Distribución / empaquetado
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+myproject/.coverage # Si el .coverage de Django se genera dentro de myproject
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Traducciones
+*.mo
+*.pot
+
+# Sass cache
+.sass-cache/
+
+# Archivos de sistema operativo
+.DS_Store
+Thumbs.db
+
+# --- Archivos Prohibidos Específicos ---
+# (Rutas desde la raíz MPC/)
+myproject/myapp/.env_generator_keys
+myproject/myapp/script_generador.py
+myproject/myapp/generar_claves_maestras.py
+myproject/myapp/generar_par_claves.py
+myproject/myapp/claves_maestras.md
+myproject/myapp/ModelosPrompt.md
+myproject/myapp/ModelosPrompt.yaml
+myproject/myapp/Caracteristicas.md
+myproject/myapp/Presentacion.md
+myproject/myapp/Manual.md
+myproject/myapp/Leeme.md
+myproject/myapp/SaaS.md
+# myproject/.pylintrc.txt # Si no quieres este archivo de config de linter
+# myproject/.coveragerc.txt # Si no quieres este archivo de config de coverage
+# myproject/installed_packages.txt # Si es un archivo temporal o de referencia

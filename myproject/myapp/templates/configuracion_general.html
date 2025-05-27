@@ -1,0 +1,13 @@
+{% extends "home.html" %} {% block content %} {% load humanize %}
+<div role="main" aria-labelledby="main-content">
+  <h1 id="main-content">⚙️ Configuración General</h1>
+  <form method="post" aria-label="Configuración del sistema">
+    {% csrf_token %}
+    <label for="parametro">Parámetro:</label>
+    <input type="text" id="parametro" name="parametro" />
+    <label for="valor">Valor:</label>
+    <input type="text" id="valor" name="valor" />
+    <button type="submit" class="boton-guardar">💾 Guardar</button>
+  </form>
+</div>
+{% endblock %}

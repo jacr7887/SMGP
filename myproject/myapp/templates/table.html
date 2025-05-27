@@ -1,0 +1,39 @@
+<div class="django-table-container">
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        {% for field in object_list.0.get_fields %}
+        <th>{{ field.verbose_name }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for obj in object_list %}
+      <tr>
+        {% for value in obj.get_values %}
+        <td>{{ value }}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Paginación estilo Django -->
+  <div class="pagination">
+    <span class="step-links">
+      {% if page_obj.has_previous %}
+      <a href="?page=1">&laquo; primera</a>
+      <a href="?page={{ page_obj.previous_page_number }}">anterior</a>
+      {% endif %}
+
+      <span class="current">
+        Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}.
+      </span>
+
+      {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}">siguiente</a>
+      <a href="?page={{ page_obj.paginator.num_pages }}">última &raquo;</a>
+      {% endif %}
+    </span>
+  </div>
+</div>

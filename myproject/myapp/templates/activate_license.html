@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title|default:"Activar Licencia" }}{% endblock %}
+
+{% block content %}
+<div class="dark-container page-list-view">
+    <section>
+        <div class="list-header">
+            <h1 class="main-title">{{ title }}</h1>
+        </div>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show compact-form" role="alert">
+                    {{ message|escape }}
+                    {# <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button> #}
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <div class="glass-card" style="max-width: 600px; margin: 2rem auto;">
+            <h3 style="text-align: center; margin-bottom: 1.5rem;">Estado Actual de la Licencia</h3>
+            {% if license_status.key %}
+                <p><strong>Clave Registrada:</strong> {{ license_status.key_fragment }}</p>
+                <p><strong>Fecha de Expiración:</strong> {{ license_status.expiry_date|date:"d/m/Y" }}</p>
+                <p><strong>Estado:</strong> 
+                    {% if license_status.is_valid %}
+                        <span class="badge badge-success">VÁLIDA</span>
+                    {% else %}
+                        <span class="badge badge-danger">EXPIRADA o INVÁLIDA</span>
+                    {% endif %}
+                </p>
+                <p><small>Última actualización: {{ license_status.last_updated|date:"d/m/Y H:i" }}</small></p>
+            {% else %}
+                <p class="text-warning">No hay información de licencia registrada en el sistema.</p>
+            {% endif %}
+        </div>
+
+        <form method="post" class="compact-form glass-card" style="max-width: 600px; margin: 2rem auto;">
+            {% csrf_token %}
+            <fieldset>
+                <legend>Ingresar Nueva Clave de Licencia</legend>
+                
+                <div class="dark-group {% if form.license_key.errors %}error{% endif %}">
+                    <label for="{{ form.license_key.id_for_label }}" class="dark-label">{{ form.license_key.label }}</label>
+                    {{ form.license_key }} {# El widget ya tiene placeholder y clase 'search-input' #}
+                    {% if form.license_key.help_text %}
+                        <small class="form-text text-muted">{{ form.license_key.help_text|safe }}</small>
+                    {% endif %}
+                    {% if form.license_key.errors %}
+                        <ul class="error-messages">
+                            {% for error in form.license_key.errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                </div>
+
+                {# El campo expiry_date ya no está en el formulario #}
+
+            </fieldset>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-success">🔑 Activar / Actualizar Licencia</button>
+            </div>
+        </form>
+    </section>
+</div>
+{% endblock %}

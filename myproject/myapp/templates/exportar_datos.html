@@ -1,0 +1,14 @@
+{% extends "home.html" %} {% block content %} {% load humanize %}
+<div role="main" aria-labelledby="main-content">
+  <h1 id="main-content">📥 Exportar Datos</h1>
+  <form method="post" aria-label="Exportar datos">
+    {% csrf_token %}
+    <label for="tipo_exportacion">Tipo de exportación:</label>
+    <select id="tipo_exportacion" name="tipo_exportacion">
+      <option value="csv">CSV</option>
+      <option value="pdf">PDF</option>
+    </select>
+    <button type="submit" class="boton-exportar">📥 Exportar</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,379 @@
+{% extends "home.html" %}
+{% load static %}
+{% load querystring_tags %}
+{% load humanize %}
+
+{% block content %}
+<div class="dark-container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading">
+      {% if form.instance.pk %}✏️ Editar{% else %}➕ Nuevo{% endif %} Contrato Individual
+      {% if form.instance.pk %}: {{ form.instance.numero_contrato|default:'(Sin número)' }}{% endif %}
+    </h1>
+
+    <div class="header-actions">
+        {% if perms.myapp.view_contratoindividual %}
+           <a href="{% url 'myapp:contrato_individual_list' %}" class="nav_link" aria-label="Volver al listado de contratos individuales">
+                ⬅️ Volver al Listado
+           </a>
+       {% endif %}
+       {% if form.instance.pk and perms.myapp.view_contratoindividual %}
+            <a href="{% url 'myapp:contrato_individual_detail' form.instance.pk %}" class="nav_link" aria-label="Ver detalles de este contrato">
+                👁️ Ver Detalle
+            </a>
+       {% endif %}
+    </div>
+
+    <form method="post" class="compact-form" enctype="multipart/form-data" aria-labelledby="main-heading" novalidate>
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+          <div class="alert alert-danger error-summary" role="alert">
+              <h4>⚠️ Errores Generales:</h4>
+              <ul>
+                  {% for error in form.non_field_errors %}
+                      <li>{{ error|escape }}</li>
+                  {% endfor %}
+              </ul>
+          </div>
+      {% endif %}
+
+      <fieldset class="dark-group" data-section="informacion-principal">
+          <legend class="dark-label">📄 Información Principal del Contrato</legend>
+
+          {# --- Campos No Editables (Solo en Edición) --- #}
+          {% if form.instance.pk %}
+            <div class="dark-grid"> {# Usar grid para mejor alineación de campos readonly #}
+                <div class="dark-group readonly-group">
+                    <label class="dark-label">#️⃣ Número Contrato</label>
+                    <input type="text" value="{{ form.instance.numero_contrato|default:'N/A' }}" readonly class="dark-group-plaintext">
+                </div>
+                <div class="dark-group readonly-group">
+                    <label class="dark-label">📜 Número Póliza</label>
+                    <input type="text" value="{{ form.instance.numero_poliza|default:'N/A' }}" readonly class="dark-group-plaintext">
+                </div>
+                 <div class="dark-group readonly-group">
+                     <label class="dark-label">📜 Número Certificado</label>
+                     <input type="text" value="{{ form.instance.certificado|default:'N/A' }}" readonly class="dark-group-plaintext">
+                 </div>
+                 <div class="dark-group readonly-group">
+                     <label class="dark-label">🧾 Número Último Recibo</label>
+                     <input type="text" value="{{ form.instance.numero_recibo|default:'N/A' }}" readonly class="dark-group-plaintext">
+                 </div>
+                 <div class="dark-group readonly-group">
+                    <label class="dark-label">📅 Fecha Emisión</label>
+                    <input type="text" value="{{ form.instance.fecha_emision|date:"d/m/Y H:i"|default:'N/A' }}" readonly class="dark-group-plaintext">
+                </div>
+                <div class="dark-group readonly-group">
+                     <label class="dark-label">💰 Prima Total (Histórica)</label>
+                     <input type="text" value="${{ form.instance.monto_total|floatformat:2|intcomma|default:'0.00' }}" readonly class="dark-group-plaintext">
+                     <small class="form-text text-muted">Monto calculado al momento de la creación/última modificación de tarifa/condiciones.</small>
+                </div>
+                {# Puedes añadir más campos calculados readonly aquí si es relevante #}
+            </div>
+          {% endif %}
+          {# --- Fin Campos No Editables --- #}
+
+          {# --- Campos Editables Clave --- #}
+          <div class="dark-grid"> {# Otro grid para los campos editables principales #}
+            {% if 'activo' in form.fields %}
+            <div class="dark-group {% if form.activo.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.activo.id_for_label }}">💡 Estado Activo Contrato</label>
+                 <label class="switch">
+                     <input type="checkbox" name="{{ form.activo.name }}" id="{{ form.activo.id_for_label }}" {% if form.activo.value or not form.instance.pk %}checked{% endif %} aria-describedby="{{ form.activo.id_for_label }}-help">
+                     <span class="slider"></span>
+                 </label>
+                {% if form.activo.errors %}<ul class="error-messages" role="alert">{% for error in form.activo.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+                {% if form.activo.help_text %}<small class="form-text text-muted" id="{{ form.activo.id_for_label }}-help">{{ form.activo.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if 'ramo' in form.fields %}
+            <div class="dark-group {% if form.ramo.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.ramo.id_for_label }}">🌿 Ramo (*)</label>
+                {{ form.ramo }}
+                {% if form.ramo.errors %}<ul class="error-messages" role="alert">{% for error in form.ramo.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+                {% if form.ramo.help_text %}<small class="form-text text-muted" id="{{ form.ramo.id_for_label }}-help">{{ form.ramo.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+             {% if 'afiliado' in form.fields %}
+             <div class="dark-group {% if form.afiliado.errors %}error{% endif %}">
+                 <label class="dark-label" for="{{ form.afiliado.id_for_label }}">👤 Afiliado Titular (*)</label>
+                 {{ form.afiliado }} {# Asume widget Select2 desde el form #}
+                 {% if form.afiliado.errors %}<ul class="error-messages" role="alert">{% for error in form.afiliado.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+                 {% if form.afiliado.help_text %}<small class="form-text text-muted" id="{{ form.afiliado.id_for_label }}-help">{{ form.afiliado.help_text|escape }}</small>{% endif %}
+             </div>
+             {% endif %}
+
+              {% if 'intermediario' in form.fields %}
+              <div class="dark-group {% if form.intermediario.errors %}error{% endif %}">
+                  <label class="dark-label" for="{{ form.intermediario.id_for_label }}">🤝 Intermediario (*)</label>
+                  {{ form.intermediario }} {# Asume widget Select2 desde el form #}
+                  {% if form.intermediario.errors %}<ul class="error-messages" role="alert">{% for error in form.intermediario.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+                  {% if form.intermediario.help_text %}<small class="form-text text-muted" id="{{ form.intermediario.id_for_label }}-help">{{ form.intermediario.help_text|escape }}</small>{% endif %}
+              </div>
+              {% endif %}
+
+              {# --- CAMPO TARIFA APLICADA (AHORA EDITABLE) --- #}
+              {% if 'tarifa_aplicada' in form.fields %}
+              <div class="dark-group {% if form.tarifa_aplicada.errors %}error{% endif %}">
+                  <label class="dark-label" for="{{ form.tarifa_aplicada.id_for_label }}">🏷️ Tarifa Aplicada (*)</label>
+                  {{ form.tarifa_aplicada }} {# Asume widget Select2 desde el form #}
+                  {% if form.tarifa_aplicada.errors %}<ul class="error-messages" role="alert">{% for error in form.tarifa_aplicada.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+                  {% if form.tarifa_aplicada.help_text %}<small class="form-text text-muted" id="{{ form.tarifa_aplicada.id_for_label }}-help">{{ form.tarifa_aplicada.help_text|escape }}</small>{% endif %}
+              </div>
+              {% endif %}
+              {# --- FIN CAMPO TARIFA APLICADA --- #}
+
+               {% if 'plan_contratado' in form.fields %}
+               <div class="dark-group {% if form.plan_contratado.errors %}error{% endif %}">
+                   <label class="dark-label" for="{{ form.plan_contratado.id_for_label }}">📋 Plan Contratado</label>
+                   {{ form.plan_contratado }}
+                   {% if form.plan_contratado.errors %}<ul class="error-messages" role="alert">{% for error in form.plan_contratado.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+                   {% if form.plan_contratado.help_text %}<small class="form-text text-muted" id="{{ form.plan_contratado.id_for_label }}-help">{{ form.plan_contratado.help_text|escape }}</small>{% endif %}
+               </div>
+               {% endif %}
+
+               {% if 'suma_asegurada' in form.fields %}
+               <div class="dark-group {% if form.suma_asegurada.errors %}error{% endif %}">
+                   <label class="dark-label" for="{{ form.suma_asegurada.id_for_label }}">🛡️ Suma Asegurada / Cobertura</label>
+                   {{ form.suma_asegurada }}
+                   {% if form.suma_asegurada.errors %}<ul class="error-messages" role="alert">{% for error in form.suma_asegurada.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+                   {% if form.suma_asegurada.help_text %}<small class="form-text text-muted" id="{{ form.suma_asegurada.id_for_label }}-help">{{ form.suma_asegurada.help_text|escape }}</small>{% endif %}
+               </div>
+               {% endif %}
+            </div> {# Fin dark-grid para campos editables principales #}
+      </fieldset>
+
+      {# --- Sección Contratante --- #}
+      <fieldset class="dark-group" data-section="informacion-contratante">
+        <legend class="dark-label">🧑‍💼 Información del Contratante</legend>
+        <div class="dark-grid">
+            {% if 'tipo_identificacion_contratante' in form.fields %}
+            <div class="dark-group {% if form.tipo_identificacion_contratante.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.tipo_identificacion_contratante.id_for_label }}">🔖 Tipo ID Cont.</label>
+                {{ form.tipo_identificacion_contratante }}
+                {% if form.tipo_identificacion_contratante.errors %}<ul class="error-messages">{% for e in form.tipo_identificacion_contratante.errors %}<li>{{e|escape}}</li>{% endfor %}</ul>{% endif %}
+                {% if form.tipo_identificacion_contratante.help_text %}<small class="form-text text-muted">{{ form.tipo_identificacion_contratante.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+            {% if 'contratante_cedula' in form.fields %}
+            <div class="dark-group {% if form.contratante_cedula.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.contratante_cedula.id_for_label }}">🆔 Cédula/RIF Cont.</label>
+                {{ form.contratante_cedula }}
+                {% if form.contratante_cedula.errors %}<ul class="error-messages">{% for e in form.contratante_cedula.errors %}<li>{{e|escape}}</li>{% endfor %}</ul>{% endif %}
+                {% if form.contratante_cedula.help_text %}<small class="form-text text-muted">{{ form.contratante_cedula.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+            {% if 'contratante_nombre' in form.fields %}
+            <div class="dark-group {% if form.contratante_nombre.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.contratante_nombre.id_for_label }}">🧑‍💼 Nombre Cont.</label>
+                {{ form.contratante_nombre }}
+                {% if form.contratante_nombre.errors %}<ul class="error-messages">{% for e in form.contratante_nombre.errors %}<li>{{e|escape}}</li>{% endfor %}</ul>{% endif %}
+                {% if form.contratante_nombre.help_text %}<small class="form-text text-muted">{{ form.contratante_nombre.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+            {% if 'direccion_contratante' in form.fields %}
+            <div class="dark-group {% if form.direccion_contratante.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.direccion_contratante.id_for_label }}">🏠 Dirección Cont.</label>
+                {{ form.direccion_contratante }}
+                {% if form.direccion_contratante.errors %}<ul class="error-messages">{% for e in form.direccion_contratante.errors %}<li>{{e|escape}}</li>{% endfor %}</ul>{% endif %}
+                {% if form.direccion_contratante.help_text %}<small class="form-text text-muted">{{ form.direccion_contratante.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+            {% if 'telefono_contratante' in form.fields %}
+            <div class="dark-group {% if form.telefono_contratante.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.telefono_contratante.id_for_label }}">📞 Teléfono Cont.</label>
+                {{ form.telefono_contratante }}
+                {% if form.telefono_contratante.errors %}<ul class="error-messages">{% for e in form.telefono_contratante.errors %}<li>{{e|escape}}</li>{% endfor %}</ul>{% endif %}
+                {% if form.telefono_contratante.help_text %}<small class="form-text text-muted">{{ form.telefono_contratante.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+            {% if 'email_contratante' in form.fields %}
+            <div class="dark-group {% if form.email_contratante.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.email_contratante.id_for_label }}">📧 Email Cont.</label>
+                {{ form.email_contratante }}
+                {% if form.email_contratante.errors %}<ul class="error-messages">{% for e in form.email_contratante.errors %}<li>{{e|escape}}</li>{% endfor %}</ul>{% endif %}
+                {% if form.email_contratante.help_text %}<small class="form-text text-muted">{{ form.email_contratante.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+      </fieldset>
+
+      {# --- Sección Condiciones Pago y Vigencia --- #}
+      <fieldset class="dark-group" data-section="condiciones-pago-vigencia">
+        <legend class="dark-label">💰 Condiciones de Pago y Vigencia</legend>
+        <div class="dark-grid">
+            {% if 'forma_pago' in form.fields %}
+            <div class="dark-group {% if form.forma_pago.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.forma_pago.id_for_label }}">💳 Forma de Pago (*)</label>
+                {{ form.forma_pago }}
+                {% if form.forma_pago.errors %}<ul class="error-messages">{% for e in form.forma_pago.errors %}<li>{{e|escape}}</li>{% endfor %}</ul>{% endif %}
+                {% if form.forma_pago.help_text %}<small class="form-text text-muted">{{ form.forma_pago.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if 'periodo_vigencia_meses' in form.fields %}
+            <div class="dark-group {% if form.periodo_vigencia_meses.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.periodo_vigencia_meses.id_for_label }}">⏳ Duración Contrato (Meses)</label>
+                {{ form.periodo_vigencia_meses }}
+                {% if form.periodo_vigencia_meses.errors %}<ul class="error-messages">{% for e in form.periodo_vigencia_meses.errors %}<li>{{e|escape}}</li>{% endfor %}</ul>{% endif %}
+                {% if form.periodo_vigencia_meses.help_text %}<small class="form-text text-muted">{{ form.periodo_vigencia_meses.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if 'fecha_inicio_vigencia' in form.fields %}
+                 <div class="dark-group {% if form.fecha_inicio_vigencia.errors %}error{% endif %}">
+                     <label class="dark-label" for="{{ form.fecha_inicio_vigencia.id_for_label }}">➡️ Inicio Vigencia Contrato (*)</label>
+                     {{ form.fecha_inicio_vigencia }}
+                     {% if form.fecha_inicio_vigencia.errors %}<ul class="error-messages">{% for e in form.fecha_inicio_vigencia.errors %}<li>{{e|escape}}</li>{% endfor %}</ul>{% endif %}
+                     {% if form.fecha_inicio_vigencia.help_text %}<small class="form-text text-muted">{{ form.fecha_inicio_vigencia.help_text|escape }}</small>{% endif %}
+                 </div>
+            {% endif %}
+
+            {% if 'fecha_fin_vigencia' in form.fields %}
+                 <div class="dark-group {% if form.fecha_fin_vigencia.errors %}error{% endif %}">
+                     <label class="dark-label" for="{{ form.fecha_fin_vigencia.id_for_label }}">⏹️ Fin Vigencia Contrato</label>
+                     {{ form.fecha_fin_vigencia }}
+                     {% if form.fecha_fin_vigencia.errors %}<ul class="error-messages">{% for e in form.fecha_fin_vigencia.errors %}<li>{{e|escape}}</li>{% endfor %}</ul>{% endif %}
+                     {% if form.fecha_fin_vigencia.help_text %}<small class="form-text text-muted">{{ form.fecha_fin_vigencia.help_text|escape }}</small>{% endif %}
+                 </div>
+            {% endif %}
+
+            {% if 'fecha_inicio_vigencia_recibo' in form.fields %}
+            <div class="dark-group {% if form.fecha_inicio_vigencia_recibo.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.fecha_inicio_vigencia_recibo.id_for_label }}">🗓️ Inicio Vigencia Recibo</label>
+                {{ form.fecha_inicio_vigencia_recibo }}
+                {% if form.fecha_inicio_vigencia_recibo.errors %}<ul class="error-messages">{% for e in form.fecha_inicio_vigencia_recibo.errors %}<li>{{e|escape}}</li>{% endfor %}</ul>{% endif %}
+                {% if form.fecha_inicio_vigencia_recibo.help_text %}<small class="form-text text-muted">{{ form.fecha_inicio_vigencia_recibo.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if 'fecha_fin_vigencia_recibo' in form.fields %}
+            <div class="dark-group {% if form.fecha_fin_vigencia_recibo.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.fecha_fin_vigencia_recibo.id_for_label }}">🗓️ Fin Vigencia Recibo</label>
+                {{ form.fecha_fin_vigencia_recibo }}
+                {% if form.fecha_fin_vigencia_recibo.errors %}<ul class="error-messages">{% for e in form.fecha_fin_vigencia_recibo.errors %}<li>{{e|escape}}</li>{% endfor %}</ul>{% endif %}
+                {% if form.fecha_fin_vigencia_recibo.help_text %}<small class="form-text text-muted">{{ form.fecha_fin_vigencia_recibo.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+      </fieldset>
+
+      {# --- Sección Comisiones y Estatus --- #}
+      <fieldset class="dark-group" data-section="comisiones-estatus">
+        <legend class="dark-label">📊 Comisiones y Estatus del Contrato</legend>
+        <div class="dark-grid">
+            {% if 'comision_anual' in form.fields %}
+            <div class="dark-group {% if form.comision_anual.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.comision_anual.id_for_label }}">📈 Comisión Anual (%)</label>
+                {{ form.comision_anual }}
+                {% if form.comision_anual.errors %}<ul class="error-messages">{% for e in form.comision_anual.errors %}<li>{{e|escape}}</li>{% endfor %}</ul>{% endif %}
+                {% if form.comision_anual.help_text %}<small class="form-text text-muted">{{ form.comision_anual.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if 'estatus' in form.fields %}
+            <div class="dark-group {% if form.estatus.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.estatus.id_for_label }}">🚦 Estatus Vigencia</label>
+                {{ form.estatus }}
+                {% if form.estatus.errors %}<ul class="error-messages">{% for e in form.estatus.errors %}<li>{{e|escape}}</li>{% endfor %}</ul>{% endif %}
+                {% if form.estatus.help_text %}<small class="form-text text-muted">{{ form.estatus.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if 'estado_contrato' in form.fields %}
+            <div class="dark-group {% if form.estado_contrato.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.estado_contrato.id_for_label }}">📊 Estado Admin. Contrato</label>
+                {{ form.estado_contrato }}
+                {% if form.estado_contrato.errors %}<ul class="error-messages">{% for e in form.estado_contrato.errors %}<li>{{e|escape}}</li>{% endfor %}</ul>{% endif %}
+                {% if form.estado_contrato.help_text %}<small class="form-text text-muted">{{ form.estado_contrato.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if 'estatus_emision_recibo' in form.fields %}
+            <div class="dark-group {% if form.estatus_emision_recibo.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.estatus_emision_recibo.id_for_label }}">🧾 Estatus Emisión Recibo</label>
+                {{ form.estatus_emision_recibo }}
+                {% if form.estatus_emision_recibo.errors %}<ul class="error-messages">{% for e in form.estatus_emision_recibo.errors %}<li>{{e|escape}}</li>{% endfor %}</ul>{% endif %}
+                {% if form.estatus_emision_recibo.help_text %}<small class="form-text text-muted">{{ form.estatus_emision_recibo.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+      </fieldset>
+
+      {# --- Sección Campos Informativos / Otros --- #}
+      <fieldset class="dark-group" data-section="campos-informativos-otros">
+        <legend class="dark-label">ℹ️ Otros Datos del Contrato</legend>
+        <div class="dark-grid">
+             {% if 'criterio_busqueda' in form.fields %}
+             <div class="dark-group {% if form.criterio_busqueda.errors %}error{% endif %}">
+                 <label class="dark-label" for="{{ form.criterio_busqueda.id_for_label }}">🔍 Criterio Búsqueda</label>
+                 {{ form.criterio_busqueda }}
+                 {% if form.criterio_busqueda.errors %}<ul class="error-messages">{% for e in form.criterio_busqueda.errors %}<li>{{e|escape}}</li>{% endfor %}</ul>{% endif %}
+                 {% if form.criterio_busqueda.help_text %}<small class="form-text text-muted">{{ form.criterio_busqueda.help_text|escape }}</small>{% endif %}
+             </div>
+             {% endif %}
+
+             {% if 'estatus_detalle' in form.fields %}
+             <div class="dark-group {% if form.estatus_detalle.errors %}error{% endif %}">
+                 <label class="dark-label" for="{{ form.estatus_detalle.id_for_label }}">📝 Estatus Detallado (Interno)</label>
+                 {{ form.estatus_detalle }}
+                 {% if form.estatus_detalle.errors %}<ul class="error-messages">{% for e in form.estatus_detalle.errors %}<li>{{e|escape}}</li>{% endfor %}</ul>{% endif %}
+                 {% if form.estatus_detalle.help_text %}<small class="form-text text-muted">{{ form.estatus_detalle.help_text|escape }}</small>{% endif %}
+             </div>
+             {% endif %}
+
+             {% if 'consultar_afiliados_activos' in form.fields %}
+              <div class="dark-group {% if form.consultar_afiliados_activos.errors %}error{% endif %}">
+                  <label class="dark-label" for="{{ form.consultar_afiliados_activos.id_for_label }}">📊 Consultar Af. Activos</label>
+                   <label class="switch">
+                       <input type="checkbox" name="{{ form.consultar_afiliados_activos.name }}" id="{{ form.consultar_afiliados_activos.id_for_label }}" {% if form.consultar_afiliados_activos.value %}checked{% endif %} aria-describedby="{{ form.consultar_afiliados_activos.id_for_label }}-help">
+                       <span class="slider"></span>
+                   </label>
+                  {% if form.consultar_afiliados_activos.errors %}<ul class="error-messages" role="alert">{% for error in form.consultar_afiliados_activos.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+                  {% if form.consultar_afiliados_activos.help_text %}<small class="form-text text-muted" id="{{ form.consultar_afiliados_activos.id_for_label }}-help">{{ form.consultar_afiliados_activos.help_text|escape }}</small>{% endif %}
+              </div>
+             {% endif %}
+        </div>
+      </fieldset>
+
+       {% for field in form.hidden_fields %}
+            {{ field }}
+       {% endfor %}
+
+      <div class="form-actions">
+        <button type="submit" class="btn-success">{% if form.instance.pk %}💾 Actualizar Contrato{% else %}➕ Crear Contrato{% endif %}</button>
+        <a href="{% url 'myapp:contrato_individual_list' %}" class="btn-danger">🚫 Cancelar</a>
+      </div>
+    </form>
+  </section>
+</div>
+
+{# --- CSS (SOLO para referencia, idealmente va en tu archivo .css) --- #}
+<style>
+  .readonly-group { margin-bottom: 0.8rem; }
+  .dark-group-plaintext {
+    display: block; width: 100%; padding: 0.375rem 0.1rem;
+    margin-bottom: 0; line-height: 1.5; color: #bdc3c7;
+    background-color: transparent; border: none; border-bottom: 1px solid #444;
+    box-sizing: border-box; font-size: 0.9em;
+  }
+  .dark-group.readonly-group small { display: block; margin-top: 0.25rem; font-size: 0.8em; }
+  .switch { position: relative; display: inline-block; width: 50px; height: 24px; vertical-align: middle; margin-left: 10px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; transition: .4s; border-radius: 24px; }
+  .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+  input:checked + .slider { background-color: #4CAF50; }
+  input:checked + .slider:before { transform: translateX(26px); }
+  .dark-group.error input, .dark-group.error select, .dark-group.error textarea { border-color: #e74c3c; }
+  .error-messages { list-style: none; padding-left: 0; margin-top: 0.25rem; }
+  .error-messages li { color: #e74c3c; font-size: 0.85em; }
+  .error-summary { margin-bottom: 1.5rem; }
+  .error-summary h4 { color: #e74c3c; margin-bottom: 0.5rem; font-size: 1.1em; }
+  .error-summary ul { padding-left: 20px; margin-bottom: 0; }
+  .error-summary li { color: #f1a097; }
+</style>
+
+{% endblock content %}

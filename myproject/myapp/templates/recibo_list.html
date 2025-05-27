@@ -1,0 +1,129 @@
+{% extends "home.html" %} {% load humanize %} {% load i18n %} {% block content
+%}
+
+<article aria-label="Listado de Recibos">
+  <h1>Gestión de Recibos</h1>
+  <section aria-label="Búsqueda" class="search-section">
+    <form method="get" role="search">
+      <input
+        type="search"
+        name="q"
+        aria-label="Buscar recibos"
+        placeholder="Buscar por número, contrato o monto..."
+        value="{{ request.GET.q|default:'' }}"
+      />
+      <button type="submit">Buscar</button>
+    </form>
+  </section>
+  <div class="responsive-table">
+    <table>
+      <caption>
+        Listado de Recibos - Total: {{ page_obj.paginator.count }}
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col">Número</th>
+          <th scope="col">Contrato Individual</th>
+          <th scope="col">Contrato Colectivo</th>
+          <th scope="col">Vigencia Desde</th>
+          <th scope="col">Vigencia Hasta</th>
+          <th scope="col">Monto</th>
+          <th scope="col">Días Cobro</th>
+          <th scope="col">Estatus</th>
+          <th scope="col">Pagada</th>
+          <th scope="col">Relación Ingreso</th>
+          <th scope="col">Recibos Pendientes</th>
+          <th scope="col">Creado</th>
+          <th scope="col">Modificado</th>
+          <th scope="col">Estado</th>
+          <th scope="col">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for recibo in object_list %}
+        <tr
+          aria-rowindex="{{ forloop.counter }}"
+          class="{% if not recibo.activo %}inactive{% endif %}"
+        >
+          <td>{{ recibo.numero_recibo }}</td>
+          <td>
+            {% if recibo.contrato_individual %}
+            <a
+              href="{% url 'contrato_individual_detail' recibo.contrato_individual.id %}"
+              aria-label="Ver contrato individual"
+            >
+              {{ recibo.contrato_individual.numero_contrato }}
+            </a>
+            {% else %}-{% endif %}
+          </td>
+          <td>
+            {% if recibo.contrato_colectivo %}
+            <a
+              href="{% url 'contrato_colectivo_detail' recibo.contrato_colectivo.id %}"
+              aria-label="Ver contrato colectivo"
+            >
+              {{ recibo.contrato_colectivo.numero_contrato }}
+            </a>
+            {% else %}-{% endif %}
+          </td>
+          <td>{{ recibo.vigencia_recibo_desde|date:"d/m/Y" }}</td>
+          <td>{{ recibo.vigencia_recibo_hasta|date:"d/m/Y" }}</td>
+          <td>{{ recibo.monto|floatformat:2|intcomma }}</td>
+          <td>{{ recibo.dias_periodo_cobro }}</td>
+          <td>
+            <span class="status-badge {{ recibo.estatus_emision|lower }}">
+              {{ recibo.get_estatus_emision_display }}
+            </span>
+          </td>
+          <td>
+            {% if recibo.pagada %}
+            <span aria-label="Pagada">✅</span>
+            {% else %}
+            <span aria-label="Pendiente">⚠️</span>
+            {% endif %}
+          </td>
+          <td>{{ recibo.relacion_ingreso|default:"-" }}</td>
+          <td>{{ recibo.recibos_pendientes_cache }}</td>
+          <td>{{ recibo.fecha_creacion|date:"d/m/Y H:i" }}</td>
+          <td>{{ recibo.fecha_modificacion|date:"d/m/Y H:i" }}</td>
+          <td>
+            <span class="toggle-status" data-id="{{ recibo.id }}">
+              {% if recibo.activo %}Activo{% else %}Inactivo{% endif %}
+            </span>
+          </td>
+          <td class="actions">
+            <a href="{% url 'recibo_detail' recibo.pk %}" aria-label="Editar">
+              ✏️
+            </a>
+            <a href="{% url 'recibo_delete' recibo.pk %}" aria-label="Eliminar">
+              🗑️
+            </a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="15">No hay recibos registrados</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <nav aria-label="Paginación">
+    <ul class="pagination">
+      {% if page_obj.has_previous %}
+      <li><a href="?page=1">&laquo; Primera</a></li>
+      <li><a href="?page={{ page_obj.previous_page_number }}">Anterior</a></li>
+      {% endif %}
+      <li>
+        Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+      </li>
+      {% if page_obj.has_next %}
+      <li><a href="?page={{ page_obj.next_page_number }}">Siguiente</a></li>
+      <li>
+        <a href="?page={{ page_obj.paginator.num_pages }}">Última &raquo;</a>
+      </li>
+      {% endif %}
+    </ul>
+  </nav>
+</article>
+{% endblock %}

@@ -1,0 +1,309 @@
+{% extends "home.html" %}
+{% load static %}
+{% load humanize %}
+{% load querystring_tags %} {# Si lo usas #}
+
+{% block title %}Detalle Contrato Colectivo: {{ object.numero_contrato|escape|default:object.razon_social|escape }}{% endblock %}
+
+{% block content %}
+<div class="dark-container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading">📑 Detalle del Contrato Colectivo: {{ object.numero_contrato|escape|default:object.razon_social|escape }}</h1>
+
+    <div class="detail-actions-container mb-4">
+    {% if perms.myapp.change_contratocolectivo %}
+        <a href="{% url 'myapp:contrato_colectivo_update' object.pk %}" class="btn btn-success" aria-label="Editar este contrato colectivo">✏️ Editar</a>
+    {% endif %}
+    {% if perms.myapp.delete_contratocolectivo %}
+        <a href="{% url 'myapp:contrato_colectivo_delete' object.pk %}" class="btn btn-danger delete-link" aria-label="Eliminar este contrato colectivo">❌ Eliminar</a>
+    {% endif %}
+    <a href="{% url 'myapp:contrato_colectivo_list' %}" class="nav_link" aria-label="Volver al listado de contratos colectivos">⬅️ Volver al Listado</a>
+    </div>
+
+    <div class="form-main-container">
+
+    <fieldset class="mb-4">
+        <legend>📄 Información Principal Contrato/Empresa</legend>
+        <div class="dark-grid">
+            <div class="dark-group"><span class="dark-label">📄 N° Contrato:</span><span>{{ object.numero_contrato|escape|default:"N/A" }}</span></div>
+            <div class="dark-group"><span class="dark-label">#️⃣ N° Póliza:</span><span>{{ object.numero_poliza|escape|default:"N/A" }}</span></div>
+            <div class="dark-group"><span class="dark-label">🌿 Ramo:</span><span>{{ object.get_ramo_display|escape }}</span></div>
+            <div class="dark-group"><span class="dark-label">📋 Plan Contratado:</span><span>{{ object.plan_contratado|escape|default:"-" }}</span></div>
+            <div class="dark-group"><span class="dark-label">🏢 Razón Social:</span><span>{{ object.razon_social|escape }}</span></div>
+            <div class="dark-group"><span class="dark-label">🆔 RIF Empresa:</span><span>{{ object.rif|escape|default:"N/A" }}</span></div>
+            <div class="dark-group"><span class="dark-label">🏭 Tipo Empresa:</span><span>{{ object.get_tipo_empresa_display|escape }}</span></div>
+            <div class="dark-group"><span class="dark-label">👥 Empleados (Declarada):</span><span>{{ object.cantidad_empleados|intcomma|default:"N/A" }}</span></div>
+            <div class="dark-group"><span class="dark-label">🚦 Estatus Vigencia:</span><span class="badge {% if object.estatus == 'VIGENTE' %}badge-success{% elif object.estatus == 'VENCIDO' %}badge-danger{% else %}badge-warning{% endif %}">{{ object.get_estatus_display|escape }}</span></div>
+            <div class="dark-group"><span class="dark-label">📊 Estado Admin.:</span><span>{{ object.get_estado_contrato_display|escape|default:"-" }}</span></div>
+            <div class="dark-group"><span class="dark-label">💡 Activo (Sistema):</span><span class="badge {% if object.activo %}badge-success{% else %}badge-danger{% endif %}">{{ object.activo|yesno:"Sí,No" }}</span></div>
+            <div class="dark-group"><span class="dark-label">📜 Certificado:</span><span>{{ object.certificado|escape|default:"-" }}</span></div>
+            <div class="dark-group">
+                <span class="dark-label">🏷️ Tarifa Aplicada:</span>
+                 <span>
+                    {% if object.tarifa_aplicada %}
+                        {% if perms.myapp.view_tarifa %}<a href="{% url 'myapp:tarifa_detail' object.tarifa_aplicada.pk %}" title="Ver detalle tarifa">{{ object.tarifa_aplicada }}</a>{% else %}{{ object.tarifa_aplicada }}{% endif %}
+                         (${% if object.tarifa_aplicada.monto_anual %}{{ object.tarifa_aplicada.monto_anual|floatformat:2|intcomma }}{% else %}N/A{% endif %} Anual)
+                    {% else %}<span class="text-muted">N/A</span>{% endif %}
+                 </span>
+            </div>
+        </div>
+    </fieldset>
+
+    <fieldset class="mb-4">
+        <legend>📅 Vigencia y Fechas</legend>
+        <div class="dark-grid">
+            <div class="dark-group"><span class="dark-label">📅 Fecha Emisión:</span><span>{{ object.fecha_emision|date:"d/m/Y H:i:s" }}</span></div>
+            <div class="dark-group"><span class="dark-label">➡️ Inicio Vigencia:</span><span>{{ object.fecha_inicio_vigencia|date:"d/m/Y"|default:"-" }}</span></div>
+            <div class="dark-group"><span class="dark-label">⏹️ Fin Vigencia:</span><span>{{ object.fecha_fin_vigencia|date:"d/m/Y"|default:"-" }}</span></div>
+            <div class="dark-group"><span class="dark-label">⏱️ Duración (Meses):</span><span>{{ object.periodo_vigencia_meses|default:object.duracion_calculada_meses|default:"-" }}</span></div>
+            <div class="dark-group"><span class="dark-label">✅ Vigente Ahora?:</span><span class="badge {% if object.esta_vigente %}badge-success{% else %}badge-secondary{% endif %}">{{ object.esta_vigente|yesno:"Sí,No" }}</span></div>
+            <div class="dark-group"><span class="dark-label">📊 % Ejecución Vig.:</span><span>{{ object.porcentaje_ejecucion_vigencia|default:"0"|floatformat:0 }}%</span></div>
+            <div class="dark-group"><span class="dark-label">🗓️ Días Transcurridos:</span><span>{{ object.dias_vigencia_transcurridos|default:"0" }}</span></div>
+            <div class="dark-group"><span class="dark-label">🗓️ Días Vigencia Restantes:</span><span>{{ object.dias_vigencia_restantes|default:"0" }} días</span></div>
+            <div class="dark-group"><span class="dark-label">🔔 Renovación Pronta (<60d):</span><span class="badge {% if object.necesita_renovacion_pronto %}badge-warning{% else %}badge-info{% endif %}">{{ object.necesita_renovacion_pronto|yesno:"Sí,No" }}</span></div>
+        </div>
+    </fieldset>
+
+    <fieldset class="mb-4">
+        <legend>💰 Montos, Pagos y Comisiones</legend>
+        <div class="dark-grid">
+            <div class="dark-group"><span class="dark-label">💰 Prima Total Contrato:</span><span>${{ object.monto_total|floatformat:2|intcomma|default:"0.00" }}</span></div>
+            <div class="dark-group"><span class="dark-label">💲 Monto Estimado Cuota:</span><span>{% if object.monto_cuota_estimada %}${{ object.monto_cuota_estimada|floatformat:2|intcomma }}{% else %}<span class="text-muted">N/A</span>{% endif %}</span></div>
+            <div class="dark-group"><span class="dark-label">🔢 Cuotas Estimadas:</span><span>{{ object.cantidad_cuotas_estimadas|default:"-" }}</span></div>
+            <div class="dark-group"><span class="dark-label">💳 Forma Pago:</span><span>{{ object.get_forma_pago_display|escape }}</span></div>
+            <div class="dark-group"><span class="dark-label">✅ Pagos Realizados (Contador):</span><span>{{ object.pagos_realizados|default:"0" }}</span></div>
+            <div class="dark-group"><span class="dark-label">🛡️ Suma Asegurada:</span><span>${{ object.suma_asegurada|floatformat:2|intcomma|default:"0.00" }}</span></div>
+            <div class="dark-group"><span class="dark-label">🧾 N° Recibo Base:</span><span>{{ object.numero_recibo|escape|default:"-" }}</span></div>
+            <div class="dark-group"><span class="dark-label">💲 Comisión Intermediario (%):</span><span>{% if object.tarifa_aplicada and object.tarifa_aplicada.comision_intermediario is not None %}{{ object.tarifa_aplicada.comision_intermediario|floatformat:2 }}%{% else %}<span class="text-muted">N/A</span>{% endif %}</span></div>
+            <div class="dark-group"><span class="dark-label">💸 Comisión Intermediario (Estimada):</span><span>${{ object.monto_comision_intermediario_estimada|floatformat:2|intcomma|default:"-" }}</span></div>
+            <div class="dark-group" style="grid-column: span 2;"><span class="dark-label">💳 Estado General de Pagos:</span><span><strong>{{ object.estado_pago_general }}</strong></span></div>
+        </div>
+        <div style="grid-column: 1 / -1; border-top: 1px dashed var(--border-light); padding-top: 1rem; margin-top: 1rem;">
+             <h5 style="margin-bottom: 0.8rem; text-align: center; color: var(--text-muted);">Resumen Financiero (General)</h5>
+             <div class="dark-grid">
+                  <div class="dark-group"><span class="dark-label">🗓️ Prima Total Contrato:</span><span class="text-info"><strong>${{ object.monto_total|floatformat:2|intcomma|default:"0.00" }}</strong></span></div>
+                  <div class="dark-group"><span class="dark-label">✅ Total Pagado (a Facturas):</span><span class="text-success"><strong>${{ monto_total_pagado_facturas|floatformat:2|intcomma|default:"0.00" }}</strong></span></div>
+                <div class="dark-group">
+                    <span class="dark-label">⏳ Saldo Pendiente del Contrato:</span> 
+                    <span class="text-warning"><strong>${{ object.saldo_pendiente_contrato|floatformat:2|intcomma|default:"0.00" }}</strong></span>
+                </div>
+
+
+             </div>
+        </div>
+    </fieldset>
+
+    <fieldset class="mb-4">
+        <legend>⚙️ Otros Datos y Sistema</legend>
+        <div class="dark-grid">
+            <div class="dark-group"><span class="dark-label">🤝 Intermediario:</span><span>{% with intermediario_obj=object.intermediario %}{% if intermediario_obj %}{% if perms.myapp.view_intermediario %}<a href="{% url 'myapp:intermediario_detail' intermediario_obj.pk %}">{{ intermediario_obj.nombre_completo|escape }} ({{ intermediario_obj.codigo }})</a>{% else %}{{ intermediario_obj.nombre_completo|escape }} ({{ intermediario_obj.codigo }}){% endif %}{% else %} <span class="text-muted">No asignado</span> {% endif %}{% endwith %}</span></div>
+            <div class="dark-group" style="grid-column: span 2;"><span class="dark-label">📍 Dirección Comercial Empresa:</span><p style="margin:0;">{{ object.direccion_comercial|escape|linebreaksbr|default:"-" }}</p></div>
+            <div class="dark-group"><span class="dark-label">📮 Zona Postal Empresa:</span><span>{{ object.zona_postal|escape|default:"-" }}</span></div>
+            <div class="dark-group"><span class="dark-label">🔍 Criterio Búsqueda:</span><span>{{ object.criterio_busqueda|escape|default:"-" }}</span></div>
+            <div class="dark-group"><span class="dark-label">🔑 Código Validación:</span><span>{{ object.codigo_validacion|escape|default:"-" }}</span></div>
+            <div class="dark-group"><span class="dark-label">❓ Consultar Af. Activos:</span><span class="badge {% if object.consultar_afiliados_activos %}badge-info{% else %}badge-secondary{% endif %}">{{ object.consultar_afiliados_activos|yesno:"Sí,No" }}</span></div>
+            <div class="dark-group"><span class="dark-label">➕ Fecha Creación:</span><span>{{ object.fecha_creacion|date:"d/m/Y H:i:s" }}</span></div>
+            <div class="dark-group"><span class="dark-label">🔄 Fecha Modificación:</span><span>{{ object.fecha_modificacion|date:"d/m/Y H:i:s" }}</span></div>
+            <div class="dark-group" style="grid-column: span 2;">
+                <span class="dark-label">📜 Historial Cambios (JSON):</span>
+                <pre id="historial-display-{{ object.pk }}" style="background-color: #2d2d2d; color: #ccc; padding: 0.5rem; border-radius: 4px; font-size: 0.85em; max-height: 200px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">Cargando...</pre>
+            </div>
+        </div>
+    </fieldset>
+    </div>
+
+    <div class="form-main-container mt-4">
+        <fieldset>
+            <legend>🔗 Relaciones Asociadas</legend>
+
+            <fieldset class="mb-4">
+                 <legend>🛡️ Consumo de Cobertura</legend>
+                 <div class="dark-grid">
+                      <div class="dark-group"><span class="dark-label">💰 Suma Asegurada Total:</span><span class="h5">${{ object.suma_asegurada|default:"0.00"|floatformat:2|intcomma }}</span></div>
+                     <div class="dark-group"><span class="dark-label">📉 Monto Total Pagado por Reclamaciones:</span><span class="h5 text-warning">${{ object.monto_total_pagado_reclamaciones|floatformat:2|intcomma|default:"0.00" }}</span></div>
+                     <div class="dark-group"><span class="dark-label">✅ Saldo Disponible:</span><span class="h5 text-success">${{ object.saldo_disponible_cobertura|floatformat:2|intcomma|default:"0.00" }}</span></div>
+                      <div class="dark-group">
+                         <span class="dark-label">📊 % Consumido:</span>
+                         <div class="progress" style="height: 20px; background-color: var(--glass-bg);">
+                             <div class="progress-bar {% if object.porcentaje_cobertura_consumido > 80 %}bg-danger{% elif object.porcentaje_cobertura_consumido > 50 %}bg-warning{% else %}bg-success{% endif %}"
+                                  role="progressbar" style="width: {{ object.porcentaje_cobertura_consumido|floatformat:0 }}%;"
+                                  aria-valuenow="{{ object.porcentaje_cobertura_consumido|floatformat:1 }}" aria-valuemin="0" aria-valuemax="100">
+                                  {{ object.porcentaje_cobertura_consumido|floatformat:1 }}%
+                             </div>
+                         </div>
+                     </div>
+                 </div>
+             </fieldset>
+
+
+            <h4 class="mt-3">👥 Afiliados Colectivos Vinculados ({{ total_afiliados_asociados|default:object.afiliados_colectivos.count }})</h4>
+            {% if afiliados_asociados %} {# Usar la variable del contexto #}
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead><tr><th>RIF</th><th>Razón Social</th><th>Email</th><th>Activo</th><th>Acciones</th></tr></thead>
+                        <tbody>
+                            {% for af in afiliados_asociados %}
+                            <tr>
+                                <td>{{ af.rif|default:"-" }}</td>
+                                <td>{{ af.razon_social|escape }}</td>
+                                <td>{{ af.email_contacto|escape|default:"-" }}</td>
+                                <td><span class="badge {% if af.activo %}badge-success{% else %}badge-danger{% endif %}">{{ af.activo|yesno:"Sí,No" }}</span></td>
+                                <td class="actions">
+                                    <div class="action-group">
+                                        {% if perms.myapp.view_afiliadocolectivo %}
+                                            <a href="{% url 'myapp:afiliado_colectivo_detail' af.pk %}" class="action-icon" title="Ver Afiliado Colectivo">👁️</a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p>No hay afiliados colectivos vinculados a este contrato.</p>
+                {% if perms.myapp.change_contratocolectivo %}
+                <p><a href="{% url 'myapp:contrato_colectivo_update' object.pk %}#afiliados" class="btn btn-sm btn-outline-primary">Vincular Afiliados</a></p>
+                {% endif %}
+            {% endif %}
+
+            <h4 class="mt-3">🆘 Reclamaciones Asociadas ({{ total_reclamaciones|default:object.reclamacion_set.count }})</h4>
+            {% if reclamaciones_asociadas %} {# Usar la variable del contexto #}
+               <div class="table-container">
+                   <table class="data-table">
+                       <thead><tr><th>ID Reclamo</th><th>Fecha Reclamo</th><th>Tipo</th><th>Estado</th><th class="text-end">Monto Reclamado</th><th>Acciones</th></tr></thead>
+                       <tbody>
+                           {% for rec in reclamaciones_asociadas %}
+                           <tr>
+                               <td>{{ rec.pk }}</td>
+                               <td>{{ rec.fecha_reclamo|date:"d/m/Y"|default:"-" }}</td>
+                               <td>{{ rec.get_tipo_reclamacion_display|default:"-" }}</td>
+                               <td><span class="badge {% if rec.estado == 'APROBADA' or rec.estado == 'PAGADA' %}badge-success{% elif rec.estado == 'RECHAZADA' %}badge-danger{% elif rec.estado == 'EN_PROCESO' %}badge-info{% else %}badge-secondary{% endif %}">{{ rec.get_estado_display|default:rec.estado|default:"-" }}</span></td>
+                               <td class="text-end">${{ rec.monto_reclamado|default:"0.00"|floatformat:2|intcomma }}</td>
+                               <td class="actions"><div class="action-group">
+                                  {% if user_perms.can_view_reclamaciones %}<a href="{% url 'myapp:reclamacion_detail' rec.pk %}" class="action-icon" title="Ver Reclamación">👁️</a>{% endif %}
+                               </div></td>
+                           </tr>
+                           {% endfor %}
+                       </tbody>
+                   </table>
+               </div>
+           {% else %}
+                <p>No hay reclamaciones asociadas a este contrato.</p>
+           {% endif %}
+
+           {# --- SECCIÓN DE PAGOS DE RECLAMACIONES --- #}
+           <h4 class="mt-3">💸 Pagos Realizados por Reclamaciones ({{ total_pagos_reclamaciones|default:0 }})</h4>
+           {% if pagos_de_reclamaciones %} {# Usar la variable del contexto #}
+               <div class="table-container">
+                   <table class="data-table">
+                       <thead>
+                           <tr>
+                               <th>ID Pago</th>
+                               <th>Referencia</th>
+                               <th>Fecha Pago</th>
+                               <th class="text-end">Monto Pagado</th>
+                               <th>Reclamo ID Asociado</th>
+                               <th>Forma de Pago</th>
+                               <th>Acciones</th>
+                           </tr>
+                       </thead>
+                       <tbody>
+                           {% for pago_rec in pagos_de_reclamaciones %}
+                           <tr>
+                               <td>{{ pago_rec.pk }}</td>
+                               <td>{{ pago_rec.referencia_pago|default:"-" }}</td>
+                               <td>{{ pago_rec.fecha_pago|date:"d/m/Y"|default:"-" }}</td>
+                               <td class="text-end">${{ pago_rec.monto_pago|default:"0.00"|floatformat:2|intcomma }}</td>
+                               <td>
+                                   {% if pago_rec.reclamacion_id %}
+                                       {% if user_perms.can_view_reclamaciones %}
+                                           <a href="{% url 'myapp:reclamacion_detail' pago_rec.reclamacion_id %}">#{{ pago_rec.reclamacion_id }}</a>
+                                       {% else %}
+                                           #{{ pago_rec.reclamacion_id }}
+                                       {% endif %}
+                                   {% else %} N/A {% endif %}
+                               </td>
+                               <td>{{ pago_rec.get_forma_pago_display|default:"-" }}</td>
+                               <td class="actions">
+                                   <div class="action-group">
+                                       {% if user_perms.can_view_pagos %}
+                                           <a href="{% url 'myapp:pago_detail' pago_rec.pk %}" class="action-icon" title="Ver Detalle del Pago">👁️</a>
+                                       {% endif %}
+                                   </div>
+                               </td>
+                           </tr>
+                           {% endfor %}
+                       </tbody>
+                       {% if monto_total_pagado_reclamaciones > 0 %}
+                       <tfoot>
+                           <tr>
+                               <td colspan="3" class="text-end"><strong>Total Pagado por Reclamaciones:</strong></td>
+                               <td class="text-end"><strong>${{ monto_total_pagado_reclamaciones|floatformat:2|intcomma }}</strong></td>
+                               <td colspan="3"></td>
+                           </tr>
+                       </tfoot>
+                       {% endif %}
+                   </table>
+               </div>
+           {% else %}
+               <p>No hay pagos asociados a reclamaciones para este contrato.</p>
+           {% endif %}
+           {# --- FIN SECCIÓN DE PAGOS DE RECLAMACIONES --- #}
+
+           <h4 class="mt-3">💵 Facturas Asociadas ({{ total_facturas|default:object.factura_set.count }})</h4>
+           {% if facturas_asociadas %} {# Usar la variable del contexto #}
+              <div class="table-container">
+                  <table class="data-table">
+                      <thead><tr><th>N° Recibo</th><th>Vigencia</th><th class="text-end">Monto (Cuota)</th><th class="text-end">Pendiente</th><th>Pagada</th><th>Acciones</th></tr></thead>
+                      <tbody>
+                          {% for fac in facturas_asociadas %}
+                          <tr>
+                              <td>{{ fac.numero_recibo|default:"-" }}</td>
+                              <td>{{ fac.vigencia_recibo_desde|date:"d/m/y" }} - {{ fac.vigencia_recibo_hasta|date:"d/m/y" }}</td>
+                              <td class="text-end">${{ fac.monto|default:"0.00"|floatformat:2|intcomma }}</td>
+                              <td class="text-end"><strong class="{% if fac.monto_pendiente > 0 %}text-warning{% else %}text-success{% endif %}">${{ fac.monto_pendiente|default:"0.00"|floatformat:2|intcomma }}</strong></td>
+                              <td><span class="badge {% if fac.pagada %}badge-success{% else %}badge-warning{% endif %}">{{ fac.pagada|yesno:"Sí,No" }}</span></td>
+                              <td class="actions"><div class="action-group">
+                                  {% if user_perms.can_view_facturas %}<a href="{% url 'myapp:factura_detail' fac.pk %}" class="action-icon" title="Ver Factura">👁️</a>{% endif %}
+                              </div></td>
+                          </tr>
+                          {% endfor %}
+                      </tbody>
+                  </table>
+              </div>
+          {% else %}
+               <p>No hay facturas asociadas a este contrato.</p>
+          {% endif %}
+        </fieldset>
+    </div>
+  </section>
+</div>
+
+{{ object.historial_cambios|json_script:"historial-json-data" }}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+      try {
+        const jsonDataEl = document.getElementById('historial-json-data');
+        const displayElement = document.getElementById('historial-display-{{ object.pk }}');
+        
+        if (jsonDataEl && displayElement) {
+            const jsonData = JSON.parse(jsonDataEl.textContent);
+            if ((Array.isArray(jsonData) && jsonData.length > 0) || (typeof jsonData === 'object' && jsonData !== null && Object.keys(jsonData).length > 0 && !(Array.isArray(jsonData) && jsonData.length === 0) )) {
+                displayElement.textContent = JSON.stringify(jsonData, null, 2);
+            } else {
+                displayElement.textContent = 'No hay historial de cambios disponible.';
+            }
+        } else {
+            if(displayElement) displayElement.textContent = 'Elemento de historial no encontrado.';
+        }
+      } catch (e) {
+        const displayElement = document.getElementById('historial-display-{{ object.pk }}');
+        if (displayElement) {
+            displayElement.textContent = 'Error al mostrar historial de cambios.';
+        }
+        console.error("Error parsing or displaying historial_cambios JSON:", e);
+      }
+    });
+</script>
+{% endblock content %}

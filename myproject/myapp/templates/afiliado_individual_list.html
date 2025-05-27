@@ -1,0 +1,288 @@
+{% extends "home.html" %}
+{% load static %}
+{% load querystring_tags %} {# Necesario para ordenar/paginar manteniendo filtros #}
+
+{% block content %}
+<div class="container" role="main" aria-labelledby="main-heading"> {# Clase original 'container' #}
+  <section>
+    <h1 id="main-heading">📋 Listado Completo de Afiliados Individuales</h1>
+
+    <div class="header-actions"> {# Clase original #}
+      {% if perms.myapp.add_afiliadoindividual %}
+      <a href="{% url 'myapp:afiliado_individual_create' %}" class="nav_link" aria-label="Agregar nuevo afiliado individual"> {# Clase original #}
+        ➕ Nuevo Afiliado
+      </a>
+      {% endif %}
+    </div>
+
+    {# --- Formulario de Búsqueda --- #}
+    <form method="get" class="search-form" aria-label="Formulario de búsqueda de afiliados"> {# Clase original #}
+      <input
+        type="text"
+        name="search" {# Usar 'search' para coincidir con la vista #}
+        placeholder="🔍 Buscar..."
+        value="{{ search_query|escape }}"
+        aria-label="Campo de búsqueda global"
+        class="search-input" {# Clase original #}
+      />
+      <button type="submit" class="nav_link">Buscar</button> {# Clase original #}
+      <a href="{% url 'myapp:afiliado_individual_list' %}" class="nav_link" style="margin-left: 10px;" title="Limpiar búsqueda y filtros">Limpiar</a>
+    </form>
+
+    {# --- Contenedor de Tabla con Scroll (Clase Original) --- #}
+    <div class="table-container" role="region" aria-labelledby="table-caption"> {# Clase original #}
+      <table class="data-table" role="table"> {# Clase original #}
+        <caption id="table-caption" class="visually-hidden">
+          Lista completa de afiliados individuales registrados. Haga clic en las cabeceras para ordenar.
+        </caption>
+        <thead role="rowgroup">
+          <tr role="row">
+            {# --- Cabeceras con Ordenación Añadida (Todas las columnas) --- #}
+            {# Usamos 'sort-header' original si tenía un propósito específico, sino la quitamos o dejamos solo en <th> #}
+            <th class="sort-header" role="columnheader"> {# Clase original #}
+                <a href="?{% query_transform sort='primer_apellido' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    👤 Nombre Completo
+                    {% if current_sort == 'primer_apellido' or current_sort == 'primer_nombre' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                </a>
+            </th>
+            <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='fecha_nacimiento' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🎂 Edad
+                    {% if current_sort == 'fecha_nacimiento' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+            </th>
+            <th class="sort-header" role="columnheader">
+                <a href="?{% query_transform sort='cedula' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🆔 Cédula
+                    {% if current_sort == 'cedula' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                </a>
+            </th>
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='tipo_identificacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🔖 Tipo ID
+                    {% if current_sort == 'tipo_identificacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+            <th class="sort-header" role="columnheader">
+                <a href="?{% query_transform sort='estado_civil' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    💍 Estado Civil
+                    {% if current_sort == 'estado_civil' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                </a>
+            </th>
+            <th class="sort-header" role="columnheader">
+                <a href="?{% query_transform sort='sexo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    ⚧️ Sexo
+                    {% if current_sort == 'sexo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                </a>
+            </th>
+            <th class="sort-header" role="columnheader">
+                <a href="?{% query_transform sort='parentesco' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    👪 Parentesco
+                    {% if current_sort == 'parentesco' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                </a>
+            </th>
+            <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='fecha_nacimiento' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    📅 F. Nacimiento
+                    {% if current_sort == 'fecha_nacimiento' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+            </th>
+            <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='nacionalidad' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🌍 Nacionalidad
+                    {% if current_sort == 'nacionalidad' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+            </th>
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='fecha_ingreso' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🗓️ F. Ingreso
+                    {% if current_sort == 'fecha_ingreso' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='intermediario__nombre_completo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🤝 Intermediario
+                    {% if current_sort == 'intermediario__nombre_completo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='activo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    💡 Activo
+                    {% if current_sort == 'activo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='telefono_habitacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    📞 Tel. Habitación
+                    {% if current_sort == 'telefono_habitacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+             <th class="sort-header" role="columnheader">
+                <a href="?{% query_transform sort='telefono_oficina' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🏢 Tel. Oficina
+                    {% if current_sort == 'telefono_oficina' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='direccion_habitacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🏠 Dir. Habitación
+                    {% if current_sort == 'direccion_habitacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='direccion_oficina' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    📍 Dir. Oficina
+                    {% if current_sort == 'direccion_oficina' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='estado' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🗺️ Estado
+                    {% if current_sort == 'estado' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='municipio' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🏘️ Municipio
+                    {% if current_sort == 'municipio' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='ciudad' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🏙️ Ciudad
+                    {% if current_sort == 'ciudad' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+             <th class="sort-header" role="columnheader">
+                <a href="?{% query_transform sort='zona_postal' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    📮 Zona Postal
+                    {% if current_sort == 'zona_postal' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='codigo_validacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🔑 Código Val.
+                    {% if current_sort == 'codigo_validacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='primer_nombre' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    📛 P. Nombre
+                    {% if current_sort == 'primer_nombre' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='segundo_nombre' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    📛 S. Nombre
+                    {% if current_sort == 'segundo_nombre' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='primer_apellido' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    📛 P. Apellido
+                    {% if current_sort == 'primer_apellido' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='segundo_apellido' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    📛 S. Apellido
+                    {% if current_sort == 'segundo_apellido' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+             {# Fecha Creación/Modificación (Opcional ordenar) #}
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='fecha_creacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    F. Creación
+                    {% if current_sort == 'fecha_creacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+            </th>
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='fecha_modificacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    F. Modificación
+                    {% if current_sort == 'fecha_modificacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+            <th role="columnheader">⚙️ Acciones</th>
+          </tr>
+        </thead>
+        <tbody role="rowgroup">
+          {% for afiliado in object_list %}
+          <tr role="row">
+            {# --- Datos de TODOS los campos (como en tu original) --- #}
+            <td role="cell">{{ afiliado.nombre_completo|escape }}</td>
+            <td role="cell">{{ afiliado.edad|default:"N/A" }}</td>
+            <td role="cell">{{ afiliado.cedula|escape }}</td>
+            <td role="cell">{{ afiliado.get_tipo_identificacion_display|escape }}</td>
+            <td role="cell">{{ afiliado.get_estado_civil_display|escape }}</td>
+            <td role="cell">{{ afiliado.get_sexo_display|escape }}</td>
+            <td role="cell">{{ afiliado.get_parentesco_display|escape }}</td>
+            <td role="cell">{{ afiliado.fecha_nacimiento|date:"d/m/Y" }}</td>
+            <td role="cell">{{ afiliado.nacionalidad|escape|default:"N/A" }}</td>
+            <td role="cell">{{ afiliado.fecha_ingreso|date:"d/m/Y"|default:"N/A" }}</td>
+            <td role="cell">{{ afiliado.intermediario.nombre_completo|escape|default:"-" }}</td>
+            <td role="cell">{% if afiliado.activo %}✅ Sí{% else %}🔴 No{% endif %}</td>
+            <td role="cell">{{ afiliado.telefono_habitacion|escape|default:"N/A" }}</td>
+            <td role="cell">{{ afiliado.telefono_oficina|escape|default:"N/A" }}</td>
+            <td role="cell" title="{{ afiliado.direccion_habitacion|escape|default:'' }}">{{ afiliado.direccion_habitacion|escape|truncatechars:30|default:"N/A" }}</td>
+            <td role="cell" title="{{ afiliado.direccion_oficina|escape|default:'' }}">{{ afiliado.direccion_oficina|escape|truncatechars:30|default:"N/A" }}</td>
+            <td role="cell">{{ afiliado.get_estado_display|escape|default:"N/A" }}</td>
+            <td role="cell">{{ afiliado.municipio|escape|default:"N/A" }}</td>
+            <td role="cell">{{ afiliado.ciudad|escape|default:"N/A" }}</td>
+            <td role="cell">{{ afiliado.zona_postal|escape|default:"N/A" }}</td>
+            <td role="cell">{{ afiliado.codigo_validacion|escape|truncatechars:15|default:"N/A" }}</td>
+            <td role="cell">{{ afiliado.primer_nombre|escape }}</td>
+            <td role="cell">{{ afiliado.segundo_nombre|escape|default:"" }}</td>
+            <td role="cell">{{ afiliado.primer_apellido|escape }}</td>
+            <td role="cell">{{ afiliado.segundo_apellido|escape|default:"" }}</td>
+            <td role="cell">{{ afiliado.fecha_creacion|date:"d/m/Y H:i" }}</td>
+            <td role="cell">{{ afiliado.fecha_modificacion|date:"d/m/Y H:i" }}</td>
+
+            {# --- Acciones --- #}
+            <td class="actions" role="cell"> {# Clase original #}
+              <div class="action-group"> {# Clase original #}
+                 {% if perms.myapp.view_afiliadoindividual %}
+                  <a href="{% url 'myapp:afiliado_individual_detail' afiliado.pk %}" class="action-icon" title="Ver Detalles" aria-label="Ver detalles del afiliado {{ afiliado.nombre_completo|escape }}">👁️</a> {# Clase original #}
+                {% endif %}
+                {% if perms.myapp.change_afiliadoindividual %}
+                  <a href="{% url 'myapp:afiliado_individual_update' afiliado.pk %}" class="action-icon" title="Editar" aria-label="Editar afiliado {{ afiliado.nombre_completo|escape }}">✏️</a> {# Clase original #}
+                {% endif %}
+                {% if perms.myapp.delete_afiliadoindividual %}
+                  <a href="{% url 'myapp:afiliado_individual_delete' afiliado.pk %}" class="action-icon delete-link" title="Eliminar" aria-label="Eliminar afiliado {{ afiliado.nombre_completo|escape }}">❌</a> {# Clases originales #}
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr role="row">
+            <td colspan="28" class="no-results" role="cell"> {# Ajusta colspan al número real de columnas (27 datos + 1 acción) #}
+              📭 No se encontraron afiliados individuales que coincidan con la búsqueda.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# --- Paginación (Original pero corregida para mantener estado) --- #}
+    {% if is_paginated %}
+    <nav aria-label="Navegación de páginas de afiliados">
+      <div class="django-pagination"> {# Clase original #}
+        {% if page_obj.has_previous %}
+          <a href="?{% query_transform page=1 %}" class="btn-pagination" aria-label="Primera página">« Primera</a> {# Clase original #}
+          <a href="?{% query_transform page=page_obj.previous_page_number %}" class="btn-pagination" aria-label="Página anterior">Anterior</a> {# Corregido texto, Clase original #}
+        {% endif %}
+        <span class="pagination-current" aria-current="page"> {# Clase original #}
+          Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+        </span>
+        {% if page_obj.has_next %}
+          <a href="?{% query_transform page=page_obj.next_page_number %}" class="btn-pagination" aria-label="Siguiente página">Siguiente</a> {# Clase original #}
+          <a href="?{% query_transform page=page_obj.paginator.num_pages %}" class="btn-pagination" aria-label="Última página">Última »</a> {# Clase original #}
+        {% endif %}
+      </div>
+    </nav>
+    {% endif %}
+
+  </section>
+</div>
+
+{% endblock content %}

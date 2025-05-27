@@ -1,0 +1,233 @@
+{% extends "home.html" %}
+{% load static %}
+{% load i18n %} {# Solo si usas {% translate %} #}
+{% load humanize %} {# Solo si usas filtros de humanize #}
+{# Eliminar carga de custom tags si no los tienes/usas: {% load form_tags %} #}
+
+{% block content %}
+<div class="dark-container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading">
+      {% if form.instance.pk %}✏️ Editar Usuario: {{ form.instance.get_full_name|default:form.instance.email|escape }}{% else %}➕ Nuevo Usuario del Sistema{% endif %}
+    </h1>
+
+    <div class="header-actions">
+      {% if form.instance.pk %}
+        <a href="{% url 'myapp:usuario_detail' form.instance.pk %}" class="nav_link" aria-label="Cancelar edición y volver al perfil de {{ form.instance.get_full_name|default:form.instance.email|escape }}">
+          ⬅️ Volver al Perfil
+        </a>
+      {% endif %}
+      {% if perms.myapp.view_usuario %}
+       <a href="{% url 'myapp:usuario_list' %}" class="nav_link" aria-label="Volver al listado de usuarios">
+        Lista de Usuarios
+      </a>
+      {% endif %}
+    </div>
+
+    <form method="post" class="compact-form" enctype="multipart/form-data" aria-labelledby="main-heading" novalidate>
+      {% csrf_token %}
+      {{ form.media }} {# IMPORTANTE: Para que los widgets (como Select2) carguen sus JS/CSS si es necesario #}
+
+      {#--- Errores Generales ---#}
+      {% if form.non_field_errors %}
+          <div class="alert alert-danger error-summary" role="alert">
+              <h4>⚠️ Errores Generales:</h4>
+              <ul>
+                  {% for error in form.non_field_errors %}
+                      <li>{{ error|escape }}</li>
+                  {% endfor %}
+              </ul>
+          </div>
+      {% endif %}
+
+      {#--- Sección 1: Información Personal y Cuenta ---#}
+      <fieldset class="dark-group" data-section="informacion-personal">
+        <legend class="dark-label">👤 Información Personal y Cuenta</legend>
+
+            {# Campo: Email #}
+            {% if 'email' in form.fields and not form.instance.pk %}
+            <div class="dark-group {% if form.email.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.email.id_for_label }}">📧 {{ form.email.label_tag|default:"Correo Electrónico" }}</label>
+                {{ form.email }}
+                {% if form.email.help_text %}<small class="form-text text-muted" id="{{ form.email.id_for_label }}-help">{{ form.email.help_text|escape }}</small>{% endif %}
+                {% if form.email.errors %}<ul class="error-messages" role="alert">{% for error in form.email.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+            </div>
+            {% elif 'email_display' in form.fields and form.instance.pk %}
+             <div class="dark-group">
+                <label class="dark-label" for="{{ form.email_display.id_for_label }}">📧 {{ form.email_display.label }}</label>
+                {{ form.email_display }}
+                <small class="form-text text-muted">El correo electrónico no puede ser modificado.</small>
+             </div>
+            {% elif form.instance.pk %}
+                 <div class="dark-group">
+                    <label class="dark-label">📧 Correo Electrónico</label>
+                    <span class="form-control-static">{{ form.instance.email|default_if_none:""|escape }}</span>
+                    <small class="form-text text-muted">El correo electrónico no puede ser modificado.</small>
+                 </div>
+            {% endif %}
+
+            {# Campo: Username #}
+            {% if 'username_display' in form.fields and form.instance.pk %}
+                <div class="dark-group">
+                    <label class="dark-label" for="{{ form.username_display.id_for_label }}">🆔 {{ form.username_display.label }}</label>
+                    {{ form.username_display }}
+                    <small class="form-text text-muted">Generado automáticamente, no modificable.</small>
+                </div>
+            {% elif form.instance.pk %}
+                <div class="dark-group">
+                    <label class="dark-label">🆔 Nombre de Usuario (interno)</label>
+                    <span class="form-control-static">{{ form.instance.username|default_if_none:""|escape }}</span>
+                    <small class="form-text text-muted">Generado automáticamente, no modificable.</small>
+                </div>
+            {% else %}
+                 <p class="form-text text-muted" style="margin-bottom: 1rem;">ℹ️ El nombre de usuario interno se generará automáticamente.</p>
+            {% endif %}
+
+            {# Campos: Contraseñas (Solo en Creación) #}
+            {% if not form.instance.pk %}
+                {% if form.password1 %}
+                <div class="dark-group {% if form.password1.errors %}error{% endif %}">
+                    <label class="dark-label" for="{{ form.password1.id_for_label }}">🔑 Contraseña</label>
+                    {{ form.password1 }}
+                    {% if form.password1.help_text %}<small class="form-text text-muted" id="{{ form.password1.id_for_label }}-help">{{ form.password1.help_text|escape|safe }}</small>{% endif %}
+                    {% if form.password1.errors %}<ul class="error-messages" role="alert">{% for error in form.password1.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                {% endif %}
+                {% if form.password2 %}
+                <div class="dark-group {% if form.password2.errors %}error{% endif %}">
+                    <label class="dark-label" for="{{ form.password2.id_for_label }}">🔑 Confirmar Contraseña</label>
+                    {{ form.password2 }}
+                    {% if form.password2.errors %}<ul class="error-messages" role="alert">{% for error in form.password2.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                {% endif %}
+            {% endif %}
+
+            {# --- RENDERIZADO EXPLÍCITO DE CAMPOS PERSONALES --- #}
+            {% for field in form.visible_fields %}
+              {% if field.name in "primer_nombre segundo_nombre primer_apellido segundo_apellido fecha_nacimiento telefono direccion" %}
+                <div class="dark-group {% if field.errors %}error{% endif %}">
+                    <label class="dark-label" for="{{ field.id_for_label }}">
+                        {% if 'nombre' in field.name or 'apellido' in field.name %}📛
+                        {% elif field.name == 'fecha_nacimiento' %}📅 {# Más específico para el emoji #}
+                        {% elif field.name == 'telefono' %}📞
+                        {% elif field.name == 'direccion' %}🏠
+                        {% else %}ℹ️
+                        {% endif %}
+                        {{ field.label_tag|default:field.label }}
+                    </label>
+                    {{ field }} {# Renderizará TextInput para fecha_nacimiento si así está en forms.py #}
+                    {% if field.errors %}<ul class="error-messages" role="alert">{% for error in field.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+                    {% if field.help_text %}<small class="form-text text-muted" id="{{ field.id_for_label }}-help">{{ field.help_text|escape }}</small>{% endif %}
+                </div>
+              {% endif %}
+            {% endfor %}
+      </fieldset>
+
+      {#--- Sección 2: Roles, Permisos y Estado ---#}
+      <fieldset class="dark-group" data-section="roles-permisos">
+        <legend class="dark-label">ℹ️ Roles, Permisos y Estado</legend>
+
+            {% for field in form.visible_fields %}
+              {% if field.name in "tipo_usuario nivel_acceso departamento intermediario activo is_staff is_superuser groups user_permissions" %}
+                <div class="dark-group {% if field.errors %}error{% endif %}">
+                    <label class="dark-label" for="{{ field.id_for_label }}">
+                        {% if field.name == 'tipo_usuario' %}🏷️
+                        {% elif field.name == 'nivel_acceso' %}📊
+                        {% elif field.name == 'departamento' %}🏢
+                        {% elif field.name == 'intermediario' %}🤝  {# CAMPO INTERMEDIARIO #}
+                        {% elif field.name == 'activo' %}💡
+                        {% elif field.name == 'is_staff' %}🧑‍💼
+                        {% elif field.name == 'is_superuser' %}👑
+                        {% elif field.name == 'groups' %}🛡️
+                        {% elif field.name == 'user_permissions' %}🔑
+                        {% else %}ℹ️
+                        {% endif %}
+                        {{ field.label_tag|default:field.label }}
+                    </label>
+
+                    {# Renderizado específico para switches y M2M #}
+                    {% if field.name == 'activo' or field.name == 'is_staff' or field.name == 'is_superuser' %}
+                        <label class="switch">
+                            <input type="checkbox" name="{{ field.html_name }}" id="{{ field.id_for_label }}" {% if field.value %}checked{% endif %} {% if field.field.disabled %}disabled{% endif %}>
+                            <span class="slider"></span>
+                        </label>
+                    {% elif field.name == 'groups' or field.name == 'user_permissions' %}
+                        <div class="checkbox-multiple-container {% if field.name == 'user_permissions' %}permissions-container{% endif %}">
+                           {{ field }} {# Renderiza CheckboxSelectMultiple si ese es el widget #}
+                        </div>
+                    {% else %}
+                        {# Para 'intermediario' y otros campos (tipo_usuario, nivel_acceso, departamento) #}
+                        {# Django usará el widget definido en forms.py (Select2Widget para intermediario) #}
+                        {{ field }}
+                    {% endif %}
+
+                    {% if field.errors %}<ul class="error-messages" role="alert">{% for error in field.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+                    {% if field.help_text %}<small class="form-text text-muted d-block" id="{{ field.id_for_label }}-help">{{ field.help_text|escape|safe }}</small>{% endif %}
+
+                    {# Notas Adicionales #}
+                    {% if field.name == 'is_staff' or field.name == 'is_superuser' %}
+                        <small class="form-text text-muted d-block"><em>(Nota: Gestionado por Nivel de Acceso)</em></small>
+                    {% elif field.name == 'is_superuser' and form.instance.pk %}
+                        <p><small class="superuser-warning-text">⚠️ Otorga todos los permisos. Usar con precaución.</small></p>
+                    {% elif field.name == 'groups' %}
+                        <small class="form-text text-muted d-block"><em>(Nota: Grupos de nivel se asignan automáticamente)</em></small>
+                    {% endif %}
+                </div>
+              {% endif %}
+            {% endfor %}
+      </fieldset>
+
+      {#--- Campos Ocultos ---#}
+      {% for field in form.hidden_fields %}
+          {{ field }}
+      {% endfor %}
+
+      {#--- Botones de Acción ---#}
+      <div class="form-actions">
+        <button type="submit" class="btn-success">
+            {% if form.instance.pk %}💾 Guardar Cambios{% else %}➕ Crear Usuario{% endif %}
+        </button>
+        {% if form.instance.pk %}
+            <a href="{% url 'myapp:usuario_detail' form.instance.pk %}" class="btn-danger">🚫 Cancelar</a>
+        {% else %}
+            <a href="{% url 'myapp:usuario_list' %}" class="btn-danger">🚫 Cancelar</a>
+        {% endif %}
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock content %}
+
+{% block extra_js %}
+{# Este bloque es crucial si django-select2 no se inicializa solo #}
+{# O si quieres pasar opciones personalizadas #}
+<script>
+    $(document).ready(function() {
+        // Intenta inicializar CUALQUIER select que django-select2 pueda haber marcado
+        // o los que tú marques con una clase específica.
+        // Si usaste 'form-control-select2' en tu widget:
+        $('.form-control-select2').each(function() {
+             if (!$(this).data('select2')) { // Evitar reinicializar si ya lo está
+                $(this).select2({
+                    theme: "bootstrap-5", // O "default", o el tema que uses
+                    width: '100%',       // O 'style', 'resolve'
+                    placeholder: $(this).data('placeholder') || "Seleccione...",
+                    allowClear: !$(this).prop('required') // Permite limpiar si no es un campo requerido
+                });
+             }
+        });
+
+        // O si quieres ser muy específico con el ID del campo intermediario:
+        // (El ID por defecto de Django es 'id_nombre_del_campo_en_el_form')
+        // if ($('#id_intermediario').length && !$('#id_intermediario').data('select2')) {
+        //     $('#id_intermediario').select2({
+        //         theme: "bootstrap-5",
+        //         width: '100%',
+        //         placeholder: "Buscar Intermediario...",
+        //         allowClear: true
+        //     });
+        //     console.log("Select2 inicializado para #id_intermediario");
+        // }
+    });
+</script>
+{% endblock extra_js %}

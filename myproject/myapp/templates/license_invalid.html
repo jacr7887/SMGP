@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Licencia No Válida - ¡Poder Arcano Bloqueado!{% endblock %}
+
+{% block extra_css %}
+<style>
+    .license-invalid-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 70vh; /* Un poco más de altura para destacar */
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-light);
+        background: linear-gradient(135deg, rgba(var(--danger-rgb), 0.3), rgba(var(--bg-dark), 0.8) 70%),
+                    url("{% static 'img/gandalf_silhouette_o_magia_bloqueada.png' %}"); /* Reemplaza con tu imagen */
+        background-size: cover;
+        background-position: center;
+        border-radius: var(--glass-border-radius); /* Si base_simple no lo tiene */
+        margin: 1rem auto; /* Si base_simple no lo tiene */
+        max-width: 800px; /* Limitar ancho para mejor lectura */
+    }
+    .license-invalid-icon {
+        font-size: 6rem; /* Ícono grande */
+        color: var(--warning); /* Amarillo/Naranja para advertencia seria */
+        margin-bottom: 1.5rem;
+        text-shadow: 0 0 20px rgba(var(--warning-rgb), 0.6), 0 0 10px rgba(255,255,255,0.3); /* Brillo amarillo y blanco */
+        animation: pulse-glow 2.5s infinite ease-in-out;
+    }
+    @keyframes pulse-glow {
+        0%, 100% {
+            transform: scale(1);
+            text-shadow: 0 0 20px rgba(var(--warning-rgb), 0.6), 0 0 10px rgba(255,255,255,0.3);
+        }
+        50% {
+            transform: scale(1.1);
+            text-shadow: 0 0 30px rgba(var(--warning-rgb), 0.8), 0 0 15px rgba(255,255,255,0.5), 0 0 5px var(--warning);
+        }
+    }
+    .license-invalid-title {
+        font-size: 2.5rem; /* Título más grande e impactante */
+        font-weight: 700;
+        margin-bottom: 1rem;
+        color: var(--danger); /* Rojo para el "YOU SHALL NOT PASS!" */
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        text-shadow: 1px 1px 0px var(--bg-dark), 0 0 10px rgba(var(--danger-rgb),0.5);
+    }
+    .license-invalid-message {
+        font-size: 1.15rem;
+        color: var(--text-light); /* Texto más claro sobre fondo oscuro */
+        max-width: 600px; 
+        margin-bottom: 2.5rem;
+        line-height: 1.7;
+        background-color: rgba(var(--bg-dark), 0.5); /* Fondo sutil para legibilidad */
+        padding: 1rem;
+        border-radius: 10px;
+        border: 1px solid var(--border-light);
+    }
+    .license-invalid-actions .btn, .license-invalid-actions .nav_link { /* Aplicar a tus clases de botón */
+        margin: 0.5rem;
+        padding: 0.8rem 1.8rem; /* Botones un poco más grandes */
+        font-size: 1rem;
+    }
+
+    /* Estilo para el hechicero */
+    .wizard-emoji {
+        display: inline-block;
+        animation: wizard-float 2s infinite ease-in-out alternate;
+    }
+
+
+    .btn-base-style { /* O usa tu .nav_link o .btn como base si ya tienen estas propiedades */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    font-weight: 600; 
+    font-size: 0.95rem; 
+    padding: 0.7rem 1.5rem; 
+    border-radius: var(--glass-border-radius);
+    border: 1px solid transparent;
+    cursor: pointer;
+    text-align: center;
+    white-space: nowrap;
+    transition: var(--transition);
+    position: relative; /* Para efectos de hover/active */
+    z-index: 1;
+}
+
+    /* Nueva clase para el efecto Neón Blanco Glassmorphism */
+    .btn-neon-white-glass {
+        /* Heredar o definir propiedades base si no usas .btn-base-style */
+        /* display, align-items, justify-content, text-decoration, font-weight, font-size, padding, border-radius, cursor, text-align, white-space, transition, position, z-index */
+        /* Si .btn-base-style ya los tiene, no necesitas repetirlos */
+        
+        /* Estilo visual específico */
+        background: rgba(var(--glow-white-rgb), 0.08); /* Blanco muy translúcido */
+        border-color: rgba(var(--glow-white-rgb), 0.25); /* Borde blanco sutil */
+        color: rgba(var(--glow-white-rgb), 0.85); /* Texto blanco semi-opaco */
+        backdrop-filter: var(--blur); /* Efecto glass */
+        
+        box-shadow: 
+            /* Sombra base de glass muy sutil para no opacar la luz */
+            0 1px 3px rgba(0,0,0,0.1), 
+            /* Efecto de luz/resplandor */
+            0 0 8px rgba(var(--glow-white-rgb), 0.4),  /* Resplandor blanco */
+            0 0 15px rgba(var(--link-blue-rgb), 0.3), /* Resplandor azulado suave */
+            inset 0 0px 1px rgba(var(--glow-white-rgb),0.2); /* Ligero biselado interno blanco */
+    }
+
+    .btn-neon-white-glass:hover {
+        background: rgba(var(--glow-white-rgb), 0.18); /* Más opaco al pasar el mouse */
+        border-color: rgba(var(--glow-white-rgb), 0.5);
+        color: var(--text-light); /* Texto blanco completo */
+        transform: translateY(-3px) scale(1.05); /* Levitar un poco */
+        box-shadow: 
+            0 4px 10px rgba(0,0,0,0.15), /* Sombra de despegue */
+            0 0 15px rgba(var(--glow-white-rgb), 0.7), /* Luz más intensa */
+            0 0 25px rgba(var(--glow-white-rgb), 0.5),
+            0 0 40px rgba(var(--link-blue-rgb), 0.6), 
+            inset 0 0px 2px rgba(var(--glow-white-rgb),0.35);
+    }
+
+    .btn-neon-white-glass:active {
+        transform: translateY(1px) scale(0.98); /* Efecto de presión */
+        background: rgba(var(--glow-white-rgb), 0.1);
+        box-shadow: 
+        0 1px 2px rgba(0,0,0,0.1),
+        0 0 6px rgba(var(--glow-white-rgb), 0.5),
+        inset 0 1px 3px rgba(0,0,0,0.2); 
+    }
+
+
+    @keyframes wizard-float {
+        0% { transform: translateY(0px) rotate(-5deg); }
+        100% { transform: translateY(-8px) rotate(5deg); }
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="license-invalid-container">
+    <div class="license-invalid-icon">🧙✨</div> {# Emoji del mago con estrellas vibrando #}
+    
+    <h1 class="license-invalid-title">¡NO PUEDES PASAR!</h1> 
+    
+    <p class="license-invalid-message">
+        Parece que se te ha acabado el maná (tu licencia ha expirado). <br><br>
+        Contacta al Archimago Jesús para renovar tus encantamientos y poder seguir disfrutando de los secretos de SMGP. <span class="wizard-emoji">📜</span>
+    </p>
+    
+    <div class="license-invalid-actions">
+        <a href="{% url 'myapp:activate_license' %}" class="nav_link">Renovar Poderes (Ingresar Licencia)</a>
+        {# O si tienes una página de contacto/soporte: #}
+        {# <a href="mailto:{{ support_email }}" class="nav_link">Contactar al Archimago</a> #}
+    </div>
+</div>
+{% endblock %}

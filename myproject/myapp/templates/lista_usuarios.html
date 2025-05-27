@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+
+{% block contenido %}
+<div class="dark-container">
+    <h1 class="dark-title">Gestión de Usuarios</h1>
+    
+    <div class="dark-grid">
+        <div class="dark-group">
+            <form method="get" class="compact-form">
+                <div class="dark-grid">
+                    <input type="text" name="search" class="dark-group input" 
+                           placeholder="Buscar usuarios..." value="{{ request.GET.search }}">
+                    <div class="dark-group">
+                        <button type="submit" class="file-button">
+                            <i class="bi bi-search"></i> Buscar
+                        </button>
+                        <a href="{% url 'myapp:crear_usuario' %}" class="file-button">
+                            <i class="bi bi-plus-circle"></i> Nuevo
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="dark-container">
+        <div class="dark-grid">
+            {% for usuario in usuarios %}
+            <div class="dark-group">
+                <div class="dark-grid">
+                    <span class="dark-label">{{ usuario.nombre_usuario }}</span>
+                    <span class="selected-file">{{ usuario.primer_nombre }} {{ usuario.primer_apellido }}</span>
+                    <span class="badge {% if usuario.activo %}badge-success{% else %}badge-danger{% endif %}">
+                        {{ usuario.get_tipo_usuario_display }}
+                    </span>
+                    <div class="dark-grid">
+                        <a href="{% url 'myapp:detalle_usuario' usuario.id %}" class="file-button">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        <a href="{% url 'myapp:editar_usuario' usuario.id %}" class="file-button">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <a href="{% url 'myapp:eliminar_usuario' usuario.id %}" class="file-button danger">
+                            <i class="bi bi-trash"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="dark-group alert-warning">
+                <p class="form-error">No se encontraron usuarios</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

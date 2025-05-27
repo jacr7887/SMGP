@@ -1,0 +1,247 @@
+/* Definición de colores base, basados en tu body */
+:root {
+  --color-background-body-light: rgb(27, 35, 61);
+  --color-background-body-dark: rgb(16, 21, 36);
+  --color-screen-base: rgba(255, 255, 255, 0.05);
+  --color-screen-shape1: rgba(255, 255, 255, 0.1);
+  --color-screen-shape2: rgba(40, 50, 80, 0.5);
+  --color-screen-shape3: rgba(35, 45, 70, 0.8);
+  --color-screen-shape4: rgba(50, 60, 90, 0.6);
+  --color-input-border: rgba(255, 255, 255, 0.2);
+  --color-input-focus-border: rgba(255, 255, 255, 0.7);
+  --color-input-text: rgba(240, 240, 240, 0.9);
+  --color-button-background-light: rgba(50, 60, 90, 0.95);
+  --color-button-background-dark: rgba(16, 21, 36, 0.8);
+  --color-button-text: rgb(16, 21, 36);
+  --color-icon: rgba(200, 210, 230, 0.7);
+  --color-social-icon: rgba(16, 21, 36, 0.8);
+  --color-login-heading: rgba(
+    240,
+    240,
+    240,
+    0.9
+  ); /* ¡TÍTULO DEL LOGIN AHORA EN BLANCO (MISMO TONO QUE TEXTO INPUT)! */
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--color-input-text);
+}
+
+body {
+  background: linear-gradient(
+    90deg,
+    var(--color-background-body-light),
+    var(--color-background-body-dark)
+  );
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.screen {
+  background: var(--color-screen-base);
+  position: relative;
+  height: 600px; /* Ajusta la altura si es necesario */
+  width: 360px; /* Ajusta el ancho si es necesario */
+  box-shadow: 0px 0px 24px var(--color-screen-shape3);
+  display: flex; /* Añade flexbox al contenedor .screen */
+  flex-direction: column; /* Alinea los elementos verticalmente */
+}
+
+.screen__content {
+  z-index: 1;
+  position: relative;
+  flex: 1; /* Permite que el contenido principal se expanda */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center; /* Centra verticalmente el formulario */
+}
+
+.screen__background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  overflow: hidden; /* Evita que los adornos se desborden */
+}
+
+.screen__background__shape {
+  transform: rotate(45deg);
+  position: absolute;
+  /* Ajusta el tamaño de los adornos aquí */
+  height: 200px; /* Ejemplo */
+  width: 200px; /* Ejemplo */
+}
+
+.screen__background__shape1 {
+  height: 520px;
+  width: 520px;
+  background: var(--color-screen-shape1);
+  top: -50px;
+  right: 120px;
+  border-radius: 0 72px 0 0;
+}
+
+.screen__background__shape2 {
+  height: 220px;
+  width: 220px;
+  background: var(--color-screen-shape2);
+  top: -172px;
+  right: 0;
+  border-radius: 32px;
+}
+
+.screen__background__shape3 {
+  height: 540px;
+  width: 190px;
+  background: linear-gradient(
+    270deg,
+    var(--color-screen-shape2),
+    var(--color-screen-shape3)
+  );
+  top: -24px;
+  right: 0;
+  border-radius: 32px;
+}
+
+.screen__background__shape4 {
+  height: 400px;
+  width: 200px;
+  background: var(--color-screen-shape4);
+  top: 420px;
+  right: 50px;
+  border-radius: 60px;
+}
+
+.login {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.login__heading {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(
+    --color-login-heading
+  ); /* ¡AHORA USA LA VARIABLE --color-login-heading (BLANCO)! */
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.login__field {
+  padding: 20px 0px;
+  position: relative;
+}
+
+.login__icon {
+  position: absolute;
+  top: 30px;
+  color: var(--color-icon);
+}
+
+.login__input {
+  border: none;
+  border-bottom: 2px solid var(--color-input-border);
+  background: none;
+  padding: 10px;
+  padding-left: 24px;
+  font-weight: 700;
+  width: 75%;
+  transition: 0.2s;
+  color: var(--color-input-text);
+  border-radius: 26px;
+  padding: 16px 20px;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.7);
+}
+
+.login__input:active,
+.login__input:focus,
+.login__input:hover {
+  outline: none;
+  border-bottom-color: var(--color-input-focus-border);
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.9);
+}
+
+.login__submit {
+  background: linear-gradient(
+    180deg,
+    var(--color-button-background-dark) 0%,
+    var(--color-button-background-light) 100%
+  );
+  font-size: 14px;
+  margin-top: 30px;
+  padding: 16px 20px;
+  border-radius: 26px;
+  border: none;
+  text-transform: uppercase;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  color: var(--color-button-text);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.login__submit:active,
+.login__submit:focus,
+.login__submit:hover {
+  border-color: var(--color-input-focus-border);
+  outline: none;
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.9);
+}
+
+.button__icon {
+  font-size: 24px;
+  margin-left: auto;
+  color: var(--color-icon);
+}
+
+.social-login {
+  position: absolute;
+  height: 140px;
+  width: 160px;
+  text-align: center;
+  bottom: 0px;
+  right: 0px;
+  color: var(--color-social-icon);
+}
+
+.social-icons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.social-login__icon {
+  padding: 20px 10px;
+  color: var(--color-social-icon);
+  text-decoration: none;
+  text-shadow: 0px 0px 8px var(--color-screen-shape3);
+}
+
+.social-login__icon:hover {
+  transform: scale(1.5);
+}
+@media (max-width: 768px) {
+  .login-container {
+    width: 100%;
+    padding: 20px;
+  }
+}

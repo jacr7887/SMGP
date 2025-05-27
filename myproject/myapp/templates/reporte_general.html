@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+{% load static humanize %}
+
+{% block title %}Reporte General - SMGP{% endblock title %}
+
+{% block extra_css %}
+{{ block.super }}
+<style>
+    /* ... (Tus estilos CSS existentes se mantienen sin cambios) ... */
+    .kpi-grid-container,
+    .visualizations-grid-container,
+    .tables-grid-container { display: grid; gap: 1.5rem; }
+
+    @media (min-width: 1200px) {
+        .kpi-grid-container { grid-template-columns: repeat(4, 1fr); }
+        .visualizations-grid-container { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (min-width: 992px) and (max-width: 1199.98px) {
+         .kpi-grid-container { grid-template-columns: repeat(4, 1fr); }
+         .visualizations-grid-container { grid-template-columns: repeat(2, 1fr); }
+         .tables-grid-container { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (min-width: 768px) and (max-width: 991.98px) {
+        .kpi-grid-container { grid-template-columns: repeat(2, 1fr); }
+        .visualizations-grid-container { grid-template-columns: repeat(2, 1fr); }
+        .tables-grid-container { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 767.98px) {
+        .kpi-grid-container,
+        .visualizations-grid-container,
+        .tables-grid-container { grid-template-columns: 1fr; }
+    }
+     .full-width-table { grid-column: 1 / -1; }
+     .kpi-card { border-left: 10px solid transparent; display: flex; flex-direction: column; background: var(--glass-bg); border: 10px solid var(--border-light); backdrop-filter: var(--blur); box-shadow: var(--glass-box-shadow); border-radius: var(--glass-border-radius); }
+    .kpi-card .kpi-content-wrapper { padding: 1.2rem; display: flex; justify-content: space-between; align-items: center; flex-grow: 1; }
+    .kpi-label { font-size: 0.9rem; text-transform: uppercase; opacity: 0.8; margin-bottom: 0.1rem; color: var(--text-muted); }
+    .kpi-value { font-weight: 700; line-height: 1.1; font-size: 1.8rem; color: var(--text-light); }
+    .kpi-secondary { font-size: 0.85rem; color: var(--text-muted); opacity: 0.9; } /* Estilo para texto secundario en KPI */
+    .kpi-icon { font-size: 2.5rem; opacity: 0.6; }
+    .kpi-footer { background-color: rgba(0,0,0,0.15); border-top: 1px solid var(--border-light); padding: 0.5rem 1.2rem; font-size: 0.8rem; opacity: 0.8; color: var(--text-muted); }
+    .kpi-card.kpi-bg-primary { border-left-color: var(--primary); background-color: rgba(var(--primary-rgb), 0.15); }
+    .kpi-card.kpi-bg-info { border-left-color: var(--info); background-color: rgba(52, 152, 219, 0.15); }
+    .kpi-card.kpi-bg-warning { border-left-color: var(--warning); background-color: rgba(var(--warning-rgb), 0.15); color: #fff !important; }
+    .kpi-card.kpi-bg-warning .kpi-label, .kpi-card.kpi-bg-warning .kpi-secondary { color: rgba(255,255,255,0.8) !important; }
+    .kpi-card.kpi-bg-warning .kpi-footer span, .kpi-card.kpi-bg-warning .kpi-footer a { color: #212529 !important; } /* Texto oscuro para footer warning */
+    .kpi-card.kpi-bg-danger { border-left-color: var(--danger); background-color: rgba(220, 53, 69, 0.15); }
+    .kpi-card.kpi-bg-success { border-left-color: var(--success); background-color: rgba(40, 167, 69, 0.15); }
+    .kpi-card.kpi-bg-secondary { border-left-color: var(--secondary); background-color: rgba(var(--secondary-rgb), 0.15); }
+    .kpi-card.kpi-bg-light { border-left-color: #bdc3c7; background-color: rgba(236, 240, 241, 0.1); color: #eee !important; }
+    .kpi-card.kpi-bg-light .kpi-label, .kpi-card.kpi-bg-light .kpi-secondary { color: rgba(230, 230, 230, 0.8) !important; }
+    .kpi-card.kpi-bg-dark { border-left-color: #7d18a5; background-color: rgba(96, 21, 126, 0.2); }
+    .chart-card, .table-container { padding: 1rem 1.5rem; height: 100%; display: flex; flex-direction: column; background: var(--glass-bg); border: 1px solid var(--border-light); backdrop-filter: var(--blur); box-shadow: var(--glass-box-shadow); border-radius: var(--glass-border-radius); }
+    .chart-container { min-height: 300px; /* Reducido para dashboard */ flex-grow: 1; width: 100%; position: relative; display: flex; align-items: center; justify-content: center; }
+    .chart-container > div { width: 100% !important; height: 100% !important; }
+    .table-container .table-title, .chart-card .table-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-light); color: var(--text-light); flex-shrink: 0; }
+    .table-container .table-responsive { overflow-x: auto; flex-grow: 1; }
+    .table-container .data-table { width: 100%; margin-bottom: 0; }
+    .no-results { color: var(--text-muted); text-align: center; padding: 1rem; }
+    .text-end { text-align: right !important; }
+    .link-styled { color: var(--link-blue); text-decoration: none; }
+    .link-styled:hover { color: var(--text-light); }
+    .animated { opacity: 0; transition: opacity 0.8s ease-out, transform 0.8s ease-out; }
+    .fadeInUp { transform: translateY(20px); }
+    .fadeIn { transform: scale(0.95); }
+    .animated.visible { opacity: 1; transform: translateY(0) scale(1); }
+</style>
+{% endblock extra_css %}
+
+{% block content %}
+<div class="dark-container page-report-general" role="main" aria-labelledby="report-title">
+    <h1 id="report-title" class="main-title mb-4">
+        <i class="fas fa-chart-pie me-2"></i>{{ page_title|default:"Reporte General del Sistema" }}
+    </h1>
+
+    {% if error %}
+    <div class="alert alert-danger" role="alert"><i class="fas fa-exclamation-triangle me-2"></i>{{ error }}</div>
+    {% endif %}
+
+    <section class="mb-5">
+        <h2 class="h4 mb-3 text-muted"><i class="fas fa-th-large me-2"></i>Indicadores Clave (KPIs)</h2>
+        <div class="kpi-grid-container">
+            
+            <div class="glass-card kpi-card kpi-bg-primary h-100">
+                <div class="kpi-content-wrapper">
+                    <div class="kpi-text-content">
+                        <div class="kpi-label">Contratos Totales Activos</div>
+                        <div class="kpi-value">{{ kpi_total_contratos|intcomma }}</div>
+                    </div>
+                    <div class="kpi-icon"><i class="fas fa-file-signature fa-3x"></i></div>
+                </div>
+                <div class="kpi-footer"><span>Ind: {{ kpi_total_contratos_individuales_count|default:0|intcomma }} / Col: {{ kpi_total_contratos_colectivos_count|default:0|intcomma }}</span></div>
+            </div>
+
+            <div class="glass-card kpi-card kpi-bg-info h-100">
+                <div class="kpi-content-wrapper">
+                    <div class="kpi-text-content">
+                        <div class="kpi-label">Afiliados Totales Activos</div>
+                        <div class="kpi-value">{{ kpi_total_afiliados_ind|add:kpi_total_afiliados_col|intcomma }}</div>
+                    </div>
+                    <div class="kpi-icon"><i class="fas fa-users fa-3x"></i></div>
+                </div>
+                <div class="kpi-footer"><span>Ind: {{ kpi_total_afiliados_ind|intcomma }} / Col: {{ kpi_total_afiliados_col|intcomma }}</span></div>
+            </div>
+            
+            <div class="glass-card kpi-card kpi-bg-secondary h-100">
+                <div class="kpi-content-wrapper">
+                    <div class="kpi-text-content">
+                        <div class="kpi-label">Reclamaciones Activas</div>
+                        <div class="kpi-value">{{ kpi_total_reclamaciones|intcomma }}</div>
+                    </div>
+                    <div class="kpi-icon"><i class="fas fa-exclamation-circle fa-3x"></i></div>
+                </div>
+                <div class="kpi-footer"><span>Gestión de Siniestros</span></div>
+            </div>
+
+            <div class="glass-card kpi-card kpi-bg-light h-100">
+                <div class="kpi-content-wrapper">
+                    <div class="kpi-text-content">
+                        <div class="kpi-label">Monto Total Contratado (Activos)</div>
+                        <div class="kpi-value">$ {{ kpi_monto_total_contratos|default_if_none:"0"|floatformat:0|intcomma }}</div>
+                    </div>
+                    <div class="kpi-icon"><i class="fas fa-coins fa-3x"></i></div>
+                </div>
+                <div class="kpi-footer"><span>Valor de Cartera Activa</span></div>
+            </div>
+            
+            <div class="glass-card kpi-card kpi-bg-danger h-100">
+                <div class="kpi-content-wrapper">
+                    <div class="kpi-text-content">
+                        <div class="kpi-label">Facturas Vencidas</div>
+                        <div class="kpi-value">{{ kpi_facturas_vencidas_conteo|intcomma }}</div>
+                        <div class="kpi-secondary">Monto: $ {{ kpi_facturas_vencidas_monto|floatformat:2|intcomma }}</div>
+                    </div>
+                    <div class="kpi-icon"><i class="fas fa-file-invoice-dollar fa-3x"></i></div>
+                </div>
+                {% if kpi_facturas_vencidas_conteo > 0 %}<div class="kpi-footer"><a href="{{ url_lista_facturas_vencidas }}" class="text-white">Ver Detalle <i class="fas fa-arrow-right"></i></a></div>{% else %}<div class="kpi-footer"><span>Todo al día</span></div>{% endif %}
+            </div>
+
+            <div class="glass-card kpi-card kpi-bg-warning h-100">
+                <div class="kpi-content-wrapper">
+                    <div class="kpi-text-content">
+                        <div class="kpi-label">Comisiones Pendientes</div>
+                        <div class="kpi-value">{{ kpi_comisiones_pendientes_conteo|intcomma }}</div>
+                        <div class="kpi-secondary">Monto: $ {{ kpi_comisiones_pendientes_monto|floatformat:2|intcomma }}</div>
+                    </div>
+                    <div class="kpi-icon"><i class="fas fa-hand-holding-usd fa-3x"></i></div>
+                </div>
+                {% if kpi_comisiones_pendientes_conteo > 0 %}<div class="kpi-footer"><a href="{{ url_liquidacion_comisiones }}" class="text-dark">Liquidar <i class="fas fa-arrow-right"></i></a></div>{% else %}<div class="kpi-footer"><span class="text-dark">Todo liquidado</span></div>{% endif %}
+            </div>
+            
+            <div class="glass-card kpi-card kpi-bg-success h-100">
+                <div class="kpi-content-wrapper">
+                    <div class="kpi-text-content">
+                        <div class="kpi-label">Primas Cobradas (Pagos Facturas)</div>
+                        <div class="kpi-value">$ {{ kpi_monto_total_pagado_facturas|default_if_none:"0"|floatformat:0|intcomma }}</div>
+                    </div>
+                    <div class="kpi-icon"><i class="fas fa-money-bill-wave fa-3x"></i></div>
+                </div>
+                <div class="kpi-footer"><span>Ingresos Efectivos</span></div>
+            </div>
+
+            <div class="glass-card kpi-card kpi-bg-dark h-100">
+                <div class="kpi-content-wrapper">
+                    <div class="kpi-text-content">
+                        <div class="kpi-label">IGTF Recaudado (Estimado)</div>
+                        <div class="kpi-value">$ {{ kpi_total_igtf_recaudado|default_if_none:"0"|floatformat:0|intcomma }}</div>
+                    </div>
+                    <div class="kpi-icon"><i class="fas fa-landmark fa-3x"></i></div>
+                </div>
+                <div class="kpi-footer"><span>Impuesto Transacciones Financ.</span></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="mb-5">
+        <h2 class="h4 mb-3 text-muted"><i class="fas fa-chart-line me-2"></i>Visualizaciones Destacadas</h2>
+        <div class="visualizations-grid-container">
+
+            {# 1. Anteriormente Estados de Contrato, ahora Antigüedad Promedio por Estatus #}
+            {% if plotly_contratos_estado_html %}
+            <div class="glass-card chart-card">
+                <h5 class="table-title">Antigüedad Promedio Contratos por Estatus</h5>
+                <div class="chart-container">{{ plotly_contratos_estado_html|safe }}</div>
+            </div>
+            {% endif %}
+            
+            {# 2. Anteriormente Estados de Reclamaciones, ahora Top Tipos Reclamación Costosas (Abiertas/En Proceso) #}
+            {% if plotly_reclamaciones_estado_html %}
+            <div class="glass-card chart-card">
+                <h5 class="table-title">Tipos de Reclamo Pendientes (Mayor Costo Prom.)</h5>
+                 <div class="chart-container">{{ plotly_reclamaciones_estado_html|safe }}</div>
+             </div>
+            {% endif %}
+
+            {# 3. Anteriormente Monto Contratado por Ramo, ahora Mix de Cartera y Crecimiento Primas por Ramo #}
+            {% if plotly_ramos_monto_html %}
+            <div class="glass-card chart-card">
+                <h5 class="table-title">Total de Primas Emitidas por Ramo</h5>
+                <div class="chart-container">{{ plotly_ramos_monto_html|safe }}</div>
+            </div>
+            {% endif %}
+
+            {# 4. Anteriormente Gauge Tiempo Resolución, ahora Pie Reclamaciones Recientes Resueltas vs. Pendientes #}
+            {% if plotly_resolucion_gauge_html %}
+            <div class="glass-card chart-card">
+                <h5 class="table-title">Estado Resolución Reclamos Recientes</h5>
+                <div class="chart-container">{{ plotly_resolucion_gauge_html|safe }}</div>
+            </div>
+            {% endif %}
+            
+            {# 5. IGTF (se mantiene) #}
+            {% if plotly_impuestos_categoria_html %}
+            <div class="glass-card chart-card">
+                <h5 class="table-title">Distribución IGTF por Categoría</h5>
+                <div class="chart-container">{{ plotly_impuestos_categoria_html|safe }}</div>
+            </div>
+            {% endif %}
+
+            {# 6. Anteriormente Rentabilidad Intermediario, ahora Bubble Chart Cartera Intermediarios #}
+            {% if plotly_rentabilidad_intermediario_html %}
+            <div class="glass-card chart-card">
+                <h5 class="table-title">Cartera Intermediarios: Prima vs. Rentabilidad</h5>
+                <div class="chart-container">{{ plotly_rentabilidad_intermediario_html|safe }}</div>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+    
+    <section class="mb-4">
+        <h2 class="h4 mb-3 text-muted"><i class="fas fa-history me-2"></i>Auditoría y Seguimiento</h2>
+        <div class="dark-card">
+            <div class="dark-card-body text-center py-4"> {# Añadido padding vertical #}
+                <a href="{{ url_historial_liquidaciones|default:'#' }}" class="btn btn-lg btn-outline-light">
+                    <i class="fas fa-archive me-2"></i>Ver Historial de Liquidaciones
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <section class="mb-4">
+         <h2 class="h4 mb-3 text-muted"><i class="fas fa-table me-2"></i>Resumen de Tablas</h2>
+         <div class="tables-grid-container">
+             <div class="glass-card chart-card"> {# Cambiado a chart-card para consistencia #}
+                 <h5 class="table-title"><i class="fas fa-clipboard-list me-1"></i>Top 10 Tipos de Reclamación (Cantidad)</h5>
+                 {% if table_top_tipos_reclamacion %}
+                     <div class="table-responsive">
+                     <table class="data-table table-sm">
+                         <thead><tr><th>Tipo</th><th class="text-end">Cantidad</th></tr></thead>
+                         <tbody>{% for item_val in table_top_tipos_reclamacion %}<tr><td>{{ item_val.tipo }}</td><td class="text-end">{{ item_val.cantidad|intcomma }}</td></tr>{% endfor %}</tbody>
+                     </table>
+                     </div>
+                 {% else %}<p class="no-results p-3">No hay datos de tipos de reclamación.</p>{% endif %}
+             </div>
+
+            {% if datos_tabla_comisiones %}
+            <div class="glass-card chart-card">  {# Cambiado a chart-card para consistencia #}
+                <h5 class="table-title">Resumen Global de Comisiones</h5>
+                <div class="table-responsive mt-2">
+                    <table class="data-table table-sm" style="width:100%;">
+                        <tbody>
+                            <tr><td>Total Registradas:</td><td class="text-end"><strong>$ {{ datos_tabla_comisiones.total_registrado_comisiones|default_if_none:"0.00"|floatformat:2|intcomma }}</strong></td></tr>
+                            <tr><td>Total Pagadas:</td><td class="text-end text-success"><strong>$ {{ datos_tabla_comisiones.total_pagado_comisiones|default_if_none:"0.00"|floatformat:2|intcomma }} </strong></td></tr>
+                            <tr><td>Total Pendientes:</td><td class="text-end text-warning"><strong>$ {{ datos_tabla_comisiones.total_pendiente_comisiones|default_if_none:"0.00"|floatformat:2|intcomma }} </strong></td></tr>
+                            <tr><td>Total Anuladas:</td><td class="text-end text-muted"><strong>$ {{ datos_tabla_comisiones.total_anulado_comisiones|default_if_none:"0.00"|floatformat:2|intcomma }} </strong></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+             <div class="glass-card chart-card"> {# Cambiado a chart-card para consistencia #}
+                 <h5 class="table-title"><i class="fas fa-hourglass-end me-1"></i>Top 10 Facturas Vencidas Antiguas</h5>
+                 {% if table_facturas_antiguas %}
+                     <div class="table-responsive">
+                     <table class="data-table table-sm">
+                         <thead><tr><th>Recibo</th><th>Cliente/Empresa</th><th class="text-end">Vence</th><th class="text-end">Días Venc.</th><th class="text-end">Pend. ($)</th></tr></thead>
+                         <tbody>{% for f in table_facturas_antiguas %}<tr><td><a href="{% url 'myapp:factura_detail' f.pk %}" class="link-styled">{{ f.numero_recibo }}</a></td><td>{% if f.contrato_individual.afiliado %}{{ f.contrato_individual.afiliado.get_full_name|truncatechars:20 }}{% elif f.contrato_colectivo %}{{ f.contrato_colectivo.razon_social|truncatechars:20 }}{% else %}N/A{% endif %}</td><td class="text-end">{{ f.vigencia_recibo_hasta|date:"d/m/y" }}</td><td class="text-end">{{ f.dias_vencida.days|default:"?"|intcomma }}</td><td class="text-end">{{ f.monto_pendiente|default:"0.00"|floatformat:2|intcomma }}</td></tr>{% endfor %}</tbody>
+                     </table>
+                     </div>
+                 {% else %}<p class="no-results p-3">No hay facturas vencidas pendientes.</p>{% endif %}
+             </div>
+              <div class="glass-card chart-card"> {# Cambiado a chart-card para consistencia #}
+                  <h5 class="table-title"><i class="fas fa-medal me-1"></i>Top 10 Intermediarios (Monto Contratado)</h5>
+                  {% if table_top_intermediarios %}
+                      <div class="table-responsive">
+                      <table class="data-table table-sm">
+                          <thead><tr><th>Intermediario</th><th class="text-end"># Contratos</th><th class="text-end">Monto Total ($)</th></tr></thead>
+                          <tbody>{% for interm in table_top_intermediarios %}<tr><td><a href="{% url 'myapp:intermediario_detail' interm.pk %}" class="link-styled">{{ interm.nombre_completo|truncatechars:30 }}</a></td><td class="text-end">{{ interm.num_contratos|intcomma }}</td><td class="text-end">{{ interm.monto_contratos|default:"0.00"|floatformat:2|intcomma }}</td></tr>{% endfor %}</tbody>
+                      </table>
+                      </div>
+                  {% else %}<p class="no-results p-3">No hay datos de intermediarios.</p>{% endif %}
+              </div>
+         </div>
+    </section>
+</div>
+{% endblock content %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const animatedItems = document.querySelectorAll('.animated');
+    if (typeof IntersectionObserver !== 'undefined') {
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    // Opcional: dejar de observar una vez que es visible para ahorrar recursos
+                    // observer.unobserve(entry.target); 
+                }
+            });
+        }, { threshold: 0.1 }); // Se activa cuando el 10% del elemento es visible
+        animatedItems.forEach(item => observer.observe(item));
+    } else {
+        // Fallback para navegadores viejos: mostrar todo inmediatamente
+        animatedItems.forEach(item => item.classList.add('visible'));
+    }
+});
+</script>
+{% endblock extra_js %}

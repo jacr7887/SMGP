@@ -1,0 +1,9 @@
+<tr>
+  <th scope="row">{{ label }}</th>
+  <td>
+    {% if value == "N/A" or value == "-" or not value %}
+    <span aria-hidden="true">-</span>
+    <span class="sr-only">No aplica</span>
+    {% else %} {{ value }} {% endif %}
+  </td>
+</tr>

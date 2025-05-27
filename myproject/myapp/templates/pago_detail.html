@@ -1,0 +1,207 @@
+{% extends "base.html" %} {# Asegúrate que 'base.html' sea tu plantilla base correcta #}
+{% load static %}
+{% load humanize %} {# Necesario para intcomma #}
+
+{% block title %}Detalle del Pago ID: {{ pago.pk }}{% endblock %}
+
+{# Cargar CSS/JS de Select2 si se usan en algún widget indirecto o por consistencia #}
+{% block extra_head %}
+    {# {% if form.media.css %}{{ form.media.css }}{% endif %} #} {# No hay 'form' aquí #}
+{% endblock %}
+
+{% block content %}
+<div class="dark-container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading" class="main-title">💳 Detalle del Pago ID: {{ pago.pk }}</h1>
+
+    {# --- Botones de Acción Superiores --- #}
+    <div class="header-actions mb-4"> {# Añadido mb-4 para separación #}
+       {% if perms.myapp.change_pago %}
+            <a href="{% url 'myapp:pago_update' pago.pk %}" class="btn btn-success" aria-label="Editar este pago">
+              ✏️ Editar
+            </a>
+       {% endif %}
+       {# Enlace al PDF del Recibo de Pago #}
+       <a href="{% url 'myapp:pago_pdf' pago.pk %}" target="_blank" class="btn btn-info">
+           🖨️ Imprimir Pago PDF
+       </a>
+      {% if perms.myapp.delete_pago %}
+        {# Considera añadir confirmación JS para eliminar #}
+        <a href="{% url 'myapp:pago_delete' pago.pk %}" class="btn btn-danger delete-link" aria-label="Eliminar este pago">
+          ❌ Eliminar
+        </a>
+      {% endif %}
+      <a href="{% url 'myapp:pago_list' %}" class="nav_link" style="margin-left: auto;" aria-label="Volver al listado de pagos">
+        ⬅️ Volver al Listado
+      </a>
+    </div>
+
+    {# --- Contenedor Principal de Detalles --- #}
+    <div class="form-main-container"> {# Reutilizando clase del form para estilo consistente #}
+
+      {# --- Fieldset: Información del Pago --- #}
+      <fieldset class="mb-4">
+        <legend class="dark-label">💰 Información del Pago</legend>
+        <div class="dark-grid"> {# Grid para layout #}
+            <div class="dark-group">
+                <span class="dark-label">#️⃣ ID Pago:</span>
+                <span>{{ pago.pk }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">📅 Fecha del Pago:</span>
+                <span>{{ pago.fecha_pago|date:"d/m/Y" }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">💰 Monto del Pago:</span>
+                <span>${{ pago.monto_pago|floatformat:2|intcomma }}</span> {# Asumiendo USD #}
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">💳 Forma de Pago:</span>
+                <span>{{ pago.get_forma_pago_display|default:"-" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">#️⃣ Referencia del Pago:</span>
+                <span>{{ pago.referencia_pago|escape|default:"-" }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">🔔 Fecha Notificación Pago:</span>
+                <span>{{ pago.fecha_notificacion_pago|date:"d/m/Y"|default:"-" }}</span>
+            </div>
+            {# Mostrar si aplicó IGTF al PAGO #}
+            <div class="dark-group">
+                <span class="dark-label">💲 Pago en Divisas con IGTF:</span>
+                <span class="badge {% if pago.aplica_igtf_pago %}badge-success{% else %}badge-success{% endif %}">
+                    {{ pago.aplica_igtf_pago|yesno:"Sí,No" }}
+                </span>
+            </div>
+            {# Observaciones (ocupando más espacio) #}
+            <div class="dark-group" style="grid-column: 1 / -1;">
+                <span class="dark-label">💬 Observaciones del Pago:</span>
+                 <p style="margin:0; white-space: pre-wrap;">{{ pago.observaciones_pago|escape|linebreaksbr|default:"(Sin observaciones)" }}</p>
+            </div>
+            {# Documentos de Soporte #}
+             <div class="dark-group" style="grid-column: 1 / -1;">
+                 <span class="dark-label">📎 Documentos de Soporte:</span>
+                 <span>
+                     {% if pago.documentos_soporte_pago %}
+                     <a href="{{ pago.documentos_soporte_pago.url }}" target="_blank" class="nav_link">
+                        📄 {{ pago.documentos_soporte_pago.name|cut:"documentos_pagos/" }} {# Mostrar nombre archivo sin ruta base #}
+                    </a>
+                    <small class="text-muted d-block">({{ pago.documentos_soporte_pago.size|filesizeformat }})</small> {# Tamaño legible #}
+                     {% else %}
+                         No adjuntado
+                     {% endif %}
+                 </span>
+             </div>
+        </div> {# Fin dark-grid #}
+      </fieldset>
+
+        <fieldset class="mb-4">
+            <legend>🔗 Información Asociada</legend>
+            <div class="dark-grid">
+                {# ... Factura Asociada y Reclamación Asociada como antes ... #}
+                <div class="dark-group">
+                    <span class="dark-label">🧾 Factura Asociada:</span>
+                    <span>
+                        {% if factura_asociada %}
+                            {% if perms.myapp.view_factura %}
+                            <a href="{% url 'myapp:factura_detail' factura_asociada.pk %}">
+                                {{ factura_asociada.numero_recibo|default:factura_asociada.pk }}
+                                (Monto: ${{ factura_asociada.monto|floatformat:2|intcomma|default:"0.00" }})
+                            </a>
+                            {% else %}
+                                {{ factura_asociada.numero_recibo|default:factura_asociada.pk }}
+                                (Monto: ${{ factura_asociada.monto|floatformat:2|intcomma|default:"0.00" }})
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted">No hay factura asociada</span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="dark-group">
+                    <span class="dark-label">📢 Reclamación Asociada:</span>
+                    <span>
+                        {% if reclamacion_asociada %}
+                            {% if perms.myapp.view_reclamacion %}
+                            <a href="{% url 'myapp:reclamacion_detail' reclamacion_asociada.pk %}">
+                                Reclamo #{{ reclamacion_asociada.pk }}
+                                (Monto: ${{ reclamacion_asociada.monto_reclamado|floatformat:2|intcomma|default:"0.00" }})
+                            </a>
+                            {% else %}
+                                Reclamo #{{ reclamacion_asociada.pk }}
+                                (Monto: ${{ reclamacion_asociada.monto_reclamado|floatformat:2|intcomma|default:"0.00" }})
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted">No hay reclamación asociada</span>
+                        {% endif %}
+                    </span>
+                </div>
+
+                {# --- Contrato Vinculado Corregido --- #}
+                <div class="dark-group">
+                    <span class="dark-label">📄 Contrato Vinculado:</span>
+                    <span>
+                        {% if contrato_vinculado_url %} {# Usar la URL preparada por la vista #}
+                            {# Asumir que el usuario tiene permiso si la URL se generó #}
+                            <a href="{{ contrato_vinculado_url }}">
+                                {{ contrato_vinculado_display|escape }} {# Mostrar el texto preparado #}
+                            </a>
+                        {% else %}
+                            {{ contrato_vinculado_display|escape }} {# Mostrar texto sin enlace si no hay URL #}
+                        {% endif %}
+                    </span>
+                </div>
+                {# --- Cliente Final (ya estaba bien) --- #}
+                <div class="dark-group">
+                    <span class="dark-label">👤 Cliente Final:</span>
+                    <span>{{ cliente_final_nombre|escape|default:"(No determinado)" }}</span>
+                </div>
+                {# --- Intermediario Asociado Corregido --- #}
+                <div class="dark-group">
+                    <span class="dark-label">🤝 Intermediario Asociado:</span>
+                    <span>
+                        {% if intermediario_asociado_url %} {# Usar la URL preparada #}
+                            {# Asumir permiso si la URL existe #}
+                            <a href="{{ intermediario_asociado_url }}">
+                                {{ intermediario_asociado_nombre|escape }}
+                            </a>
+                        {% else %}
+                            <span class="text-muted">{{ intermediario_asociado_nombre|escape }}</span>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </fieldset>
+
+       {# --- Fieldset: Datos del Sistema --- #}
+       <fieldset>
+        <legend>⚙️ Datos del Sistema</legend>
+         <div class="dark-grid">
+            <div class="dark-group">
+                <span class="dark-label">💡 Registro Activo:</span>
+                 <span class="badge {% if pago.activo %}badge-success{% else %}badge-danger{% endif %}">
+                     {{ pago.activo|yesno:"Sí,No" }}
+                 </span>
+            </div>
+             <div class="dark-group">
+               <span class="dark-label">➕ Fecha Creación Registro:</span>
+               <span>{{ pago.fecha_creacion|date:"d/m/Y H:i:s" }}</span>
+             </div>
+             <div class="dark-group">
+               <span class="dark-label">🔄 Fecha Modificación:</span>
+               <span>{{ pago.fecha_modificacion|date:"d/m/Y H:i:s" }}</span>
+             </div>
+        </div> {# Fin dark-grid #}
+       </fieldset>
+
+    </div> {# Fin form-main-container #}
+
+  </section>
+</div>
+
+{% endblock content %}
+
+{# --- Bloque extra_scripts --- #}
+{% block extra_scripts %}
+    {# Si jQuery y form.media.js NO están en base.html, cárgalos aquí #}
+{% endblock %}

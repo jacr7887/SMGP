@@ -1,0 +1,394 @@
+{% extends "home.html" %}
+{% load static %}
+
+{% block content %}
+
+<div class="dark-container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading">
+      {% if form.instance.pk %}✏️ Editar Afiliado Individual{% else %}➕ Nuevo Afiliado Individual{% endif %}
+    </h1>
+
+    <div class="header-actions">
+      {# Asegurarse que la URL coincide con la definida en urls.py #}
+      <a href="{% url 'myapp:afiliado_individual_list' %}" class="nav_link" aria-label="Volver al listado de afiliados individuales">
+        ⬅️ Volver al Listado
+      </a>
+    </div>
+
+    <form method="post" class="compact-form" enctype="multipart/form-data" aria-labelledby="main-heading" novalidate> {# Usar main-heading como label #}
+      {% csrf_token %}
+
+      {# --- BLOQUE DE ERRORES GENERALES --- #}
+      {% if form.non_field_errors %}
+          {# Usar las clases del ejemplo para errores generales #}
+          <div class="alert alert-danger error-summary" role="alert">
+              <h4>⚠️ Errores Generales:</h4>
+              <ul>
+                  {% for error in form.non_field_errors %}
+                      <li>{{ error|escape }}</li>
+                  {% endfor %}
+              </ul>
+          </div>
+      {% endif %}
+      {# --- FIN BLOQUE ERRORES GENERALES --- #}
+
+      {# --- Fieldset para Información Personal y Estado --- #}
+      <fieldset class="dark-group" data-section="informacion-personal">
+        <legend class="dark-label">👥 Información Personal y Estado</legend>
+
+        {# Campo activo (Switch) #}
+        <div class="dark-group {% if form.activo.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.activo.id_for_label }}">💡 Estado Activo</label> {# Icono consistente #}
+            <label class="switch">
+                {{ form.activo }} {# Renderiza <input type="checkbox"> #}
+                <span class="slider"></span>
+            </label>
+            {% if form.activo.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.activo.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.activo.help_text %}
+                <small class="form-text text-muted" id="{{ form.activo.id_for_label }}-help">{{ form.activo.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo primer_nombre #}
+        <div class="dark-group {% if form.primer_nombre.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.primer_nombre.id_for_label }}">📛 Primer Nombre</label> {# Icono consistente #}
+            {{ form.primer_nombre }} {# Renderiza el widget #}
+            {% if form.primer_nombre.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.primer_nombre.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.primer_nombre.help_text %}
+                <small class="form-text text-muted" id="{{ form.primer_nombre.id_for_label }}-help">{{ form.primer_nombre.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo segundo_nombre #}
+        <div class="dark-group {% if form.segundo_nombre.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.segundo_nombre.id_for_label }}">📛 Segundo Nombre</label> {# Icono consistente #}
+            {{ form.segundo_nombre }}
+            {% if form.segundo_nombre.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.segundo_nombre.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.segundo_nombre.help_text %}
+                <small class="form-text text-muted" id="{{ form.segundo_nombre.id_for_label }}-help">{{ form.segundo_nombre.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo primer_apellido #}
+        <div class="dark-group {% if form.primer_apellido.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.primer_apellido.id_for_label }}">📛 Primer Apellido</label> {# Icono consistente #}
+            {{ form.primer_apellido }}
+            {% if form.primer_apellido.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.primer_apellido.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.primer_apellido.help_text %}
+                <small class="form-text text-muted" id="{{ form.primer_apellido.id_for_label }}-help">{{ form.primer_apellido.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo segundo_apellido #}
+        <div class="dark-group {% if form.segundo_apellido.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.segundo_apellido.id_for_label }}">📛 Segundo Apellido</label> {# Icono consistente #}
+            {{ form.segundo_apellido }}
+            {% if form.segundo_apellido.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.segundo_apellido.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.segundo_apellido.help_text %}
+                <small class="form-text text-muted" id="{{ form.segundo_apellido.id_for_label }}-help">{{ form.segundo_apellido.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo tipo_identificacion #}
+        <div class="dark-group {% if form.tipo_identificacion.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.tipo_identificacion.id_for_label }}">🔖 Tipo Identificación</label> {# Icono consistente #}
+            {{ form.tipo_identificacion }}
+            {% if form.tipo_identificacion.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.tipo_identificacion.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.tipo_identificacion.help_text %}
+                <small class="form-text text-muted" id="{{ form.tipo_identificacion.id_for_label }}-help">{{ form.tipo_identificacion.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo cedula #}
+        <div class="dark-group {% if form.cedula.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.cedula.id_for_label }}">🆔 Cédula / ID</label> {# Icono consistente #}
+            {{ form.cedula }}
+            {% if form.cedula.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.cedula.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.cedula.help_text %}
+                <small class="form-text text-muted" id="{{ form.cedula.id_for_label }}-help">{{ form.cedula.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo fecha_nacimiento #}
+        <div class="dark-group {% if form.fecha_nacimiento.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.fecha_nacimiento.id_for_label }}">📅 Fecha Nacimiento</label> {# Icono consistente #}
+            {{ form.fecha_nacimiento }} {# Django usa input type="date" o similar por defecto #}
+            {% if form.fecha_nacimiento.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.fecha_nacimiento.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.fecha_nacimiento.help_text %}
+                <small class="form-text text-muted" id="{{ form.fecha_nacimiento.id_for_label }}-help">{{ form.fecha_nacimiento.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo nacionalidad #}
+        <div class="dark-group {% if form.nacionalidad.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.nacionalidad.id_for_label }}">🌍 Nacionalidad</label> {# Icono consistente #}
+            {{ form.nacionalidad }}
+            {% if form.nacionalidad.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.nacionalidad.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.nacionalidad.help_text %}
+                <small class="form-text text-muted" id="{{ form.nacionalidad.id_for_label }}-help">{{ form.nacionalidad.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo sexo #}
+        <div class="dark-group {% if form.sexo.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.sexo.id_for_label }}">⚧️ Sexo</label> {# Icono consistente #}
+            {{ form.sexo }} {# Renderiza <select> si tiene choices #}
+            {% if form.sexo.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.sexo.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.sexo.help_text %}
+                <small class="form-text text-muted" id="{{ form.sexo.id_for_label }}-help">{{ form.sexo.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo estado_civil #}
+        <div class="dark-group {% if form.estado_civil.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.estado_civil.id_for_label }}">💍 Estado Civil</label> {# Icono consistente #}
+            {{ form.estado_civil }} {# Renderiza <select> si tiene choices #}
+            {% if form.estado_civil.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.estado_civil.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.estado_civil.help_text %}
+                <small class="form-text text-muted" id="{{ form.estado_civil.id_for_label }}-help">{{ form.estado_civil.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo parentesco #}
+        <div class="dark-group {% if form.parentesco.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.parentesco.id_for_label }}">👪 Parentesco</label> {# Icono consistente #}
+            {{ form.parentesco }} {# Renderiza <select> si tiene choices #}
+            {% if form.parentesco.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.parentesco.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.parentesco.help_text %}
+                <small class="form-text text-muted" id="{{ form.parentesco.id_for_label }}-help">{{ form.parentesco.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+      </fieldset> {# Fin Fieldset Informacion Personal #}
+
+      {# --- Fieldset para Información de Contacto --- #}
+      <fieldset class="dark-group" data-section="informacion-contacto">
+        <legend class="dark-label">📞 Información de Contacto</legend>
+
+        {# Campo telefono_habitacion #}
+        <div class="dark-group {% if form.telefono_habitacion.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.telefono_habitacion.id_for_label }}">📞 Teléfono Habitación</label> {# Icono consistente #}
+            {{ form.telefono_habitacion }}
+            {% if form.telefono_habitacion.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.telefono_habitacion.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.telefono_habitacion.help_text %}
+                <small class="form-text text-muted" id="{{ form.telefono_habitacion.id_for_label }}-help">{{ form.telefono_habitacion.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo telefono_oficina #}
+        <div class="dark-group {% if form.telefono_oficina.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.telefono_oficina.id_for_label }}">🏢 Teléfono Oficina</label> {# Icono consistente #}
+            {{ form.telefono_oficina }}
+            {% if form.telefono_oficina.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.telefono_oficina.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.telefono_oficina.help_text %}
+                <small class="form-text text-muted" id="{{ form.telefono_oficina.id_for_label }}-help">{{ form.telefono_oficina.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo direccion_habitacion #}
+        <div class="dark-group {% if form.direccion_habitacion.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.direccion_habitacion.id_for_label }}">🏠 Dirección Habitación</label> {# Icono consistente #}
+            {{ form.direccion_habitacion }} {# Renderiza <textarea> #}
+            {% if form.direccion_habitacion.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.direccion_habitacion.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.direccion_habitacion.help_text %}
+                <small class="form-text text-muted" id="{{ form.direccion_habitacion.id_for_label }}-help">{{ form.direccion_habitacion.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo direccion_oficina #}
+        <div class="dark-group {% if form.direccion_oficina.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.direccion_oficina.id_for_label }}">📍 Dirección Oficina</label> {# Icono consistente #}
+            {{ form.direccion_oficina }} {# Renderiza <textarea> #}
+            {% if form.direccion_oficina.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.direccion_oficina.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.direccion_oficina.help_text %}
+                <small class="form-text text-muted" id="{{ form.direccion_oficina.id_for_label }}-help">{{ form.direccion_oficina.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+      </fieldset> {# Fin Fieldset Informacion Contacto #}
+
+      {# --- Fieldset para Información Adicional y Ubicación --- #}
+      <fieldset class="dark-group" data-section="informacion-adicional">
+        <legend class="dark-label">ℹ️ Información Adicional y Ubicación</legend>
+
+        {# Campo zona_postal #}
+        <div class="dark-group {% if form.zona_postal.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.zona_postal.id_for_label }}">📮 Zona Postal</label> {# Icono consistente #}
+            {{ form.zona_postal }}
+            {% if form.zona_postal.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.zona_postal.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.zona_postal.help_text %}
+                <small class="form-text text-muted" id="{{ form.zona_postal.id_for_label }}-help">{{ form.zona_postal.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo estado #}
+        <div class="dark-group {% if form.estado.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.estado.id_for_label }}">🗺️ Estado</label> {# Icono consistente #}
+            {{ form.estado }} {# Renderiza <select> si tiene choices #}
+            {% if form.estado.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.estado.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.estado.help_text %}
+                <small class="form-text text-muted" id="{{ form.estado.id_for_label }}-help">{{ form.estado.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo municipio #}
+        <div class="dark-group {% if form.municipio.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.municipio.id_for_label }}">🏘️ Municipio</label> {# Icono consistente #}
+            {{ form.municipio }}
+            {% if form.municipio.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.municipio.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.municipio.help_text %}
+                <small class="form-text text-muted" id="{{ form.municipio.id_for_label }}-help">{{ form.municipio.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo ciudad #}
+        <div class="dark-group {% if form.ciudad.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.ciudad.id_for_label }}">🏙️ Ciudad</label> {# Icono consistente #}
+            {{ form.ciudad }}
+            {% if form.ciudad.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.ciudad.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.ciudad.help_text %}
+                <small class="form-text text-muted" id="{{ form.ciudad.id_for_label }}-help">{{ form.ciudad.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo fecha_ingreso #}
+        <div class="dark-group {% if form.fecha_ingreso.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.fecha_ingreso.id_for_label }}">🗓️ Fecha Ingreso</label> {# Icono consistente #}
+            {{ form.fecha_ingreso }}
+            {% if form.fecha_ingreso.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.fecha_ingreso.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.fecha_ingreso.help_text %}
+                <small class="form-text text-muted" id="{{ form.fecha_ingreso.id_for_label }}-help">{{ form.fecha_ingreso.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo codigo_validacion #}
+        <div class="dark-group {% if form.codigo_validacion.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.codigo_validacion.id_for_label }}">🔑 Código Validación</label> {# Icono consistente #}
+            {{ form.codigo_validacion }}
+            {% if form.codigo_validacion.errors %}
+                <ul class="error-messages" role="alert">
+                    {% for error in form.codigo_validacion.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            {% if form.codigo_validacion.help_text %}
+                <small class="form-text text-muted" id="{{ form.codigo_validacion.id_for_label }}-help">{{ form.codigo_validacion.help_text|escape }}</small>
+            {% endif %}
+        </div>
+
+        {# Campo intermediario (ForeignKey) #}
+        <div class="dark-group {% if form.intermediario.errors %}error{% endif %}">
+             <label class="dark-label" for="{{ form.intermediario.id_for_label }}">🤝 Intermediario Asociado</label> {# Icono consistente #}
+             {{ form.intermediario }} {# Renderiza <select> #}
+             {% if form.intermediario.errors %}
+                 <ul class="error-messages" role="alert">
+                     {% for error in form.intermediario.errors %}<li>{{ error|escape }}</li>{% endfor %}
+                 </ul>
+             {% endif %}
+             {% if form.intermediario.help_text %}
+                 <small class="form-text text-muted" id="{{ form.intermediario.id_for_label }}-help">{{ form.intermediario.help_text|escape }}</small>
+             {% endif %}
+         </div>
+
+      </fieldset> {# Fin Fieldset Informacion Adicional #}
+
+      {# Renderizar campos ocultos (importante para el ID en modo edición) #}
+      {% for field in form.hidden_fields %}
+          {{ field }}
+      {% endfor %}
+
+      {# --- Botones de Acción --- #}
+      <div class="form-actions">
+        {# Usar las clases del ejemplo para botones #}
+        <button type="submit" class="btn-success">{% if form.instance.pk %}💾 Actualizar Afiliado{% else %}➕ Crear Afiliado{% endif %}</button>
+        <a href="{% url 'myapp:afiliado_individual_list' %}" class="btn-danger">🚫 Cancelar</a>
+      </div>
+    </form>
+  </section>
+</div>
+
+{% endblock content %}

@@ -1,0 +1,16 @@
+{% extends "base.html" %} {% block content %}
+<div class="container">
+  <h2>
+    {% if object %}Editar{% else %}Crear{% endif %} {{
+    view.model._meta.verbose_name }}
+  </h2>
+
+  <form method="post">
+    {% csrf_token %} {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">Guardar</button>
+    <a href="{% url view.model|get_list_url %}" class="btn btn-secondary"
+      >Cancelar</a
+    >
+  </form>
+</div>
+{% endblock %}

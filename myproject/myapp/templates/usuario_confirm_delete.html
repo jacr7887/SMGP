@@ -1,0 +1,48 @@
+{% extends "home.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading">❌ Confirmar Eliminación de Usuario</h1>
+
+    <div class="dark-grid" role="region" aria-labelledby="delete-caption">
+      <div class="dark-group">
+        <p class="delete-message">
+          ¿Estás seguro de que deseas eliminar al usuario <strong>{{ usuario.get_full_name }}</strong>?
+        </p>
+        <p class="warning-message">
+          ⚠️ Esta acción es irreversible y eliminará todos los datos asociados al usuario.
+        </p>
+      </div>
+
+      <div class="dark-group">
+        <h2 class="dark-label">Detalles del Usuario:</h2>
+        <ul class="detail-list">
+          <li><strong>👤 Nombre Completo:</strong> {{ usuario.get_full_name }}</li>
+          <li><strong>📧 Correo:</strong> {{ usuario.email }}</li>
+          <li><strong>🔑 Tipo de Usuario:</strong> {{ usuario.get_tipo_usuario_display }}</li>
+          <li><strong>🏢 Departamento:</strong> {{ usuario.get_departamento_display }}</li>
+          <li><strong>☎️ Teléfono:</strong> {{ usuario.telefono }}</li>
+          <li><strong>🏠 Dirección:</strong> {{ usuario.direccion }}</li>
+          <li><strong>🔒 Nivel de Acceso:</strong> {{ usuario.get_nivel_acceso_display }}</li>
+          <li><strong>✅ Estado de la Cuenta:</strong> {{ usuario.is_active|yesno:"Activo,Inactivo" }}</li>
+        </ul>
+      </div>
+    </div>
+
+    <form method="post" id="delete-form" class="compact-form" aria-labelledby="delete-form-heading">
+      {% csrf_token %}
+      <div class="button-group">
+        <button type="submit" id="confirm-delete-button" class="nav_link danger" aria-label="Confirmar eliminación del usuario">
+          ❌ Confirmar Eliminación
+        </button>
+        <a href="{% url 'myapp:usuario_list' %}" class="nav_link" aria-label="Cancelar y volver al listado de usuarios">
+          🛑 Cancelar
+        </a>
+      </div>
+    </form>
+  </section>
+</div>
+
+{% endblock %}

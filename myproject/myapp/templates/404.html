@@ -1,0 +1,67 @@
+{% extends "base.html" %} 
+{% load static %}
+
+{% block title %}Página No Encontrada - ¿Pergamino Perdido?{% endblock %} {# Título temático #}
+
+{% block extra_css %}
+<style>
+    .notfound-container { /* Cambiado nombre de clase */
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 60vh; 
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-light);
+    }
+    .notfound-icon { /* Cambiado nombre de clase */
+        font-size: 5rem; 
+        color: var(--info); /* Usando color info para "perdido", no necesariamente error grave */
+        margin-bottom: 1.5rem;
+        text-shadow: 0 0 15px rgba(var(--info-rgb), 0.4); /* Brillo azulado */
+        animation: float 3s infinite ease-in-out; /* Animación flotante */
+    }
+    @keyframes float {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+        100% { transform: translateY(0px); }
+    }
+    .notfound-title { /* Cambiado nombre de clase */
+        font-size: 2rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: var(--text-light);
+    }
+    .notfound-message { /* Cambiado nombre de clase */
+        font-size: 1.1rem;
+        color: var(--text-muted);
+        max-width: 600px; 
+        margin-bottom: 2rem;
+        line-height: 1.6;
+    }
+    .notfound-actions .btn { /* Cambiado nombre de clase */
+        margin: 0 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="notfound-container">
+    {# Icono de mapa, brújula, lupa o estrella fugaz #}
+    {# <i class="fas fa-map-signs fa-5x notfound-icon"></i> #}
+    <div class="notfound-icon">🗺️</div> {# Usando emoji de mapa #}
+    
+    <h1 class="notfound-title">¡Extraviado en el Laberinto Arcano! (Error 404)</h1> 
+    
+    <p class="notfound-message">
+        ¡Vaya! Parece que el pergamino que buscas se ha desvanecido o quizás tomó un camino equivocado en la biblioteca mágica. 🧙‍♂️<br><br>
+        No te preocupes, hasta los mejores exploradores se pierden a veces. Comprueba la URL o usa un hechizo de localización (Volver al Castillo 🏰 ).
+    </p>
+    
+    <div class="notfound-actions">
+        </a>
+        <button onclick="window.history.back();" class="btn nav_link-sidebar">Lanzar Hechizo de Retroceso 💫🧙‍♀️</button> 
+    </div>
+</div>
+{% endblock %}

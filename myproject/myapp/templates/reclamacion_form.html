@@ -1,0 +1,194 @@
+{% extends "home.html" %}
+{% load static %}
+
+{% block content %}
+<div class="dark-container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading">
+      {% if form.instance.pk %}✏️ Editar{% else %}➕ Nueva{% endif %} Reclamación
+    </h1>
+
+    <div class="header-actions">
+      <a href="{% url 'myapp:reclamacion_list' %}" class="nav_link" aria-label="Volver al listado de reclamaciones">
+        ⬅️ Volver al Listado
+      </a>
+    </div>
+
+    <form method="post" class="compact-form" enctype="multipart/form-data" aria-labelledby="form-instructions" novalidate>
+      {% csrf_token %}
+
+      {# --- BLOQUE DE ERRORES GENERALES --- #}
+      {% if form.non_field_errors %}
+          <div class="alert alert-danger error-summary">
+              <h4>Errores Generales:</h4>
+              <ul>
+                  {% for error in form.non_field_errors %}
+                      <li>{{ error }}</li>
+                  {% endfor %}
+              </ul>
+          </div>
+      {% endif %}
+      {# --- FIN BLOQUE ERRORES GENERALES --- #}
+
+      {# --- CAMPOS DE Reclamacion --- #}
+
+      <fieldset class="dark-group" data-section="informacion-basica">
+        <legend class="dark-label">ℹ️ Información Básica de la Reclamación</legend>
+
+         {# Campo activo (Heredado) #}
+         <div class="dark-group {% if form.activo.errors %}error{% endif %}">
+             <label class="dark-label" for="{{ form.activo.id_for_label }}">✅ Estado Activo Reclamación</label>
+             <label class="switch">
+                 {{ form.activo }}
+                 <span class="slider"></span>
+             </label>
+             {% if form.activo.errors %}<ul class="error-messages">{% for error in form.activo.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+             {% if form.activo.help_text %}<small class="form-text text-muted">{{ form.activo.help_text }}</small>{% endif %}
+         </div>
+
+        {# Campo tipo_reclamacion #}
+        <div class="dark-group {% if form.tipo_reclamacion.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.tipo_reclamacion.id_for_label }}">🏷️ Tipo de Reclamación</label>
+            {{ form.tipo_reclamacion }} {# Asume Select #}
+            {% if form.tipo_reclamacion.errors %}<ul class="error-messages">{% for error in form.tipo_reclamacion.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.tipo_reclamacion.help_text %}<small class="form-text text-muted">{{ form.tipo_reclamacion.help_text }}</small>{% endif %}
+        </div>
+
+        {# Campo estado #}
+        <div class="dark-group {% if form.estado.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.estado.id_for_label }}">🚦 Estado Actual</label>
+            {{ form.estado }} {# Asume Select #}
+            {% if form.estado.errors %}<ul class="error-messages">{% for error in form.estado.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.estado.help_text %}<small class="form-text text-muted">{{ form.estado.help_text }}</small>{% endif %}
+        </div>
+
+        {# Campo monto_reclamado #}
+        <div class="dark-group {% if form.monto_reclamado.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.monto_reclamado.id_for_label }}">💰 Monto Reclamado</label>
+            {{ form.monto_reclamado }} {# Asume Input Number #}
+            {% if form.monto_reclamado.errors %}<ul class="error-messages">{% for error in form.monto_reclamado.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.monto_reclamado.help_text %}<small class="form-text text-muted">{{ form.monto_reclamado.help_text }}</small>{% endif %}
+        </div>
+
+        {# Campo fecha_reclamo #}
+        <div class="dark-group {% if form.fecha_reclamo.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.fecha_reclamo.id_for_label }}">📅 Fecha de Recepción</label>
+            {{ form.fecha_reclamo }} {# Asume DateInput type=date #}
+            {% if form.fecha_reclamo.errors %}<ul class="error-messages">{% for error in form.fecha_reclamo.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.fecha_reclamo.help_text %}<small class="form-text text-muted">{{ form.fecha_reclamo.help_text }}</small>{% endif %}
+        </div>
+
+        {# Campo fecha_cierre_reclamo #}
+        <div class="dark-group {% if form.fecha_cierre_reclamo.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.fecha_cierre_reclamo.id_for_label }}">🗓️ Fecha de Cierre/Resolución (si aplica)</label>
+            {{ form.fecha_cierre_reclamo }} {# Asume DateInput type=date #}
+            {% if form.fecha_cierre_reclamo.errors %}<ul class="error-messages">{% for error in form.fecha_cierre_reclamo.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.fecha_cierre_reclamo.help_text %}<small class="form-text text-muted">{{ form.fecha_cierre_reclamo.help_text }}</small>{% endif %}
+        </div>
+
+      </fieldset>
+
+       <fieldset class="dark-group" data-section="contrato-afiliado">
+        <legend class="dark-label">🔗 Contrato y Afiliado Asociados</legend>
+
+        {# Campo contrato_individual #}
+        <div class="dark-group {% if form.contrato_individual.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.contrato_individual.id_for_label }}">📄 Contrato Individual (si aplica)</label>
+            {{ form.contrato_individual }} {# Asume Select #}
+            {% if form.contrato_individual.errors %}<ul class="error-messages">{% for error in form.contrato_individual.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.contrato_individual.help_text %}<small class="form-text text-muted">{{ form.contrato_individual.help_text }}</small>{% endif %}
+        </div>
+
+        {# Campo contrato_colectivo #}
+        <div class="dark-group {% if form.contrato_colectivo.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.contrato_colectivo.id_for_label }}">🏢 Contrato Colectivo (si aplica)</label>
+            {{ form.contrato_colectivo }} {# Asume Select #}
+            {% if form.contrato_colectivo.errors %}<ul class="error-messages">{% for error in form.contrato_colectivo.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.contrato_colectivo.help_text %}<small class="form-text text-muted">{{ form.contrato_colectivo.help_text }}</small>{% endif %}
+        </div>
+
+        {# Campo afiliado_reclamante (SI EXISTE EN TU FORM) #}
+        {% if form.afiliado_reclamante %}
+        <div class="dark-group {% if form.afiliado_reclamante.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.afiliado_reclamante.id_for_label }}">👤 Afiliado Reclamante</label>
+            {{ form.afiliado_reclamante }} {# Asume Select #}
+            {% if form.afiliado_reclamante.errors %}<ul class="error-messages">{% for error in form.afiliado_reclamante.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.afiliado_reclamante.help_text %}<small class="form-text text-muted">{{ form.afiliado_reclamante.help_text }}</small>{% endif %}
+        </div>
+        {% endif %}
+
+         {# Campo usuario_asignado #}
+         <div class="dark-group {% if form.usuario_asignado.errors %}error{% endif %}">
+             <label class="dark-label" for="{{ form.usuario_asignado.id_for_label }}">👷 Usuario Asignado</label>
+             {{ form.usuario_asignado }} {# Asume Select #}
+             {% if form.usuario_asignado.errors %}<ul class="error-messages">{% for error in form.usuario_asignado.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+             {% if form.usuario_asignado.help_text %}<small class="form-text text-muted">{{ form.usuario_asignado.help_text }}</small>{% endif %}
+         </div>
+
+      </fieldset>
+
+      <fieldset class="dark-group" data-section="detalles-observaciones">
+        <legend class="dark-label">📝 Detalles y Observaciones</legend>
+
+        {# Campo descripcion_reclamo #}
+        <div class="dark-group {% if form.descripcion_reclamo.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.descripcion_reclamo.id_for_label }}">✍️ Descripción Detallada del Reclamo</label>
+            {{ form.descripcion_reclamo }} {# Asume Textarea #}
+            {% if form.descripcion_reclamo.errors %}<ul class="error-messages">{% for error in form.descripcion_reclamo.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.descripcion_reclamo.help_text %}<small class="form-text text-muted">{{ form.descripcion_reclamo.help_text }}</small>{% endif %}
+        </div>
+
+        <div class="dark-group {% if form.diagnostico_principal.errors %}error{% endif %}" style="grid-column: span 2;">
+            <label class="dark-label" for="{{ form.diagnostico_principal.id_for_label }}">ℹ️ Diagnóstico Principal (Médico/Técnico)</label>
+            {{ form.diagnostico_principal }}
+            {% if form.diagnostico_principal.errors %}<ul class="error-messages">{% for error in form.diagnostico_principal.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.diagnostico_principal.help_text %}<small class="form-text text-muted">{{ form.diagnostico_principal.help_text|escape }}</small>{% endif %}
+        </div>     
+
+        {# Campo observaciones_internas #}
+        <div class="dark-group {% if form.observaciones_internas.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.observaciones_internas.id_for_label }}">🔒 Observaciones Internas</label>
+            {{ form.observaciones_internas }} {# Asume Textarea #}
+            {% if form.observaciones_internas.errors %}<ul class="error-messages">{% for error in form.observaciones_internas.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.observaciones_internas.help_text %}<small class="form-text text-muted">{{ form.observaciones_internas.help_text }}</small>{% endif %}
+        </div>
+
+        {# Campo observaciones_cliente #}
+        <div class="dark-group {% if form.observaciones_cliente.errors %}error{% endif %}">
+            <label class="dark-label" for="{{ form.observaciones_cliente.id_for_label }}">📢 Observaciones para el Cliente</label>
+            {{ form.observaciones_cliente }} {# Asume Textarea #}
+            {% if form.observaciones_cliente.errors %}<ul class="error-messages">{% for error in form.observaciones_cliente.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.observaciones_cliente.help_text %}<small class="form-text text-muted">{{ form.observaciones_cliente.help_text }}</small>{% endif %}
+        </div>
+
+        {# Campo documentos_adjuntos #}
+        <div class="dark-group {% if form.documentos_adjuntos.errors %}error{% endif %}">
+            <label class="file-button" for="{{ form.documentos_adjuntos.id_for_label }}">📎 Documentos Adjuntos</label>
+            <div class="custom-file-input">
+                 {{ form.documentos_adjuntos }}
+                 {# <button type="button" class="file-button">Seleccionar archivo</button> #}
+                 {# <span class="selected-file">Ningún archivo seleccionado</span> #}
+            </div>
+             {% if form.instance.documentos_adjuntos %}
+                 <p style="margin-top: 0.5rem; font-size: 0.9rem;">Archivo actual: <a href="{{ form.instance.documentos_adjuntos.url }}" target="_blank">{{ form.instance.documentos_adjuntos.name|cut:"reclamos/" }}</a></p>
+                 {# Checkbox para borrar #}
+                 {# {% if form.clear_documentos_adjuntos %} ... {% endif %} #}
+             {% endif %}
+            {% if form.documentos_adjuntos.errors %}<ul class="error-messages">{% for error in form.documentos_adjuntos.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.documentos_adjuntos.help_text %}<small class="form-text text-muted">{{ form.documentos_adjuntos.help_text }}</small>{% endif %}
+        </div>
+
+      {# Renderizar campos ocultos #}
+      {% for field in form.hidden_fields %}
+          {{ field }}
+      {% endfor %}
+
+      <div class="form-actions">
+        <button type="submit" class="btn-success">{% if form.instance.pk %}💾 Actualizar Reclamación{% else %}➕ Registrar Reclamación{% endif %}</button>
+        <a href="{% url 'myapp:reclamacion_list' %}" class="btn-danger">🚫 Cancelar</a>
+      </div>
+    </form>
+  </section>
+</div>
+
+{% endblock content %}

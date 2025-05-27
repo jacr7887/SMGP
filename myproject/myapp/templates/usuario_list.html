@@ -1,0 +1,137 @@
+{% extends "home.html" %} {# Asegúrate que este sea tu template base correcto #}
+{% load static %}
+{% load humanize %} {# Para naturaltime u otros filtros #}
+
+{% block content %}
+<div class="container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading">👥 Listado de Usuarios del Sistema</h1>
+
+    {# Botón para Crear Nuevo Usuario #}
+    <div class="header-actions"> {# Usando clase existente si la tienes #}
+      <a href="{% url 'myapp:usuario_create' %}" class="nav_link" aria-label="Agregar nuevo usuario del sistema">
+        ➕ Nuevo Usuario
+      </a>
+       {# Puedes añadir otros botones si tienes las clases #}
+       {# <a href="#" class="nav_link">📤 Exportar</a> #}
+    </div>
+
+    {# Formulario de Búsqueda #}
+    <form method="get" class="search-form" aria-label="Formulario de búsqueda de usuarios">
+      <input
+        type="text"
+        name="q"
+        placeholder="🔍 Buscar por Nombre, Apellido, Correo..."
+        value="{{ request.GET.q|default:'' }}"
+        aria-label="Campo de búsqueda"
+        class="search-input" {# Asumiendo que esta clase existe #}
+      />
+      <button type="submit" class="nav_link">Buscar</button>
+      {% if request.GET.q %}
+         {# Sin clase específica, solo un enlace normal #}
+         <a href="{% url 'myapp:usuario_list' %}" style="margin-left: 10px;">Limpiar Búsqueda</a>
+      {% endif %}
+    </form>
+
+    {# Contenedor de la Tabla #}
+    <div class="table-container" role="region" aria-labelledby="table-caption">
+      <table class="data-table" role="table">
+        <caption id="table-caption" class="visually-hidden">
+          Lista de usuarios registrados en el sistema con detalles clave.
+        </caption>
+        <thead>
+          <tr role="row">
+            <th scope="col">📧 Correo Electrónico</th>
+            <th scope="col">👤 Nombre Completo</th>
+            <th scope="col">🏷️ Tipo</th>
+            <th scope="col">📊 Nivel</th>
+            <th scope="col">🏢 Departamento</th>
+            <th scope="col">🤝 Intermediario</th>
+            <th scope="col">📞 Teléfono</th>
+            <th scope="col">✅ Estado</th>
+            <th scope="col">📅 Registro</th>
+            <th scope="col">⚙️ Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for usuario in object_list %}
+          <tr role="row">
+            <td role="cell">{{ usuario.email }}</td>
+            <td role="cell">{{ usuario.get_full_name }}</td>
+            <td role="cell">{{ usuario.get_tipo_usuario_display }}</td>
+            <td role="cell">{{ usuario.get_nivel_acceso_display }}</td>
+            <td role="cell">{{ usuario.get_departamento_display|default:"N/A" }}</td>
+            <td role="cell">{{ usuario.intermediario.nombre_completo|default:"N/A" }}</td>
+            <td role="cell">{{ usuario.telefono|default:"N/A" }}</td>
+            {# Mostrar estado basado en el campo 'activo' #}
+            <td role="cell">
+                {% if usuario.activo %}
+                    <span style="color: green;" title="Usuario activo en el sistema">✅ Activo</span>
+                {% else %}
+                    <span style="color: red;" title="Usuario inactivo en el sistema">❌ Inactivo</span>
+                {% endif %}
+            </td>
+            <td role="cell">{{ usuario.date_joined|date:"d/m/Y" }}</td>
+            <td role="cell" class="actions"> {# Usando clase existente 'actions' #}
+              {# Manteniendo la clase 'action-group' si la usabas para agrupar visualmente #}
+              <div class="action-group">
+                 {# Enlaces de acción con clase existente 'action-icon' #}
+                <a href="{% url 'myapp:usuario_detail' usuario.pk %}"
+                   class="action-icon"
+                   title="Ver Detalles de {{ usuario.get_full_name }}"
+                   aria-label="Ver detalles del usuario {{ usuario.get_full_name }}">
+                  👁️
+                </a>
+                <a href="{% url 'myapp:usuario_update' usuario.pk %}"
+                   class="action-icon"
+                   title="Editar Usuario {{ usuario.get_full_name }}"
+                   aria-label="Editar usuario {{ usuario.get_full_name }}">
+                  ✏️
+                </a>
+                {# El enlace de eliminar sigue siendo un enlace normal. La confirmación debe manejarse idealmente con JS no inline o en la vista que procesa la eliminación. #}
+                <a href="{% url 'myapp:usuario_delete' usuario.pk %}"
+                   class="action-icon delete-link" {# Usando clase existente 'delete-link' #}
+                   title="Eliminar Usuario {{ usuario.get_full_name }} (Marcar como inactivo)"
+                   aria-label="Eliminar usuario {{ usuario.get_full_name }}">
+                   {# SIN onclick JavaScript #}
+                  ❌
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            {# Ajustado colspan al número de columnas = 10 #}
+            <td colspan="10" class="no-results" role="cell">
+              📭 No se encontraron usuarios.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# --- Paginación --- #}
+    {% if is_paginated %}
+    <nav aria-label="Navegación de páginas de usuarios">
+      <div class="django-pagination">
+        {# Construimos manualmente la URL para incluir el parámetro 'q' si existe #}
+        {% with request.GET.q as search_q %}
+          {% if page_obj.has_previous %}
+            <a href="?{% if search_q %}q={{ search_q }}&{% endif %}page=1" class="btn-pagination" aria-label="Primera página">« Primera</a>
+            <a href="?{% if search_q %}q={{ search_q }}&{% endif %}page={{ page_obj.previous_page_number }}" class="btn-pagination" aria-label="Página anterior">‹ Anterior</a>
+          {% endif %}
+          <span class="pagination-current">
+            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+          </span>
+          {% if page_obj.has_next %}
+            <a href="?{% if search_q %}q={{ search_q }}&{% endif %}page={{ page_obj.next_page_number }}" class="btn-pagination" aria-label="Siguiente página">Siguiente ›</a>
+            <a href="?{% if search_q %}q={{ search_q }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="btn-pagination" aria-label="Última página">Última »</a>
+          {% endif %}
+        {% endwith %}
+      </div>
+    </nav>
+    {% endif %}
+  </section>
+</div>
+{% endblock content %}

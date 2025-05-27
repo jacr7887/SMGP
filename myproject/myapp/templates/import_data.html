@@ -1,0 +1,182 @@
+{% extends "home.html" %} {# Asegúrate que hereda de tu plantilla base principal #}
+{% load static %}
+{% load widget_tweaks %} {# Necesario para añadir clases a campos #}
+
+{% block title %}Importar Datos CSV{% endblock %}
+
+{% block content %}
+<div class="dark-container"> {# Usa tu contenedor oscuro #}
+    {# Título Principal #}
+    <h1 id="main-heading">Importar Datos desde CSV</h1>
+    <p class="text-muted mb-4">Selecciona el tipo de dato y sube el archivo CSV correspondiente.</p>
+
+    {# --- Sección para Mostrar Mensajes (usando tus clases alert) --- #}
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}" role="alert"> {# Usa tus clases alert-* #}
+            {{ message }}
+            <button type="button" class="close_alert" aria-label="Cerrar">×</button> {# Usa tu clase de cierre #}
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    {# --- Sección para Mostrar Errores Específicos (usando tus clases alert) --- #}
+    {% if base_errors or row_errors or validation_errors %}
+    <div class="alert alert-danger mt-4" role="alert"> {# Usa tus clases alert-* #}
+        <h4>Errores Encontrados Durante la Validación:</h4> {# Título como estaba #}
+        <p>No se importaron datos. Por favor, revisa los siguientes errores en tu archivo CSV y vuelve a intentarlo:</p>
+        <hr>
+        {% if base_errors %}
+            <p class="mb-1"><strong>Errores Generales:</strong></p>
+            <ul>{% for error in base_errors %}<li><small>{{ error|escape }}</small></li>{% endfor %}</ul>
+        {% endif %}
+        {% if row_errors %}
+             <p class="mb-1 mt-2"><strong>Errores por Fila:</strong></p>
+            <ul style="max-height: 250px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); padding: 10px; border-radius: 5px;">
+                {% for error in row_errors %}<li><small>{{ error|escape }}</small></li>{% endfor %}
+            </ul>
+        {% endif %}
+         {% if validation_errors %}
+             <p class="mb-1 mt-2"><strong>Errores de Validación:</strong></p>
+            <ul style="max-height: 200px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); padding: 10px; border-radius: 5px;">
+                {% for error in validation_errors %}<li><small>{{ error|escape }}</small></li>{% endfor %}
+            </ul>
+        {% endif %}
+    </div>
+    {% endif %}
+
+     {# Mostrar error crítico si ocurrió durante la importación real #}
+     {% if critical_error %}
+         <div class="alert alert-danger mt-4" role="alert"> {# Usa tus clases alert-* #}
+             <h4>Error Crítico Durante la Importación:</h4>
+             <p>Ocurrió un error inesperado al intentar guardar los datos. La operación fue revertida.</p>
+             <pre><code>{{ critical_error|escape }}</code></pre>
+         </div>
+     {% endif %}
+
+
+    {# --- Formulario de Importación --- #}
+    <div class="form-main-container glass-card mt-4"> {# Contenedor principal del formulario #}
+        <form method="post" enctype="multipart/form-data" class="compact-form" novalidate> {# Añadida clase compact-form #}
+            {% csrf_token %}
+
+            {# Iterar sobre los campos visibles #}
+            {% for field in form.visible_fields %}
+            <div class="dark-group mb-3 {% if field.errors %}error{% endif %}"> {# Usa tus clases .dark-group #}
+                <label for="{{ field.id_for_label }}" class="dark-label">{{ field.label }}:</label>
+
+                {# --- Renderizado específico por campo --- #}
+                {% if field.name == 'modelo' %}
+                    {# Usa select-field si usas Choices.js #}
+                    {% render_field field class+="select-field" %}
+
+                {% elif field.name == 'archivo_csv' %}
+                    {# --- ESTRUCTURA PERSONALIZADA PARA FILE INPUT --- #}
+                    {# Wrapper para el JS (asumiendo que el script busca este wrapper) #}
+                    <div class="custom-file-input-wrapper" style="width: 100%;">
+                        <div class="custom-file-input">
+                            {# Input real oculto (widget_tweaks añade clase JS) #}
+                            {% render_field field class+="custom-file-actual-input" style="opacity:0; position:absolute; z-index:-1; width:0.1px; height:0.1px; overflow:hidden;" %}
+                            {# Botón visible con tu clase .file-button y la clase trigger del JS #}
+                            <button type="button" class="file-button file-button-trigger">
+                                <span aria-hidden="true">📎</span> Seleccionar archivo...
+                            </button>
+                            {# Span para mostrar el nombre del archivo #}
+                            <span class="selected-file selected-file-display" data-default-text="Ningún archivo seleccionado">Ningún archivo seleccionado</span>
+                        </div>
+                    </div>
+                    {# --- FIN ESTRUCTURA PERSONALIZADA --- #}
+
+                {% else %}
+                    {# Renderizado por defecto para otros campos (ej. usar una clase genérica si aplica) #}
+                    {# Puedes quitar form-control si no lo necesitas para otros campos #}
+                    {% render_field field %}
+                {% endif %}
+                {# --- Fin renderizado específico --- #}
+
+                {# Mostrar ayuda y errores del campo #}
+                {% if field.help_text %}
+                    <small class="form-text text-muted">{{ field.help_text|safe }}</small>
+                {% endif %}
+                {% if field.errors %}
+                    <ul class="error-messages mt-1">
+                        {% for error in field.errors %}<li><small>{{ error|escape }}</small></li>{% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+            {% endfor %}
+
+             {# Renderizar campos ocultos #}
+             {% for field in form.hidden_fields %}
+                 {{ field }}
+             {% endfor %}
+
+
+            {# Botones de Acción (usando tus clases .btn-*) #}
+            <div class="form-actions mt-4">
+                <button type="submit" class="btn btn-success" data-confirm="¿Iniciar importación? Esto puede tardar y sobrescribir datos existentes si coinciden los identificadores."> {# Clase btn-success #}
+                    <span aria-hidden="true">📥</span> Importar Archivo
+                </button>
+                 <a href="{% url 'myapp:home' %}" class="btn btn-danger">Cancelar</a> {# Clase btn-danger #}
+            </div>
+        </form>
+    </div>
+
+    {# --- Sección de Información Adicional (Opcional) --- #}
+    <div class="glass-card mt-4">
+        <h4><span aria-hidden="true">ℹ️</span> Instrucciones y Formato Esperado</h4>
+        <ul>
+            <li>Selecciona el tipo de datos que deseas importar (ej. Afiliados, Contratos).</li>
+            <li>El archivo debe estar en formato <strong>CSV</strong> (Valores Separados por Comas).</li>
+            <li>Se recomienda codificación <strong>UTF-8</strong> (sin BOM es preferible).</li>
+            <li>La <strong>primera fila</strong> del archivo debe contener los <strong>nombres exactos de las columnas</strong> esperadas.</li>
+            <li>Relaciones (Ej: Intermediario): utiliza el **código único** (Ej: Código Intermediario).</li>
+            <li>Formatos de fecha: <strong>DD/MM/YYYY</strong> | Fecha/hora: <strong>DD/MM/YYYY HH:MM:SS</strong> (ajusta si es necesario).</li>
+            <li>Valores booleanos: <code>1</code>/<code>0</code>, <code>True</code>/<code>False</code>, <code>si</code>/<code>no</code>.</li>
+            <li>La importación **actualizará** registros existentes por identificador único y **creará** nuevos.</li>
+            <li>Se recomienda validar con archivos pequeños primero.</li>
+            <li>Contacta al administrador para obtener las plantillas CSV correctas.</li>
+        </ul>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+    {{ block.super }} {# Incluir scripts de base.html #}
+    {# Script para inicializar Choices.js y cerrar alertas #}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Inicializar Choices.js (igual que antes)
+            const modeloSelect = document.getElementById('{{ form.modelo.id_for_label }}');
+            if (modeloSelect && typeof Choices !== 'undefined') {
+                 if (!modeloSelect.classList.contains('choices__input')) {
+                    try {
+                        new Choices(modeloSelect, { searchEnabled: false, itemSelectText: '', shouldSort: false });
+                    } catch (e) { console.error("Error Choices.js:", e); }
+                 }
+            }
+
+            // Cierre manual de alertas (usando tu clase .close_alert)
+            document.querySelectorAll('.close_alert').forEach(button => {
+                button.addEventListener('click', function() {
+                    const alertNode = this.closest('.alert');
+                    if (alertNode) {
+                         alertNode.style.transition = 'opacity 0.3s ease-out';
+                         alertNode.style.opacity = '0';
+                         setTimeout(() => { alertNode.style.display = 'none'; }, 300);
+                    }
+                });
+            });
+
+            // Asegúrate de que la función initFileUploads esté definida y se llame
+            // (ya debería estar en tu scripts.js principal si usaste la respuesta #61)
+            // Si no, tendrías que añadir aquí la lógica de initFileUploads
+            // if (typeof initFileUploads === 'function') {
+            //     initFileUploads();
+            // } else {
+            //     console.error("La función initFileUploads no está definida.");
+            // }
+        });
+    </script>
+{% endblock %}

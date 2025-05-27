@@ -1,0 +1,17 @@
+<div class="form-group {% if field.errors %}has-error{% endif %} {{ col }}">
+    <label for="{{ field.id_for_label }}">
+        {% if icon %}<span class="field-icon">{{ icon }}</span>{% endif %}
+        {{ field.label }}
+    </label>
+    {{ field }}
+    {% if field.help_text %}
+    <small class="form-help">{{ field.help_text }}</small>
+    {% endif %}
+    {% if field.errors %}
+    <div class="error-list">
+        {% for error in field.errors %}
+        <span class="error-icon">❌</span> {{ error }}
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>

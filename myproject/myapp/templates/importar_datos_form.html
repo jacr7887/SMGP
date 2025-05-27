@@ -1,0 +1,28 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<h1>Importar Datos para {{ nombre_modelo }}</h1>  {# Título dinámico con el nombre del modelo #}
+
+<div class="module">  {# Contenedor con estilo de módulo del admin #}
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <fieldset class="module aligned">  {# Fieldset para agrupar el formulario #}
+            <div class="form-row">  {# Fila para el campo del formulario #}
+                {{ form.as_p }}  {# Renderizamos el formulario como párrafos #}
+            </div>
+        </fieldset>
+        <div class="submit-row">  {# Fila para el botón de submit #}
+            <input type="submit" value="Importar" class="default" name="_save">  {# Botón de Importar #}
+        </div>
+    </form>
+</div>
+
+<br>
+<div class="module">  {# Módulo adicional para instrucciones o mensajes #}
+    <h2>Instrucciones de Importación</h2>
+    <p>Selecciona el tipo de archivo (CSV, JSON o Excel) y sube el archivo que contiene los datos a importar para el modelo <strong>{{ nombre_modelo }}</strong>.</p>
+    <p>Asegúrate de que el archivo esté en el formato correcto y que las columnas/campos coincidan con los campos del modelo.</p>
+    <p>Después de la importación, revisa los mensajes de éxito o error que se mostrarán en la parte superior de la página.</p>
+</div>
+
+{% endblock %}

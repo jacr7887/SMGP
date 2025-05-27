@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+{% load querystring_tags %}
+
+{% block content %}
+<div class="dark-container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading">
+      {% if form.instance.pk %}✏️ Editar{% else %}➕ Nuevo{% endif %} Contrato Colectivo
+      {% if form.instance.pk %}: {{ form.instance.numero_contrato|default:"(Sin número)" }}{% endif %}
+    </h1>
+
+    <div class="header-actions">
+       {% if perms.myapp.view_contratocolectivo %}
+           <a href="{% url 'myapp:contrato_colectivo_list' %}" class="nav_link" aria-label="Volver al listado de contratos colectivos">
+               ⬅️ Volver al Listado
+           </a>
+       {% endif %}
+       {% if form.instance.pk and perms.myapp.view_contratocolectivo %}
+            <a href="{% url 'myapp:contrato_colectivo_detail' form.instance.pk %}" class="nav_link" aria-label="Ver detalles de este contrato">
+                👁️ Ver Detalle
+            </a>
+       {% endif %}
+    </div>
+
+    <form method="post" class="compact-form" enctype="multipart/form-data" aria-labelledby="main-heading" novalidate>
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+          <div class="alert alert-danger error-summary" role="alert">
+              <h4>⚠️ Errores Generales:</h4>
+              <ul>
+                  {% for error in form.non_field_errors %}
+                      <li>{{ error|escape }}</li>
+                  {% endfor %}
+              </ul>
+          </div>
+      {% endif %}
+
+      {# --- Fieldset Empresa Contratante --- #}
+      <fieldset class="dark-group" data-section="informacion-empresa">
+        <legend class="dark-label">🏢 Información de la Empresa Contratante</legend>
+        <div class="dark-grid">
+            {% if form.instance.pk %}
+                <div class="dark-group readonly-group">
+                    <label class="dark-label">🏷️ Razón Social (Copiada)</label>
+                    <input type="text" value="{{ form.instance.razon_social|default:'N/A' }}" readonly class="dark-group-plaintext">
+                </div>
+                <div class="dark-group readonly-group">
+                    <label class="dark-label">📄 RIF (Copiado)</label>
+                    <input type="text" value="{{ form.instance.rif|default:'N/A' }}" readonly class="dark-group-plaintext">
+                </div>
+            {% endif %}
+
+            {% if form.tipo_empresa %}
+            <div class="dark-group {% if form.tipo_empresa.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.tipo_empresa.id_for_label }}">🏭 Tipo de Empresa</label>
+                {{ form.tipo_empresa }}
+                {% for error in form.tipo_empresa.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.tipo_empresa.help_text %}<small class="form-text text-muted">{{ form.tipo_empresa.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if form.cantidad_empleados %}
+            <div class="dark-group {% if form.cantidad_empleados.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.cantidad_empleados.id_for_label }}">👥 Cantidad Empleados</label>
+                {{ form.cantidad_empleados }}
+                {% for error in form.cantidad_empleados.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.cantidad_empleados.help_text %}<small class="form-text text-muted">{{ form.cantidad_empleados.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+            
+            {% if form.direccion_comercial %}
+            <div class="dark-group {% if form.direccion_comercial.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.direccion_comercial.id_for_label }}">🏠 Dirección Comercial</label>
+                {{ form.direccion_comercial }}
+                {% for error in form.direccion_comercial.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.direccion_comercial.help_text %}<small class="form-text text-muted">{{ form.direccion_comercial.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if form.zona_postal %}
+            <div class="dark-group {% if form.zona_postal.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.zona_postal.id_for_label }}">📬 Zona Postal</label>
+                {{ form.zona_postal }}
+                {% for error in form.zona_postal.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.zona_postal.help_text %}<small class="form-text text-muted">{{ form.zona_postal.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+      </fieldset>
+
+      {# --- Fieldset Información del Contrato Colectivo --- #}
+      <fieldset class="dark-group" data-section="informacion-contrato">
+        <legend class="dark-label">📄 Información del Contrato Colectivo</legend>
+        <div class="dark-grid">
+            {% if form.instance.pk %}
+                <div class="dark-group readonly-group"><label class="dark-label">#️⃣ Número Contrato</label><input type="text" value="{{ form.instance.numero_contrato|default:'N/A' }}" readonly class="dark-group-plaintext"></div>
+                <div class="dark-group readonly-group"><label class="dark-label">📜 Número Póliza</label><input type="text" value="{{ form.instance.numero_poliza|default:'N/A' }}" readonly class="dark-group-plaintext"></div>
+                <div class="dark-group readonly-group"><label class="dark-label">📜 Número Certificado</label><input type="text" value="{{ form.instance.certificado|default:'N/A' }}" readonly class="dark-group-plaintext"></div>
+                <div class="dark-group readonly-group"><label class="dark-label">🧾 Número Recibo Global</label><input type="text" value="{{ form.instance.numero_recibo|default:'N/A' }}" readonly class="dark-group-plaintext"></div>
+                <div class="dark-group readonly-group"><label class="dark-label">📅 Fecha Emisión</label><input type="text" value="{{ form.instance.fecha_emision|date:"d/m/Y H:i"|default:'N/A' }}" readonly class="dark-group-plaintext"></div>
+                <div class="dark-group readonly-group"><label class="dark-label">💰 Prima Total (Calculada)</label><input type="text" value="${{ form.instance.monto_total|floatformat:2|intcomma|default:'0.00' }}" readonly class="dark-group-plaintext"><small class="form-text text-muted">Monto histórico calculado.</small></div>
+            {% endif %}
+
+            {% if form.activo %}
+            <div class="dark-group form-field-inline {% if form.activo.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.activo.id_for_label }}">💡 Activo</label>
+                 <label class="switch">
+                     {{ form.activo }} {# El input checkbox va aquí #}
+                     <span class="slider"></span>
+                 </label>
+                {% for error in form.activo.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.activo.help_text %}<small class="form-text text-muted">{{ form.activo.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if form.ramo %}
+            <div class="dark-group {% if form.ramo.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.ramo.id_for_label }}">🌿 Ramo {% if form.ramo.field.required %}(*){% endif %}</label>
+                {{ form.ramo }}
+                {% for error in form.ramo.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.ramo.help_text %}<small class="form-text text-muted">{{ form.ramo.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if form.plan_contratado %}
+            <div class="dark-group {% if form.plan_contratado.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.plan_contratado.id_for_label }}">📋 Plan Contratado</label>
+                {{ form.plan_contratado }}
+                {% for error in form.plan_contratado.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.plan_contratado.help_text %}<small class="form-text text-muted">{{ form.plan_contratado.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if form.suma_asegurada %}
+            <div class="dark-group {% if form.suma_asegurada.errors %}error{% endif %}">
+               <label class="dark-label" for="{{ form.suma_asegurada.id_for_label }}">🛡️ Suma Asegurada / Cobertura</label>
+               {{ form.suma_asegurada }}
+               {% for error in form.suma_asegurada.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+               {% if form.suma_asegurada.help_text %}<small class="form-text text-muted">{{ form.suma_asegurada.help_text|escape }}</small>{% endif %}
+           </div>
+           {% endif %}
+
+            {% if form.intermediario %}
+            <div class="dark-group {% if form.intermediario.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.intermediario.id_for_label }}">🤝 Intermediario {% if form.intermediario.field.required %}(*){% endif %}</label>
+                {{ form.intermediario }}
+                {% for error in form.intermediario.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.intermediario.help_text %}<small class="form-text text-muted">{{ form.intermediario.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+            
+            {# --- CAMPO TARIFA APLICADA --- #}
+            {# Renderizar incondicionalmente si el campo existe en el formulario #}
+            {% if 'tarifa_aplicada' in form.fields %}
+            <div class="dark-group {% if form.tarifa_aplicada.errors %}error{% endif %}" id="tarifa-aplicada-wrapper-debug">
+                <label class="dark-label" for="{{ form.tarifa_aplicada.id_for_label }}">🏷️ Tarifa Aplicada {% if form.tarifa_aplicada.field.required %}(*){% endif %}</label>
+                {{ form.tarifa_aplicada }} {# Esto debería renderizar el Select2 #}
+                {% for error in form.tarifa_aplicada.errors %}<ul class="error-messages"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.tarifa_aplicada.help_text %}<small class="form-text text-muted">{{ form.tarifa_aplicada.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+            
+        </div>
+      </fieldset>
+
+      {# --- Fieldset Condiciones Financieras y Vigencia --- #}
+      <fieldset class="dark-group" data-section="condiciones-financieras">
+        <legend class="dark-label">💰 Condiciones Financieras y Vigencia</legend>
+        <div class="dark-grid">
+            {% if form.forma_pago %}
+            <div class="dark-group {% if form.forma_pago.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.forma_pago.id_for_label }}">💳 Forma de Pago {% if form.forma_pago.field.required %}(*){% endif %}</label>
+                {{ form.forma_pago }}
+                {% for error in form.forma_pago.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.forma_pago.help_text %}<small class="form-text text-muted">{{ form.forma_pago.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if form.periodo_vigencia_meses %}
+            <div class="dark-group {% if form.periodo_vigencia_meses.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.periodo_vigencia_meses.id_for_label }}">⏳ Duración (Meses)</label>
+                {{ form.periodo_vigencia_meses }}
+                {% for error in form.periodo_vigencia_meses.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.periodo_vigencia_meses.help_text %}<small class="form-text text-muted">{{ form.periodo_vigencia_meses.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if form.fecha_inicio_vigencia %}
+            <div class="dark-group {% if form.fecha_inicio_vigencia.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.fecha_inicio_vigencia.id_for_label }}">➡️ Inicio Vigencia {% if form.fecha_inicio_vigencia.field.required %}(*){% endif %}</label>
+                {{ form.fecha_inicio_vigencia }}
+                {% for error in form.fecha_inicio_vigencia.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.fecha_inicio_vigencia.help_text %}<small class="form-text text-muted">{{ form.fecha_inicio_vigencia.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if form.fecha_fin_vigencia %}
+            <div class="dark-group {% if form.fecha_fin_vigencia.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.fecha_fin_vigencia.id_for_label }}">⏹️ Fin Vigencia</label>
+                {{ form.fecha_fin_vigencia }}
+                {% for error in form.fecha_fin_vigencia.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.fecha_fin_vigencia.help_text %}<small class="form-text text-muted">{{ form.fecha_fin_vigencia.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+            
+            {% if form.estatus %}
+            <div class="dark-group {% if form.estatus.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.estatus.id_for_label }}">🚦 Estatus Vigencia</label>
+                {{ form.estatus }}
+                {% for error in form.estatus.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.estatus.help_text %}<small class="form-text text-muted">{{ form.estatus.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if form.estado_contrato %}
+            <div class="dark-group {% if form.estado_contrato.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.estado_contrato.id_for_label }}">📊 Estado Admin.</label>
+                {{ form.estado_contrato }}
+                {% for error in form.estado_contrato.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.estado_contrato.help_text %}<small class="form-text text-muted">{{ form.estado_contrato.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if form.instance.pk %} {# Campos calculados solo en edición #}
+                 <div class="dark-group readonly-group"><label class="dark-label">🔢 Cuotas Calculadas</label><input type="text" value="{{ form.instance.cantidad_cuotas_estimadas|default:'N/A' }}" readonly class="dark-group-plaintext"></div>
+                 <div class="dark-group readonly-group"><label class="dark-label">💵 Importe Cuota (Calculado)</label><input type="text" value="${{ form.instance.monto_cuota_estimada|floatformat:2|intcomma|default:'N/A' }}" readonly class="dark-group-plaintext"></div>
+                 <div class="dark-group readonly-group"><label class="dark-label">📅 Importe Anual (Ref.)</label><input type="text" value="${{ form.instance.importe_anual_contrato|floatformat:2|intcomma|default:'N/A' }}" readonly class="dark-group-plaintext"></div>
+                 <div class="dark-group readonly-group"><label class="dark-label">✅ Pagos Realizados</label><input type="text" value="{{ form.instance.pagos_realizados|default:'0' }}" readonly class="dark-group-plaintext"></div>
+            {% endif %}
+        </div>
+      </fieldset>
+
+      {% if form.afiliados_colectivos %}
+      <fieldset class="dark-group" data-section="afiliados-asociados">
+           <legend class="dark-label">🏢 Empresas Afiliadas Asociadas {% if form.afiliados_colectivos.field.required %}(*){% endif %}</legend>
+           <div class="dark-group {% if form.afiliados_colectivos.errors %}error{% endif %}">
+               {# No se necesita label explícita si el widget Select2Multiple lo maneja bien o el fieldset ya tiene legend #}
+               {{ form.afiliados_colectivos }}
+               {% for error in form.afiliados_colectivos.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+               {% if form.afiliados_colectivos.help_text %}<small class="form-text text-muted">{{ form.afiliados_colectivos.help_text|escape }}</small>{% endif %}
+           </div>
+       </fieldset>
+       {% endif %}
+
+      <fieldset class="dark-group" data-section="otros-detalles">
+        <legend class="dark-label">ℹ️ Otros Detalles</legend>
+        <div class="dark-grid">
+            {% if form.criterio_busqueda %}
+            <div class="dark-group {% if form.criterio_busqueda.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.criterio_busqueda.id_for_label }}">🔍 Criterio Búsqueda</label>
+                {{ form.criterio_busqueda }}
+                {% for error in form.criterio_busqueda.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.criterio_busqueda.help_text %}<small class="form-text text-muted">{{ form.criterio_busqueda.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if form.codigo_validacion %}
+            <div class="dark-group {% if form.codigo_validacion.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.codigo_validacion.id_for_label }}">🔑 Cód. Validación</label>
+                {{ form.codigo_validacion }}
+                {% for error in form.codigo_validacion.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.codigo_validacion.help_text %}<small class="form-text text-muted">{{ form.codigo_validacion.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if form.consultar_afiliados_activos %}
+            <div class="dark-group form-field-inline {% if form.consultar_afiliados_activos.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.consultar_afiliados_activos.id_for_label }}">❓ Consultar Af. Activos</label>
+                 <label class="switch">
+                    {{ form.consultar_afiliados_activos }}
+                     <span class="slider"></span>
+                 </label>
+                {% for error in form.consultar_afiliados_activos.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.consultar_afiliados_activos.help_text %}<small class="form-text text-muted">{{ form.consultar_afiliados_activos.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+      </fieldset>
+
+      {% for field in form.hidden_fields %}
+          {{ field }}
+      {% endfor %}
+
+      <div class="form-actions">
+        <button type="submit" class="btn-success">{% if form.instance.pk %}💾 Actualizar Contrato{% else %}➕ Crear Contrato{% endif %}</button>
+        <a href="{% url 'myapp:contrato_colectivo_list' %}" class="btn-danger">🚫 Cancelar</a>
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock content %}

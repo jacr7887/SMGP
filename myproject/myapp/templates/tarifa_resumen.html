@@ -1,0 +1,23 @@
+{% extends "home.html" %} {% block content %} {% load humanize %}
+<div role="main" aria-labelledby="main-content">
+  <h1 id="main-content">💰 Tarifas Vigentes</h1>
+  <table aria-label="Tabla de tarifas">
+    <thead>
+      <tr>
+        <th>Ramo</th>
+        <th>Rango Etario</th>
+        <th>Monto Anual</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for tarifa in tarifas %}
+      <tr>
+        <td>{{ tarifa.ramo }}</td>
+        <td>{{ tarifa.rango_etario }}</td>
+        <td>{{ tarifa.monto_anual }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

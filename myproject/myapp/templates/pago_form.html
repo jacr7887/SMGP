@@ -1,0 +1,220 @@
+{% extends "base.html" %} {# Asegúrate que 'base.html' sea tu plantilla base #}
+{% load static %}
+{% load humanize %} {# Necesario para intcomma si lo usas #}
+
+{% block title %}{% if form.instance.pk %}Editar{% else %}Registrar{% endif %} Pago{% endblock %}
+
+{# Cargar CSS/JS de Select2 si no está en base.html #}
+{% block extra_head %}
+    {% if form.media.css %}{{ form.media.css }}{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="dark-container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading" class="main-title">
+      {% if form.instance.pk %}✏️ Editar{% else %}➕ Registrar{% endif %} Pago
+    </h1>
+
+    {# --- Botones de Acción Superiores --- #}
+    <div class="header-actions mb-4"> {# Añadido mb-4 para separación #}
+       {% if form.instance.pk %} {# Mostrar botones de PDF y eliminar solo si el pago existe #}
+            <a href="{% url 'myapp:pago_pdf' pago.pk %}" target="_blank" class="btn btn-info">
+              📄 Ver Recibo PDF
+            </a>
+            {% if perms.myapp.delete_pago %}
+            <a href="{% url 'myapp:pago_delete' pago.pk %}" class="btn btn-danger delete-link">
+              ❌ Eliminar
+            </a>
+            {% endif %}
+        {% endif %}
+        <a href="{% url 'myapp:pago_list' %}" class="nav_link"> 
+            ⬅️ Volver al Listado
+        </a>
+    </div>
+
+    {# --- Formulario Principal --- #}
+    <form method="post" class="compact-form" enctype="multipart/form-data" aria-labelledby="form-instructions" novalidate>
+      {% csrf_token %}
+
+      {# --- Errores Generales --- #}
+      {% if form.non_field_errors %}
+          <div class="alert alert-danger error-summary">
+              <h4>Errores Generales:</h4>
+              <ul>
+                  {% for error in form.non_field_errors %}
+                      <li>{{ error|escape }}</li>
+                  {% endfor %}
+              </ul>
+          </div>
+      {% endif %}
+
+      {# --- Fieldset: Información del Pago --- #}
+      <fieldset> {# Quité dark-group #}
+        <legend class="dark-label">💰 Información del Pago</legend>
+        <div class="dark-grid"> {# Contenedor grid #}
+
+            {# Campo activo #}
+            <div class="dark-group {% if form.activo.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.activo.id_for_label }}">✅ Registro Activo</label>
+                <label class="switch">
+                    {{ form.activo }}
+                    <span class="slider"></span>
+                </label>
+                {% if form.activo.errors %}<ul class="error-messages">{% for error in form.activo.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                {% if form.activo.help_text %}<small class="form-text text-muted">{{ form.activo.help_text }}</small>{% endif %}
+            </div>
+
+            {# Campo fecha_pago #}
+            <div class="dark-group {% if form.fecha_pago.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.fecha_pago.id_for_label }}">📅 Fecha Efectiva Pago</label>
+                {{ form.fecha_pago }} {# Asume type=date #}
+                {% if form.fecha_pago.errors %}<ul class="error-messages">{% for error in form.fecha_pago.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                {% if form.fecha_pago.help_text %}<small class="form-text text-muted">{{ form.fecha_pago.help_text }}</small>{% endif %}
+            </div>
+
+            {# Campo monto_pago #}
+            <div class="dark-group {% if form.monto_pago.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.monto_pago.id_for_label }}">💲 Monto Pagado</label>
+                {{ form.monto_pago }} {# Asume type=number #}
+                {% if form.monto_pago.errors %}<ul class="error-messages">{% for error in form.monto_pago.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                {% if form.monto_pago.help_text %}<small class="form-text text-muted">{{ form.monto_pago.help_text }}</small>{% endif %}
+            </div>
+
+            {# Campo forma_pago #}
+            <div class="dark-group {% if form.forma_pago.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.forma_pago.id_for_label }}">💳 Forma de Pago</label>
+                {{ form.forma_pago }} {# Asume Select #}
+                {% if form.forma_pago.errors %}<ul class="error-messages">{% for error in form.forma_pago.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                {% if form.forma_pago.help_text %}<small class="form-text text-muted">{{ form.forma_pago.help_text }}</small>{% endif %}
+            </div>
+
+            {# Campo referencia_pago #}
+            <div class="dark-group {% if form.referencia_pago.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.referencia_pago.id_for_label }}">#️⃣ Referencia Pago</label>
+                {{ form.referencia_pago }} {# Asume TextInput #}
+                {% if form.referencia_pago.errors %}<ul class="error-messages">{% for error in form.referencia_pago.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                {% if form.referencia_pago.help_text %}<small class="form-text text-muted">{{ form.referencia_pago.help_text }}</small>{% endif %}
+            </div>
+
+        </div> {# Fin dark-grid #}
+      </fieldset>
+
+      {# --- Fieldset: Asociación --- #}
+      <fieldset>
+          <legend class="dark-label">🔗 Asociación</legend>
+          <div class="dark-grid">
+              {# Campo factura #}
+              <div class="dark-group {% if form.factura.errors %}error{% endif %}">
+                  <label class="dark-label" for="{{ form.factura.id_for_label }}">🧾 Factura Asociada (Opcional)</label>
+                  {{ form.factura }} {# Asume Select2Widget #}
+                  {% if form.factura.errors %}<ul class="error-messages">{% for error in form.factura.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                  {% if form.factura.help_text %}<small class="form-text text-muted">{{ form.factura.help_text }}</small>{% endif %}
+              </div>
+
+              {# Campo reclamacion #}
+              <div class="dark-group {% if form.reclamacion.errors %}error{% endif %}">
+                  <label class="dark-label" for="{{ form.reclamacion.id_for_label }}">📋 Reclamación Asociada (Opcional)</label>
+                  {{ form.reclamacion }} {# Asume Select2Widget #}
+                  {% if form.reclamacion.errors %}<ul class="error-messages">{% for error in form.reclamacion.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                  {% if form.reclamacion.help_text %}<small class="form-text text-muted">{{ form.reclamacion.help_text }}</small>{% endif %}
+              </div>
+          </div>
+      </fieldset>
+
+      {# --- Fieldset: Detalles Adicionales --- #}
+      <fieldset>
+        <legend class="dark-label">ℹ️ Detalles Adicionales</legend>
+        <div class="dark-grid">
+
+            {# Campo fecha_notificacion_pago #}
+            <div class="dark-group {% if form.fecha_notificacion_pago.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.fecha_notificacion_pago.id_for_label }}">🔔 Fecha Notificación (Opcional)</label>
+                {{ form.fecha_notificacion_pago }} {# Asume type=date #}
+                {% if form.fecha_notificacion_pago.errors %}<ul class="error-messages">{% for error in form.fecha_notificacion_pago.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                {% if form.fecha_notificacion_pago.help_text %}<small class="form-text text-muted">{{ form.fecha_notificacion_pago.help_text }}</small>{% endif %}
+            </div>
+
+            {# --- NUEVO CAMPO: aplica_igtf_pago (Switch) --- #}
+            <div class="dark-group {% if form.aplica_igtf_pago.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.aplica_igtf_pago.id_for_label }}">💲 {{ form.aplica_igtf_pago.label }}</label>
+                <label class="switch"> {# Label envolvente para el estilo switch #}
+                    {{ form.aplica_igtf_pago }} {# Renderiza el input checkbox #}
+                    <span class="slider"></span> {# Span para el estilo CSS #}
+                </label>
+                {% if form.aplica_igtf_pago.errors %}<ul class="error-messages">{% for error in form.aplica_igtf_pago.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                {% if form.aplica_igtf_pago.help_text %}<small class="form-text text-muted">{{ form.aplica_igtf_pago.help_text }}</small>{% endif %}
+            </div>
+            {# --- FIN NUEVO CAMPO --- #}
+
+            {# Campo observaciones_pago (Ocupando más espacio) #}
+            <div class="dark-group {% if form.observaciones_pago.errors %}error{% endif %}" style="grid-column: 1 / -1;"> {# Ocupa todas las columnas disponibles #}
+                <label class="dark-label" for="{{ form.observaciones_pago.id_for_label }}">📝 Observaciones</label>
+                {{ form.observaciones_pago }} {# Asume Textarea #}
+                {% if form.observaciones_pago.errors %}<ul class="error-messages">{% for error in form.observaciones_pago.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                {% if form.observaciones_pago.help_text %}<small class="form-text text-muted">{{ form.observaciones_pago.help_text }}</small>{% endif %}
+            </div>
+
+            {# --- Campo documentos_soporte_pago (con label tipo botón) --- #}
+            <div class="dark-group {% if form.documentos_soporte_pago.errors %}error{% endif %}" style="grid-column: 1 / -1;">
+                {# Etiqueta principal visible (opcional, puedes quitarla si el botón es suficiente) #}
+                {# <label class="dark-label">📎 Documento Soporte (Opcional)</label> #}
+      
+                {# Renderizar el input file (estará oculto o estilizado por CSS/JS) #}
+                {{ form.documentos_soporte_pago }}
+      
+                {# Etiqueta que actúa como botón - ¡Asegúrate que el 'for' coincida con el ID del input real! #}
+                <label for="{{ form.documentos_soporte_pago.id_for_label }}" class="btn file-button" style="display: inline-block; margin-top: 5px; cursor: pointer;">
+                    📎 Seleccionar Archivo
+                </label>
+      
+                {# Mostrar nombre del archivo actual si existe #}
+                {% if form.instance.documentos_soporte_pago %}
+                    <p style="margin-top: 0.5rem; font-size: 0.9rem; display: inline-block; margin-left: 10px;">
+                        Archivo actual:
+                        <a href="{{ form.instance.documentos_soporte_pago.url }}" target="_blank">
+                            {{ form.instance.documentos_soporte_pago.name|cut:"documentos_pagos/" }}
+                        </a>
+                        {# Considerar añadir checkbox para borrar #}
+                    </p>
+                {% endif %}
+      
+                {# Mostrar errores y texto de ayuda #}
+                {% if form.documentos_soporte_pago.errors %}
+                    <ul class="error-messages" style="display: block; margin-top: 5px;">
+                        {% for error in form.documentos_soporte_pago.errors %}<li>{{ error }}</li>{% endfor %}
+                    </ul>
+                {% endif %}
+                {% if form.documentos_soporte_pago.help_text %}
+                    <small class="form-text text-muted" style="display: block; margin-top: 5px;">
+                        {{ form.documentos_soporte_pago.help_text }}
+                    </small>
+                {% endif %}
+            </div>
+            {# --- Fin Campo documentos_soporte_pago --- #}
+      
+        </div> {# Fin dark-grid #}
+      </fieldset>
+
+      {# Renderizar campos ocultos #}
+      {% for field in form.hidden_fields %}
+          {{ field }}
+      {% endfor %}
+
+      {# --- Botones de Acción Inferiores --- #}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-success">{% if form.instance.pk %}💾 Actualizar Pago{% else %}➕ Registrar Pago{% endif %}</button>
+        <a href="{% url 'myapp:pago_list' %}" class="btn btn-danger">🚫 Cancelar</a>
+      </div>
+    </form>
+  </section>
+</div>
+
+{% endblock content %}
+
+{# --- Bloque extra_scripts (si no está en base.html) --- #}
+{% block extra_scripts %}
+    {# Si jQuery y form.media.js NO están en base.html, cárgalos aquí #}
+    {# <script src="{% static 'jquery-3.7.1.min.js' %}"></script> #}
+    {# {% if form.media.js %}{{ form.media.js }}{% endif %} #}
+{% endblock %}

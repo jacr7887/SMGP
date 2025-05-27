@@ -1,0 +1,256 @@
+{% extends "home.html" %}
+{% load static %}
+{% load humanize %} {# Necesario para intcomma #}
+
+{% block content %}
+<div class="dark-container" role="main" aria-labelledby="main-heading"> {# Tu clase #}
+  <section>
+    <h1 id="main-heading">⚠️ Confirmar Eliminación de Contrato Individual</h1>
+
+    {# Botón Volver (igual que en otros templates) #}
+    <div class="header-actions"> {# Tu clase #}
+        <a href="{% url 'myapp:contrato_individual_detail' object.pk %}" class="nav_link" aria-label="Cancelar y volver al detalle del contrato"> {# Tu clase #}
+            ⬅️ Cancelar y Volver al Detalle
+        </a>
+         <a href="{% url 'myapp:contrato_individual_list' %}" class="nav_link" aria-label="Volver al listado de contratos individuales"> {# Tu clase #}
+            ⬅️ Volver al Listado
+        </a>
+    </div>
+
+    <p class="mt-3 mb-3">Estás a punto de eliminar permanentemente el siguiente contrato individual. Verifica los datos:</p>
+
+    {# --- Resumen de Datos Clave (Usando tu estructura) --- #}
+    <div class="detail-summary" aria-label="Resumen del contrato a eliminar"> {# Tu clase #}
+
+        {# --- Sección Principal --- #}
+        <div class="detail-section" data-section="principal"> {# Tu clase #}
+            <h2 class="section-title visually-hidden">Información Principal</h2> {# Tu clase #}
+            <div class="dark-group"> {# Tu clase #}
+                <span class="dark-label">🔢 ID Contrato:</span>
+                <span class="data-value">{{ object.pk }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">📄 N° Contrato:</span>
+                <span class="data-value">{{ object.numero_contrato|escape|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">#️⃣ N° Póliza:</span>
+                <span class="data-value">{{ object.numero_poliza|escape|default:"N/A" }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">🌿 Ramo:</span>
+                <span class="data-value">{{ object.get_ramo_display|escape }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">📋 Plan Contratado:</span>
+                <span class="data-value">{{ object.plan_contratado|escape|default:"-" }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">📜 Certificado:</span>
+                <span class="data-value">{{ object.certificado|escape|default:"-" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">💡 Activo (Sistema):</span>
+                 <span class="badge {% if object.activo %}badge-success{% else %}badge-danger{% endif %}">{{ object.activo|yesno:"Sí,No" }}</span> {# Tu clase badge #}
+            </div>
+        </div>
+
+        {# --- Sección Afiliado y Contratante --- #}
+        <div class="detail-section" data-section="partes"> {# Tu clase #}
+             <h2 class="section-title visually-hidden">Afiliado y Contratante</h2>
+             <div class="dark-group">
+                <span class="dark-label">👤 Afiliado Titular:</span>
+                <span class="data-value">{{ object.afiliado.nombre_completo|escape|default:"N/A" }} ({{ object.afiliado.cedula|escape|default:"N/A" }})</span>
+             </div>
+             <div class="dark-group">
+                <span class="dark-label">🧑‍💼 Nombre Contratante:</span>
+                <span class="data-value">{{ object.contratante_nombre|escape|default:"N/A" }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">🆔 Cédula/RIF Contratante:</span>
+                <span class="data-value">{{ object.contratante_cedula|escape|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🔖 Tipo ID Contratante:</span>
+                <span class="data-value">{{ object.get_tipo_identificacion_contratante_display|escape|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">📞 Teléfono Contratante:</span>
+                <span class="data-value">{{ object.telefono_contratante|escape|default:"N/A" }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">📧 Email Contratante:</span>
+                <span class="data-value">{{ object.email_contratante|escape|default:"N/A" }}</span>
+            </div>
+             <div class="dark-group" style="grid-column: span 2;"> {# Tu estilo inline #}
+                <span class="dark-label">🏠 Dirección Contratante:</span>
+                <span class="data-value">{{ object.direccion_contratante|escape|truncatechars:50|default:"N/A" }}</span>
+            </div>
+        </div>
+
+        {# --- Sección Vigencia y Fechas --- #}
+        <div class="detail-section" data-section="vigencia"> {# Tu clase #}
+             <h2 class="section-title visually-hidden">Vigencia y Fechas</h2>
+             <div class="dark-group">
+                <span class="dark-label">📅 F. Emisión:</span>
+                <span class="data-value">{{ object.fecha_emision|date:"d/m/Y H:i"|default:"-" }}</span> {# Default añadido #}
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">➡️ Inicio Vigencia Contrato:</span>
+                <span class="data-value">{{ object.fecha_inicio_vigencia|date:"d/m/Y"|default:"-" }}</span> {# Default añadido #}
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">⏹️ Fin Vigencia Contrato:</span>
+                <span class="data-value">{{ object.fecha_fin_vigencia|date:"d/m/Y"|default:"-" }}</span> {# Default añadido #}
+            </div>
+             {# --- AÑADIDO: periodo_vigencia_meses --- #}
+             <div class="dark-group">
+                 <span class="dark-label">⏱️ Duración (Meses):</span>
+                 <span class="data-value">{{ object.periodo_vigencia_meses|default:"-" }}</span>
+             </div>
+             {# --- FIN AÑADIDO --- #}
+             <div class="dark-group">
+                <span class="dark-label">▶️ Inicio Vigencia Recibo:</span>
+                <span class="data-value">{{ object.fecha_inicio_vigencia_recibo|date:"d/m/Y"|default:"-" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">⏹️ Fin Vigencia Recibo:</span>
+                <span class="data-value">{{ object.fecha_fin_vigencia_recibo|date:"d/m/Y"|default:"-" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">⏳ Días Transcurridos Ingreso:</span>
+                <span class="data-value">{{ object.dias_transcurridos_ingreso|default:"N/A" }}</span>
+            </div>
+        </div>
+
+        {# --- Sección Pagos y Montos --- #}
+        <div class="detail-section" data-section="pagos"> {# Tu clase #}
+             <h2 class="section-title visually-hidden">Pagos y Montos</h2>
+              {# --- AÑADIDO: suma_asegurada --- #}
+              <div class="dark-group">
+                  <span class="dark-label">💰 Suma Asegurada:</span>
+                  <span class="data-value">${{ object.suma_asegurada|default:"0.00"|floatformat:2|intcomma }}</span>
+              </div>
+              {# --- FIN AÑADIDO --- #}
+              <div class="dark-group">
+                <span class="dark-label">💰 Monto Total Contrato:</span>
+                <span class="data-value">${{ object.monto_total|floatformat:2|intcomma }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">💲 Importe Anual:</span>
+                <span class="data-value">${{ object.importe_anual_contrato|floatformat:2|intcomma|default:"-" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">💲 Importe Recibo:</span>
+                <span class="data-value">${{ object.importe_recibo_contrato|floatformat:2|intcomma|default:"-" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">💳 Forma Pago:</span>
+                <span class="data-value">{{ object.get_forma_pago_display|escape }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🔢 Cantidad Cuotas:</span>
+                <span class="data-value">{{ object.cantidad_cuotas|default:"-" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">✅ Pagos Realizados (Contador):</span>
+                <span class="data-value">{{ object.pagos_realizados|default:"0" }}</span>
+            </div>
+            {# --- AÑADIDO: numero_recibo --- #}
+             <div class="dark-group">
+                 <span class="dark-label">🧾 Número Último Recibo:</span>
+                 <span class="data-value">{{ object.numero_recibo|escape|default:"-" }}</span>
+             </div>
+             {# --- FIN AÑADIDO --- #}
+        </div>
+
+        {# --- Sección Estatus y Comisiones --- #}
+        <div class="detail-section" data-section="estatus"> {# Tu clase #}
+            <h2 class="section-title visually-hidden">Estatus y Comisiones</h2>
+             <div class="dark-group">
+                <span class="dark-label">🚦 Estatus Contrato:</span>
+                <span class="data-value">{{ object.get_estatus_display|escape }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">📊 Estado Administrativo:</span> {# Etiqueta unificada #}
+                <span class="data-value">{{ object.get_estado_contrato_display|escape|default:"-" }}</span> {# Usando get_ si es choices #}
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">📝 Estatus Específico:</span>
+                <span class="data-value">{{ object.estatus_detalle|escape|default:"-" }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">🧾 Estatus Emisión Recibo:</span>
+                <span class="data-value">{{ object.get_estatus_emision_recibo_display|escape }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">💲 Comisión Anual (%):</span>
+                <span class="data-value">{{ object.comision_anual|floatformat:2|default:"-" }}{% if object.comision_anual is not None %}%{% endif %}</span> {# Añade % si hay valor #}
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">💲 Comisión por Recibo ($):</span>
+                <span class="data-value">${{ object.comision_recibo|floatformat:2|intcomma|default:"-" }}</span>
+            </div>
+        </div>
+
+        {# --- Sección Otros y Sistema --- #}
+         <div class="detail-section" data-section="otros"> {# Tu clase #}
+            <h2 class="section-title visually-hidden">Otros Datos</h2>
+             <div class="dark-group">
+                <span class="dark-label">🤝 Intermediario:</span>
+                <span class="data-value">{{ object.intermediario.nombre_completo|escape|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group" style="grid-column: span 2;"> {# Tu estilo inline #}
+                <span class="dark-label">🔍 Criterio Búsqueda:</span>
+                <span class="data-value">{{ object.criterio_busqueda|escape|default:"-" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">❓ Consultar Afiliados Activos:</span>
+                <span class="badge {% if object.consultar_afiliados_activos %}badge-info{% else %}badge-secondary{% endif %}">{{ object.consultar_afiliados_activos|yesno:"Sí,No" }}</span> {# Usando badge #}
+            </div>
+             <div class="dark-group" style="grid-column: span 2;"> {# Tu estilo inline #}
+                 <span class="dark-label">📜 Historial Cambios (JSON):</span>
+                 <pre style="background-color: #2d2d2d; color: #ccc; padding: 0.5rem; border-radius: 4px; font-size: 0.85em; max-height: 100px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">{{ object.historial_cambios|escape|default:"[]" }}</pre> {# Estilo inline simple, altura reducida #}
+             </div>
+         </div>
+
+        {# --- Sección Datos Base Heredados --- #}
+        <div class="detail-section" data-section="base"> {# Tu clase #}
+            <h2 class="section-title visually-hidden">Datos Base (Heredados)</h2>
+            <div class="dark-group">
+               <span class="dark-label">➕ Fecha Creación:</span>
+               <span class="data-value">{{ object.fecha_creacion|date:"d/m/Y H:i"|default:"-" }}</span> {# Añadido default #}
+             </div>
+             <div class="dark-group">
+               <span class="dark-label">🔄 Fecha Modificación:</span>
+               <span class="data-value">{{ object.fecha_modificacion|date:"d/m/Y H:i"|default:"-" }}</span> {# Añadido default #}
+             </div>
+        </div>
+
+    </div> {# --- Fin Resumen de Datos --- #}
+
+    {# --- Advertencia --- #}
+    <div class="alert alert-warning mt-4" role="alert"> {# Tu clase alert y margen #}
+      <p><strong>¡Atención!</strong> Esta acción no se puede deshacer. Se eliminará toda la información asociada a este contrato.</p>
+      <p>¿Estás completamente seguro de que deseas continuar?</p>
+    </div>
+
+    {# --- Formulario de Confirmación --- #}
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-actions"> {# Tu clase #}
+         {# Botón de Confirmación (Destructivo) #}
+        <button type="submit" class="btn-warning" aria-label="Confirmar la eliminación permanente de este contrato"> {# Tu clase #}
+            ❌ Sí, eliminar permanentemente
+        </button>
+         {# Enlace de Cancelación (Seguro) #}
+         <a href="{% url 'myapp:contrato_individual_detail' object.pk %}" class="btn-success" aria-label="Cancelar y volver al detalle del contrato"> {# Tu clase #}
+             🚫 No, cancelar
+         </a>
+      </div>
+    </form>
+
+  </section>
+</div>
+
+{% endblock content %}

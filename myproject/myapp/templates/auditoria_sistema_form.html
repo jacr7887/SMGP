@@ -1,0 +1,155 @@
+{% extends "home.html" %}
+{% load static %}
+{% load humanize %} 
+{% block content %}
+<div class="dark-container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading">
+      {% if form.instance.pk %}
+        ✏️ Editar Auditoría del Sistema 
+      {% else %}
+        ➕ Nueva Auditoría del Sistema (Manual) 
+      {% endif %}
+    </h1>
+
+     <div class="header-actions">
+      <a href="{% url 'myapp:auditoria_sistema_list' %}" class="nav_link" aria-label="Volver al listado de auditorías">
+        ⬅️ Volver al Listado
+      </a>
+      {% if form.instance.pk %}
+      <a href="{% url 'myapp:auditoria_sistema_detail' form.instance.pk %}" class="nav_link" aria-label="Ver detalle">
+        👁️ Ver Detalle
+      </a>
+      {% endif %}
+    </div>
+
+    <form method="post" class="compact-form" enctype="multipart/form-data" aria-labelledby="main-heading" novalidate>
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+          <div class="alert alert-danger error-summary" role="alert">
+              <h4>⚠️ Errores Generales:</h4>
+              <ul>
+                  {% for error in form.non_field_errors %}
+                      <li>{{ error|escape }}</li>
+                  {% endfor %}
+              </ul>
+          </div>
+      {% endif %}
+      {# --- FIN BLOQUE ERRORES GENERALES --- #}
+
+       {# --- CAMPOS DE AuditoriaSistema --- #}
+
+      <fieldset class="dark-group" data-section="accion-resultado">
+        <legend class="dark-label">ℹ️ Acción y Resultado</legend>
+         {# Campo tipo_accion #}
+         <div class="dark-group {% if form.tipo_accion.errors %}error{% endif %}">
+             <label class="dark-label" for="{{ form.tipo_accion.id_for_label }}">🔄 Tipo de Acción</label>
+             {{ form.tipo_accion }}
+             {% if form.tipo_accion.errors %}<ul class="error-messages" role="alert">{% for error in form.tipo_accion.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+             {% if form.tipo_accion.help_text %}<small class="form-text text-muted" id="{{ form.tipo_accion.id_for_label }}-help">{{ form.tipo_accion.help_text|escape }}</small>{% endif %}
+         </div>
+
+         {# Campo resultado_accion #}
+         <div class="dark-group {% if form.resultado_accion.errors %}error{% endif %}">
+             <label class="dark-label" for="{{ form.resultado_accion.id_for_label }}">✅ Resultado de Acción</label>
+             {{ form.resultado_accion }}
+             {% if form.resultado_accion.errors %}<ul class="error-messages" role="alert">{% for error in form.resultado_accion.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+             {% if form.resultado_accion.help_text %}<small class="form-text text-muted" id="{{ form.resultado_accion.id_for_label }}-help">{{ form.resultado_accion.help_text|escape }}</small>{% endif %}
+         </div>
+      </fieldset>
+
+       <fieldset class="dark-group" data-section="contexto-accion">
+         <legend class="dark-label">👤 Contexto de la Acción</legend>
+          {# Campo usuario #}
+         <div class="dark-group {% if form.usuario.errors %}error{% endif %}">
+             <label class="dark-label" for="{{ form.usuario.id_for_label }}">👤 Usuario</label>
+             {{ form.usuario }}
+             {% if form.usuario.errors %}<ul class="error-messages" role="alert">{% for error in form.usuario.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+             {% if form.usuario.help_text %}<small class="form-text text-muted" id="{{ form.usuario.id_for_label }}-help">{{ form.usuario.help_text|escape }}</small>{% endif %}
+         </div>
+
+         {# Campo tabla_afectada #}
+         <div class="dark-group {% if form.tabla_afectada.errors %}error{% endif %}">
+             <label class="dark-label" for="{{ form.tabla_afectada.id_for_label }}">📦 Tabla Afectada</label>
+             {{ form.tabla_afectada }}
+             {% if form.tabla_afectada.errors %}<ul class="error-messages" role="alert">{% for error in form.tabla_afectada.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+             {% if form.tabla_afectada.help_text %}<small class="form-text text-muted" id="{{ form.tabla_afectada.id_for_label }}-help">{{ form.tabla_afectada.help_text|escape }}</small>{% endif %}
+         </div>
+
+         {# Campo registro_id_afectado #}
+         <div class="dark-group {% if form.registro_id_afectado.errors %}error{% endif %}">
+             <label class="dark-label" for="{{ form.registro_id_afectado.id_for_label }}">🔢 ID Registro Afectado</label>
+             {{ form.registro_id_afectado }}
+             {% if form.registro_id_afectado.errors %}<ul class="error-messages" role="alert">{% for error in form.registro_id_afectado.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+             {% if form.registro_id_afectado.help_text %}<small class="form-text text-muted" id="{{ form.registro_id_afectado.id_for_label }}-help">{{ form.registro_id_afectado.help_text|escape }}</small>{% endif %}
+         </div>
+
+         {# Campo detalle_accion #}
+         <div class="dark-group {% if form.detalle_accion.errors %}error{% endif %}">
+             <label class="dark-label" for="{{ form.detalle_accion.id_for_label }}">📝 Detalle de Acción</label>
+             {{ form.detalle_accion }} {# Asume Textarea #}
+             {% if form.detalle_accion.errors %}<ul class="error-messages" role="alert">{% for error in form.detalle_accion.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+             {% if form.detalle_accion.help_text %}<small class="form-text text-muted" id="{{ form.detalle_accion.id_for_label }}-help">{{ form.detalle_accion.help_text|escape }}</small>{% endif %}
+         </div>
+       </fieldset>
+
+       <fieldset class="dark-group" data-section="informacion-tecnica">
+         <legend class="dark-label">⚙️ Información Técnica</legend>
+          {# Campo direccion_ip #}
+         <div class="dark-group {% if form.direccion_ip.errors %}error{% endif %}">
+             <label class="dark-label" for="{{ form.direccion_ip.id_for_label }}">🌐 Dirección IP</label>
+             {{ form.direccion_ip }}
+             {% if form.direccion_ip.errors %}<ul class="error-messages" role="alert">{% for error in form.direccion_ip.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+             {% if form.direccion_ip.help_text %}<small class="form-text text-muted" id="{{ form.direccion_ip.id_for_label }}-help">{{ form.direccion_ip.help_text|escape }}</small>{% endif %}
+         </div>
+
+         {# Campo agente_usuario #}
+         <div class="dark-group {% if form.agente_usuario.errors %}error{% endif %}">
+             <label class="dark-label" for="{{ form.agente_usuario.id_for_label }}">📱 Agente de Usuario</label>
+             {{ form.agente_usuario }} {# Asume Textarea o TextInput largo #}
+             {% if form.agente_usuario.errors %}<ul class="error-messages" role="alert">{% for error in form.agente_usuario.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+             {% if form.agente_usuario.help_text %}<small class="form-text text-muted" id="{{ form.agente_usuario.id_for_label }}-help">{{ form.agente_usuario.help_text|escape }}</small>{% endif %}
+         </div>
+       </fieldset>
+
+        <fieldset class="dark-group" data-section="tiempos">
+         <legend class="dark-label">⏰ Tiempos</legend>
+           {# Campo tiempo_inicio #}
+         <div class="dark-group {% if form.tiempo_inicio.errors %}error{% endif %}">
+             <label class="dark-label" for="{{ form.tiempo_inicio.id_for_label }}">⏰ Tiempo de Inicio</label>
+             {{ form.tiempo_inicio }} {# Asume DateTimeInput #}
+             {% if form.tiempo_inicio.errors %}<ul class="error-messages" role="alert">{% for error in form.tiempo_inicio.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+             {% if form.tiempo_inicio.help_text %}<small class="form-text text-muted" id="{{ form.tiempo_inicio.id_for_label }}-help">{{ form.tiempo_inicio.help_text|escape }}</small>{% endif %}
+         </div>
+
+         {# Campo tiempo_final #}
+         <div class="dark-group {% if form.tiempo_final.errors %}error{% endif %}">
+             <label class="dark-label" for="{{ form.tiempo_final.id_for_label }}">⏳ Tiempo Final (Opcional)</label>
+             {{ form.tiempo_final }} {# Asume DateTimeInput #}
+             {% if form.tiempo_final.errors %}<ul class="error-messages" role="alert">{% for error in form.tiempo_final.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+             {% if form.tiempo_final.help_text %}<small class="form-text text-muted" id="{{ form.tiempo_final.id_for_label }}-help">{{ form.tiempo_final.help_text|escape }}</small>{% endif %}
+         </div>
+
+          <div class="dark-group {% if form.control_fecha_actual.errors %}error{% endif %}">
+             <label class="dark-label" for="{{ form.control_fecha_actual.id_for_label }}">⏱️ Control Fecha Actual</label>
+             {{ form.control_fecha_actual }} 
+             {% if form.control_fecha_actual.errors %}<ul class="error-messages" role="alert">{% for error in form.control_fecha_actual.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+             {% if form.control_fecha_actual.help_text %}<small class="form-text text-muted" id="{{ form.control_fecha_actual.id_for_label }}-help">{{ form.control_fecha_actual.help_text|escape }}</small>{% endif %}
+         </div>
+       </fieldset>
+
+
+      {% for field in form.hidden_fields %}
+          {{ field }}
+      {% endfor %}
+
+      <div class="form-actions">
+        <button type="submit" class="btn-success">{% if form.instance.pk %}💾 Actualizar Registro{% else %}➕ Crear Registro{% endif %}</button>
+        <a href="{% url 'myapp:auditoria_sistema_list' %}" class="btn-danger">🚫 Cancelar</a>
+      </div>
+    </form>
+  </section>
+</div>
+
+{% endblock content %}

@@ -1,0 +1,186 @@
+{% extends "home.html" %}
+{% load static %}
+{% load humanize %} 
+
+{% block content %}
+<div class="container" role="main" aria-labelledby="main-heading">
+  <section>
+
+    <h1 id="main-heading">🏢 Detalle del Afiliado Colectivo: {{ afiliado.razon_social|escape|default:"ID" }} {{ afiliado.pk }}</h1> 
+
+
+    <div class="detail-actions-container mb-4"> 
+      {% if perms.myapp.change_afiliadocolectivo %}
+
+        <a href="{% url 'myapp:afiliado_colectivo_update' afiliado.pk %}" class="btn btn-success" aria-label="Editar este afiliado colectivo">
+          ✏️ Editar
+        </a>
+      {% endif %}
+      {% if perms.myapp.delete_afiliadocolectivo %}
+
+        <a href="{% url 'myapp:afiliado_colectivo_delete' afiliado.pk %}" class="btn btn-danger delete-link" aria-label="Eliminar este afiliado colectivo">
+          ❌ Eliminar
+        </a>
+      {% endif %}
+
+      <a href="{% url 'myapp:afiliado_colectivo_list' %}" class="nav_link" aria-label="Volver al listado de afiliados colectivos">
+        ⬅️ Volver al Listado
+      </a>
+    </div>
+
+    <div class="form-main-container">
+
+      <fieldset class="mb-4">
+        <legend>🏢 Información Principal</legend>
+        <div class="dark-grid">
+            <div class="dark-group">
+                <span class="dark-label">🏢 Razón Social:</span>
+                <span>{{ afiliado.razon_social|escape }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🆔 RIF:</span>
+                <span>{{ afiliado.rif|escape|default:"N/A" }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">🏭 Tipo Empresa:</span>
+                <span>{{ afiliado.get_tipo_empresa_display|escape }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">💡 Estado Activo:</span>
+                <span class="badge {% if afiliado.activo %}badge-success{% else %}badge-danger{% endif %}">
+                    {{ afiliado.activo|yesno:"Activo,Inactivo" }}
+                </span>
+                 {% if help_text_activo %}
+                     <small class="form-text text-muted" style="display:block; margin-top: 5px;">{{ help_text_activo|escape }}</small>
+                 {% endif %}
+             </div>
+             <div class="dark-group">
+                <span class="dark-label">🤝 Intermediario Directo:</span>
+                <span>
+                    {% if intermediario_directo %}
+                        {% if perms.myapp.view_intermediario %}
+                            <a href="{% url 'myapp:intermediario_detail' intermediario_directo.pk %}">{{ intermediario_directo.nombre_completo|escape }}</a>
+                        {% else %}
+                            {{ intermediario_directo.nombre_completo|escape }}
+                        {% endif %}
+                    {% else %}
+                        No hay intermediario asociado.
+                    {% endif %}
+                </span>
+            </div>
+                <div class="dark-group">
+                <span class="dark-label">🗣️ Nombre Completo (Propiedad):</span>
+                <span>{{ afiliado.nombre_completo|escape }}</span>
+             </div> 
+              <div class="dark-group">
+                <span class="dark-label">#️⃣ ID Interno:</span>
+                <span>{{ afiliado.pk }}</span>
+              </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="mb-4">
+        <legend>📞 Contacto y Ubicación</legend>
+        <div class="dark-grid">
+             <div class="dark-group">
+                <span class="dark-label">📧 Email Contacto:</span>
+                <span>{{ afiliado.email_contacto|escape|default:"-" }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">📞 Teléfono Contacto:</span>
+                <span>{{ afiliado.telefono_contacto|escape|default:"-" }}</span>
+            </div>
+             <div class="dark-group" style="grid-column: span 2;">
+                <span class="dark-label">📍 Dirección Comercial/Fiscal:</span>
+                 <p style="margin:0;">{{ afiliado.direccion_comercial|escape|linebreaksbr|default:"-" }}</p>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🗺️ Estado:</span>
+                <span>{{ afiliado.get_estado_display|escape|default:"-" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🏘️ Municipio:</span>
+                <span>{{ afiliado.municipio|escape|default:"-" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🏙️ Ciudad:</span>
+                <span>{{ afiliado.ciudad|escape|default:"-" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">📮 Zona Postal:</span>
+                <span>{{ afiliado.zona_postal|escape|default:"-" }}</span>
+            </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>📄 Datos Base</legend>
+        <div class="dark-grid">
+            <div class="dark-group">
+               <span class="dark-label">➕ Fecha Creación:</span>
+               <span>{{ afiliado.fecha_creacion|date:"d/m/Y H:i:s" }}</span>
+             </div>
+             <div class="dark-group">
+               <span class="dark-label">🔄 Última Modificación:</span>
+               <span>{{ afiliado.fecha_modificacion|date:"d/m/Y H:i:s" }}</span>
+             </div>
+        </div>
+      </fieldset>
+
+    </div>
+
+    <div class="form-main-container mt-4">
+        <fieldset>
+            <legend>🔗 Relaciones Asociadas</legend>
+
+             <h4>Contratos Colectivos Vinculados ({{ total_contratos }})</h4>
+             {% if contratos_asociados %}
+                 <div class="table-container">
+                     <table class="data-table">
+                         <thead>
+                             <tr>
+                                 <th>Nro. Contrato</th>
+                                 <th>Ramo</th>
+                                 <th>Vigencia</th>
+                                 <th>Monto</th>
+                                 <th>Empleados</th>
+                                 <th>Estatus</th>
+                                 <th>Acciones</th>
+                             </tr>
+                         </thead>
+                         <tbody>
+                             {% for contrato in contratos_asociados %}
+                             <tr>
+                                 <td>
+                                     {% if perms.myapp.view_contratocolectivo %}
+                                     <a href="{% url 'myapp:contrato_colectivo_detail' contrato.pk %}">{{ contrato.numero_contrato }}</a>
+                                     {% else %}
+                                     {{ contrato.numero_contrato }}
+                                     {% endif %}
+                                 </td>
+                                 <td>{{ contrato.get_ramo_display }}</td>
+                                 <td>{{ contrato.fecha_inicio_vigencia|date:"d/m/y" }} - {{ contrato.fecha_fin_vigencia|date:"d/m/y" }}</td>
+                                 <td>${{ contrato.monto_total|intcomma }}</td> 
+                                 <td>{{ contrato.cantidad_empleados }}</td>
+                                 <td><span class="badge {% if contrato.estatus == 'VIGENTE' %}badge-success{% elif contrato.estatus == 'VENCIDO' %}badge-danger{% else %}badge-warning{% endif %}">{{ contrato.get_estatus_display }}</span></td>
+                                 <td class="actions"><div class="action-group">
+                                     {% if perms.myapp.view_contratocolectivo %}
+                                     <a href="{% url 'myapp:contrato_colectivo_detail' contrato.pk %}" class="action-icon" title="Ver Contrato">👁️</a>
+                                     {% endif %}
+                                  </div></td>
+                             </tr>
+                             {% endfor %}
+                         </tbody>
+                     </table>
+                 </div>
+             {% else %}
+                 <p>No hay contratos colectivos directamente asociados a este afiliado.</p>
+             {% endif %}
+
+        </fieldset>
+    </div>
+
+  </section>
+</div>
+
+{% endblock content %}

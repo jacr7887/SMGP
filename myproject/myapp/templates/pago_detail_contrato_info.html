@@ -1,0 +1,76 @@
+{% load humanize %}
+
+{# ================================================== #}
+{# Plantilla Parcial para mostrar info del contrato   #}
+{# Recibe la variable 'contrato' desde el include     #}
+{# ================================================== #}
+
+{# --- Mostrar Contrato Vinculado --- #}
+<div class="dark-group">
+    <span class="dark-label">📄 Contrato Vinculado:</span>
+    <span>
+    {% if contrato %}
+        {% with numero_contrato=contrato.numero_contrato|default:"S/N" ramo=contrato.get_ramo_display|default:'-' %}
+            {% if hasattr(contrato, 'contratoindividual') and contrato.contratoindividual %}
+                {% if perms.myapp.view_contratoindividual %}
+                    <a href="{% url 'myapp:contrato_individual_detail' contrato.pk %}">CI: {{ numero_contrato }}</a>
+                {% else %} CI: {{ numero_contrato }} {% endif %}
+            {% elif hasattr(contrato, 'contratocolectivo') and contrato.contratocolectivo %}
+                {% if perms.myapp.view_contratocolectivo %}
+                    <a href="{% url 'myapp:contrato_colectivo_detail' contrato.pk %}">CC: {{ numero_contrato }}</a>
+                {% else %} CC: {{ numero_contrato }} {% endif %}
+            {% else %} Contrato #{{ contrato.pk }} {% endif %}
+            ({{ ramo }})
+        {% endwith %}
+    {% else %}
+        (No asociado a contrato)
+    {% endif %}
+    </span>
+</div>
+
+{# --- Mostrar Cliente/Afiliado del Contrato --- #}
+<div class="dark-group">
+    <span class="dark-label">👤 Cliente (Contrato):</span>
+    <span>
+    {% if contrato %}
+        {% if hasattr(contrato, 'contratoindividual') and contrato.contratoindividual and contrato.contratoindividual.afiliado %}
+            {% with af=contrato.contratoindividual.afiliado %}
+                {% if perms.myapp.view_afiliadoindividual %}
+                    <a href="{% url 'myapp:afiliado_individual_detail' af.pk %}">{{ af.nombre_completo|escape|default:"(Sin Nombre)" }}</a>
+                {% else %} {{ af.nombre_completo|escape|default:"(Sin Nombre)" }} {% endif %}
+                (C.I.: {{ af.cedula|default:"S/C" }})
+            {% endwith %}
+        {% elif hasattr(contrato, 'contratocolectivo') and contrato.contratocolectivo %}
+             {% with razon_social=contrato.contratocolectivo.razon_social|default:"(Sin Razón Social)" rif=contrato.contratocolectivo.rif|default:"S/R" %}
+                 {% if perms.myapp.view_afiliadocolectivo %}
+                     {# Asume que tienes una URL para AfiliadoColectivo si quieres enlazar #}
+                     {{ razon_social|escape }}
+                 {% else %} {{ razon_social|escape }} {% endif %}
+                 (RIF: {{ rif }})
+             {% endwith %}
+        {% else %} (Cliente no especificado) {% endif %}
+    {% else %} (No asociado a contrato) {% endif %}
+    </span>
+</div>
+
+{# --- Mostrar Intermediario del Contrato --- #}
+ <div class="dark-group">
+    <span class="dark-label">🤝 Intermediario (Contrato):</span>
+     <span>
+     {% if contrato and contrato.intermediario %}
+         {% with inter=contrato.intermediario %}
+             {% if perms.myapp.view_intermediario %}
+             <a href="{% url 'myapp:intermediario_detail' inter.pk %}">{{ inter.nombre_completo|escape|default:"(Sin Nombre)" }}</a>
+             {% else %} {{ inter.nombre_completo|escape|default:"(Sin Nombre)" }} {% endif %}
+             (Cód: {{ inter.codigo|default:"S/C" }})
+         {% endwith %}
+     {% elif pago.factura and pago.factura.intermediario %} {# Fallback al de la factura #}
+         {% with inter=pago.factura.intermediario %}
+             {% if perms.myapp.view_intermediario %}
+             <a href="{% url 'myapp:intermediario_detail' inter.pk %}">{{ inter.nombre_completo|escape|default:"(Sin Nombre)" }}</a>
+             {% else %} {{ inter.nombre_completo|escape|default:"(Sin Nombre)" }} {% endif %}
+             (Cód: {{ inter.codigo|default:"S/C" }})
+         {% endwith %}
+     {% else %} No hay intermediario asociado {% endif %}
+     </span>
+</div>

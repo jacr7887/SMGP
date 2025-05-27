@@ -1,0 +1,34 @@
+# Usa una imagen base de Python
+FROM python:3.13
+
+# Establecer variables de entorno para Python
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+# Establecer directorio de trabajo
+WORKDIR /app
+
+# Instalar dependencias del sistema (si psycopg2 las necesita, etc.)
+# Para Debian/Ubuntu based:
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq-dev \
+    # Otras dependencias que puedas necesitar (gcc, etc.)
+    && rm -rf /var/lib/apt/lists/*
+
+# Copiar archivos de requerimientos e instalar dependencias de Python
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar el resto de tu aplicación
+COPY . .
+
+# Copiar el script de entrypoint y darle permisos
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Exponer el puerto que usa tu aplicación (ej. 8000 para Gunicorn)
+EXPOSE 8000
+
+# Comando por defecto que se ejecuta cuando el contenedor inicia
+ENTRYPOINT ["/entrypoint.sh"]
+# CMD [] # Puedes tener un CMD si quieres que el entrypoint sea más flexible

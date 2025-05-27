@@ -1,0 +1,44 @@
+{% extends "home.html" %} {% block content %} {% load humanize %}
+<div role="main" aria-labelledby="main-content">
+  <h1 id="main-content">📋 Log de Auditoría</h1>
+  <table aria-label="Tabla de registros de auditoría">
+    <thead>
+      <tr>
+        <th>Acción</th>
+        <th>Usuario</th>
+        <th>Fecha</th>
+        <th>Detalles</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for registro in object_list %}
+      <tr>
+        <td>{{ registro.tipo_accion }}</td>
+        <td>{{ registro.usuario }}</td>
+        <td>{{ registro.tiempo_inicio|date:"d/m/Y H:i" }}</td>
+        <td>{{ registro.detalle_accion }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="paginacion">
+    {% if is_paginated %}
+    <nav aria-label="Paginación">
+      <ul class="pagination">
+        {% if page_obj.has_previous %}
+        <li>
+          <a href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+        </li>
+        {% endif %}
+        <li>
+          Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+        </li>
+        {% if page_obj.has_next %}
+        <li><a href="?page={{ page_obj.next_page_number }}">Siguiente</a></li>
+        {% endif %}
+      </ul>
+    </nav>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,208 @@
+{% extends "home.html" %}
+{% load static %}
+{# {% load i18n %} #} {# Descomentado si no usas traducción explícita aquí #}
+{# {% load humanize %} #} {# Descomentado si no usas filtros de humanize aquí #}
+
+{% block title %}{% if form.instance.pk %}Editar{% else %}Nuevo{% endif %} Intermediario{% endblock %}
+
+{% block content %}
+<div class="dark-container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading">
+      {% if form.instance.pk %}✏️ Editar{% else %}➕ Nuevo{% endif %} Intermediario
+      {% if form.instance.pk %}: {{ form.instance.nombre_completo|default:form.instance.codigo|escape }}{% endif %}
+    </h1>
+
+    <div class="header-actions">
+      <a href="{% url 'myapp:intermediario_list' %}" class="nav_link" aria-label="Volver al listado de intermediarios">
+        ⬅️ Volver al Listado
+      </a>
+       {% if form.instance.pk and perms.myapp.view_intermediario %} {# Añadido para consistencia con otros forms #}
+            <a href="{% url 'myapp:intermediario_detail' form.instance.pk %}" class="nav_link" aria-label="Ver detalles de este intermediario">
+                👁️ Ver Detalle
+            </a>
+       {% endif %}
+    </div>
+
+    <form method="post" class="compact-form" enctype="multipart/form-data" aria-labelledby="main-heading" novalidate>
+      {% csrf_token %}
+      
+      {# IMPORTANTE para widgets como Select2 si no usas CDN para todo y el widget lo requiere #}
+      {# Si django-select2 u otro widget lo añade automáticamente, esto podría ser redundante o necesario según el widget #}
+      {% if form.media.css %}{{ form.media.css }}{% endif %}
+      {% if form.media.js %}{{ form.media.js }}{% endif %}
+
+
+      {# --- BLOQUE DE ERRORES GENERALES --- #}
+      {% if form.non_field_errors %}
+          <div class="alert alert-danger error-summary" role="alert">
+              <h4>⚠️ Errores Generales:</h4>
+              <ul>
+                  {% for error in form.non_field_errors %}
+                      <li>{{ error|escape }}</li>
+                  {% endfor %}
+              </ul>
+          </div>
+      {% endif %}
+      {# --- FIN BLOQUE ERRORES GENERALES --- #}
+
+      <fieldset class="dark-group" data-section="informacion-principal">
+        <legend class="dark-label">👤 Información Principal y Estado</legend>
+        <div class="dark-grid"> {# Tu clase dark-grid para layout #}
+            {% if form.instance.pk and 'codigo' in form.fields %} {# Mostrar código solo si ya existe y está en el form #}
+            <div class="dark-group readonly-group">
+                <label class="dark-label">🔑 {{ form.codigo.label }}:</label>
+                <input type="text" value="{{ form.instance.codigo|default:'N/A' }}" readonly class="dark-group-plaintext">
+                {% if form.codigo.help_text %}<small class="form-text text-muted">{{ form.codigo.help_text|escape }}</small>{% endif %}
+            </div>
+            {% elif 'codigo' in form.fields and not form.instance.pk %} {# Si es nuevo y el campo es editable #}
+             <div class="dark-group {% if form.codigo.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.codigo.id_for_label }}">🔑 {{ form.codigo.label }}</label>
+                {{ form.codigo }}
+                {% if form.codigo.errors %}<ul class="error-messages" role="alert">{% for error in form.codigo.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+                {% if form.codigo.help_text %}<small class="form-text text-muted">{{ form.codigo.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if 'nombre_completo' in form.fields %}
+            <div class="dark-group {% if form.nombre_completo.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.nombre_completo.id_for_label }}">🏢 {{ form.nombre_completo.label }} {% if form.nombre_completo.field.required %}(*){% endif %}</label>
+                {{ form.nombre_completo }}
+                {% for error in form.nombre_completo.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.nombre_completo.help_text %}<small class="form-text text-muted">{{ form.nombre_completo.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if 'rif' in form.fields %}
+            <div class="dark-group {% if form.rif.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.rif.id_for_label }}">📄 {{ form.rif.label }} {% if form.rif.field.required %}(*){% endif %}</label>
+                {{ form.rif }}
+                {% for error in form.rif.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.rif.help_text %}<small class="form-text text-muted">{{ form.rif.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+            
+            {% if 'activo' in form.fields %}
+            <div class="dark-group form-field-inline {% if form.activo.errors %}error{% endif %}" style="align-items: center;">
+                <label class="dark-label" for="{{ form.activo.id_for_label }}" style="margin-right: 10px;">💡 {{ form.activo.label }}</label>
+                <label class="switch">
+                    {{ form.activo }} {# El input checkbox va aquí #}
+                    <span class="slider"></span>
+                </label>
+                {% if form.activo.errors %}<ul class="error-messages" role="alert" style="margin-left: 10px;">{% for error in form.activo.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+                {% if form.activo.help_text %}<small class="form-text text-muted" style="display: block; margin-top: 5px;">{{ form.activo.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+      </fieldset>
+
+      <fieldset class="dark-group" data-section="direccion-contacto">
+        <legend class="dark-label">📞 Dirección y Contacto</legend>
+        <div class="dark-grid">
+            {% if 'direccion_fiscal' in form.fields %}
+            <div class="dark-group {% if form.direccion_fiscal.errors %}error{% endif %}" style="grid-column: span 2;"> {# Ocupa dos columnas si es textarea largo #}
+                <label class="dark-label" for="{{ form.direccion_fiscal.id_for_label }}">🏠 {{ form.direccion_fiscal.label }} {% if form.direccion_fiscal.field.required %}(*){% endif %}</label>
+                {{ form.direccion_fiscal }}
+                {% for error in form.direccion_fiscal.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.direccion_fiscal.help_text %}<small class="form-text text-muted">{{ form.direccion_fiscal.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if 'telefono_contacto' in form.fields %}
+            <div class="dark-group {% if form.telefono_contacto.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.telefono_contacto.id_for_label }}">☎️ {{ form.telefono_contacto.label }} {% if form.telefono_contacto.field.required %}(*){% endif %}</label>
+                {{ form.telefono_contacto }}
+                {% for error in form.telefono_contacto.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.telefono_contacto.help_text %}<small class="form-text text-muted">{{ form.telefono_contacto.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if 'email_contacto' in form.fields %}
+            <div class="dark-group {% if form.email_contacto.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.email_contacto.id_for_label }}">📧 {{ form.email_contacto.label }} {% if form.email_contacto.field.required %}(*){% endif %}</label>
+                {{ form.email_contacto }}
+                {% for error in form.email_contacto.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.email_contacto.help_text %}<small class="form-text text-muted">{{ form.email_contacto.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+      </fieldset>
+
+       <fieldset class="dark-group" data-section="comisiones-jerarquia">
+        <legend class="dark-label">💰 Comisiones y Jerarquía</legend>
+        <div class="dark-grid">
+            {% if 'porcentaje_comision' in form.fields %}
+            <div class="dark-group {% if form.porcentaje_comision.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.porcentaje_comision.id_for_label }}">💲 {{ form.porcentaje_comision.label }} {% if form.porcentaje_comision.field.required %}(*){% endif %}</label>
+                {{ form.porcentaje_comision }}
+                {% for error in form.porcentaje_comision.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.porcentaje_comision.help_text %}<small class="form-text text-muted">{{ form.porcentaje_comision.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+            {# --- CAMPO PORCENTAJE OVERRIDE --- #}
+            {% if 'porcentaje_override' in form.fields %}
+            <div class="dark-group {% if form.porcentaje_override.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.porcentaje_override.id_for_label }}">🔗 {{ form.porcentaje_override.label }} {% if form.porcentaje_override.field.required %}(*){% endif %}</label>
+                {{ form.porcentaje_override }}
+                {% for error in form.porcentaje_override.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.porcentaje_override.help_text %}<small class="form-text text-muted">{{ form.porcentaje_override.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+            {# --- FIN CAMPO PORCENTAJE OVERRIDE --- #}
+
+            {% if 'intermediario_relacionado' in form.fields %}
+            <div class="dark-group {% if form.intermediario_relacionado.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.intermediario_relacionado.id_for_label }}">⬆️ {{ form.intermediario_relacionado.label }} {% if form.intermediario_relacionado.field.required %}(*){% endif %}</label>
+                {{ form.intermediario_relacionado }} {# Este campo usará Select2 si está configurado en el widget #}
+                {% for error in form.intermediario_relacionado.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.intermediario_relacionado.help_text %}<small class="form-text text-muted">{{ form.intermediario_relacionado.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+      </fieldset>
+      
+      {% if 'usuarios' in form.fields %} {# Campo ManyToMany para usuarios del sistema #}
+      <fieldset class="dark-group" data-section="usuarios-sistema">
+        <legend class="dark-label">🔑 Usuarios del Sistema Asignados</legend>
+        <div class="dark-group {% if form.usuarios.errors %}error{% endif %}">
+            {# No se necesita label explícita si el fieldset ya tiene legend #}
+            {{ form.usuarios }} {# Este campo usará Select2 Multiple si está configurado en el widget #}
+            {% for error in form.usuarios.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+            {% if form.usuarios.help_text %}<small class="form-text text-muted">{{ form.usuarios.help_text|escape }}</small>{% endif %}
+        </div>
+      </fieldset>
+      {% endif %}
+
+      {# Renderizar campos ocultos, si los hubiera #}
+      {% for field in form.hidden_fields %}
+          {{ field }}
+      {% endfor %}
+
+      <div class="form-actions">
+        <button type="submit" class="btn-success">{% if form.instance.pk %}💾 Actualizar Intermediario{% else %}➕ Crear Intermediario{% endif %}</button>
+        <a href="{% url 'myapp:intermediario_list' %}" class="btn-danger">🚫 Cancelar</a>
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Aplicar Select2 a los campos que tengan la clase 'select2-field'
+        // Esta clase debe ser añadida a los widgets en tu IntermediarioForm en forms.py
+        $('.select2-field').select2({
+            theme: "bootstrap-5", // Asumiendo que usas Bootstrap 5 y el tema de Select2 para ello
+            width: '100%', // O 'style' para que tome el ancho del contenedor
+            placeholder: 'Seleccione una opción',
+            allowClear: true // Permite deseleccionar
+        });
+
+        // Si tienes campos Select2 específicos que no usan la clase general, puedes inicializarlos por ID:
+        // $('#id_intermediario_relacionado').select2({ theme: "bootstrap-5", width: '100%', placeholder: 'Seleccione un padre', allowClear: true });
+        // $('#id_usuarios').select2({ theme: "bootstrap-5", width: '100%', placeholder: 'Seleccione usuarios' });
+    });
+</script>
+{% endblock extra_js %}

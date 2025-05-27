@@ -1,0 +1,244 @@
+{% extends "home.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Detalle Intermediario: {{ object.nombre_completo|default:object.codigo }}{% endblock %}
+
+{% block content %}
+<div class="container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading">🤝 Detalle del Intermediario: {{ object.nombre_completo|escape|default:"ID" }} {{ object.pk }}</h1>
+
+
+        <div class="header-actions mb-4">
+            <div class="detail-actions-container">
+                {% if perms.myapp.change_intermediario %}
+                <a href="{% url 'myapp:intermediario_update' pk=object.pk %}" class="btn btn-success" style="margin-right: 10px;">✏️ Editar</a>
+                {% endif %}
+                {% if perms.myapp.delete_intermediario %}
+                <a href="{% url 'myapp:intermediario_delete' pk=object.pk %}" class="btn btn-danger delete-link" style="margin-right: 10px;">❌ Eliminar</a>
+                {% endif %}
+                <a href="{% url 'myapp:intermediario_list' %}" class="nav_link">🔙 Volver al Listado</a>
+            </div>
+        </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show compact-form" role="alert" style="margin-bottom: 1rem;">
+                {{ message|escape }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="form-main-container">
+
+      <fieldset class="mb-4 dark-group">
+        <legend class="dark-label">ℹ️ Información Principal y Contacto</legend>
+        <div class="dark-grid">
+            <div class="dark-group">
+                <span class="dark-label">🔑 Código:</span>
+                <span>{{ object.codigo|escape }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">👤 Nombre Completo:</span>
+                <span>{{ object.nombre_completo|escape }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">🆔 RIF:</span>
+                <span>{{ object.rif|escape|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">📧 Email Contacto:</span>
+                <span>{{ object.email_contacto|escape|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">📞 Teléfono Contacto:</span>
+                <span>{{ object.telefono_contacto|escape|default:"N/A" }}</span>
+            </div>
+             <div class="dark-group" style="grid-column: span 2;">
+                <span class="dark-label">📍 Dirección Fiscal:</span>
+                 <p style="margin:0;">{{ object.direccion_fiscal|escape|linebreaksbr|default:"N/A" }}</p>
+            </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="mb-4 dark-group">
+        <legend class="dark-label">💲 Comisiones, Estado y Jerarquía</legend>
+         <div class="dark-grid">
+             <div class="dark-group">
+                <span class="dark-label">💲 % Comisión Directa:</span>
+                <span>{{ object.porcentaje_comision|floatformat:2|default:"0.00" }}%</span>
+            </div>
+            {# --- CAMPO PORCENTAJE OVERRIDE AÑADIDO --- #}
+            <div class="dark-group">
+                <span class="dark-label">🔗 % Override:</span>
+                <span>{{ object.porcentaje_override|floatformat:2|default:"0.00" }}%</span>
+            </div>
+            {# --- FIN CAMPO PORCENTAJE OVERRIDE --- #}
+             <div class="dark-group">
+                <span class="dark-label">💡 Estado Activo:</span>
+                 <span class="badge {% if object.activo %}badge-success{% else %}badge-danger{% endif %}">
+                     {{ object.activo|yesno:"Activo,Inactivo" }}
+                 </span>
+                 {% if object.help_text_activo %} {# Asumiendo que help_text_activo es un atributo del modelo o se pasa al contexto #}
+                     <small class="form-text text-muted" style="display:block; margin-top: 5px;">{{ object.help_text_activo|escape }}</small>
+                 {% endif %}
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">⬆️ Padre/Supervisor:</span>
+                <span>
+                 {% if object.intermediario_relacionado %}
+                     {% if perms.myapp.view_intermediario %}
+                     <a href="{% url 'myapp:intermediario_detail' object.intermediario_relacionado.pk %}">{{ object.intermediario_relacionado.nombre_completo|escape }} ({{ object.intermediario_relacionado.codigo|escape }})</a>
+                     {% else %}
+                     {{ object.intermediario_relacionado.nombre_completo|escape }} ({{ object.intermediario_relacionado.codigo|escape }})
+                     {% endif %}
+                 {% else %}
+                     N/A
+                 {% endif %}
+                 </span>
+            </div>
+            {# La "Comisión Estimada Total" es compleja de calcular aquí sin más contexto. #}
+            {# Podrías necesitar un método en el modelo o pasarlo desde la vista si es una agregación. #}
+            {# Por ahora, lo comento si no lo estás pasando explícitamente desde la vista. #}
+            {# <div class="dark-group"> #}
+            {# <span class="dark-label">💰 Comisión Estimada Total:</span> #}
+            {# <span>${{ comision_estimada_total|floatformat:2|intcomma|default:"0.00" }}</span> #}
+            {# </div> #}
+        </div>
+      </fieldset>
+      
+      {# --- NUEVA SECCIÓN PARA INTERMEDIARIOS SUBORDINADOS (HIJOS) --- #}
+      {% if object.sub_intermediarios.all %}
+      <fieldset class="mb-4 dark-group">
+          <legend class="dark-label">👥 Intermediarios Subordinados (Hijos)</legend>
+          <div class="table-container">
+              <table class="data-table table-sm"> {# Hacemos la tabla un poco más pequeña #}
+                  <thead>
+                      <tr>
+                          <th>Código</th>
+                          <th>Nombre</th>
+                          <th>% Comisión</th>
+                          <th>% Override</th>
+                          <th>Activo</th>
+                          <th>Acciones</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                      {% for hijo in object.sub_intermediarios.all %}
+                      <tr>
+                          <td>{{ hijo.codigo|escape }}</td>
+                          <td>{{ hijo.nombre_completo|escape }}</td>
+                          <td class="text-end">{{ hijo.porcentaje_comision|floatformat:2|default:"0.00" }}%</td>
+                          <td class="text-end">{{ hijo.porcentaje_override|floatformat:2|default:"0.00" }}%</td>
+                          <td class="text-center">{% if hijo.activo %}✅{% else %}🔴{% endif %}</td>
+                          <td class="actions">
+                              <div class="action-group">
+                                  <a href="{% url 'myapp:intermediario_detail' hijo.pk %}" class="action-icon" title="Ver Detalle Hijo">👁️</a>
+                              </div>
+                          </td>
+                      </tr>
+                      {% empty %}
+                      <tr>
+                          <td colspan="6">Este intermediario no tiene subordinados directos.</td>
+                      </tr>
+                      {% endfor %}
+                  </tbody>
+              </table>
+          </div>
+      </fieldset>
+      {% endif %}
+      {# --- FIN NUEVA SECCIÓN --- #}
+
+    </div> 
+
+    {# --- Sección Opcional para Relaciones (MANTENIDA TU LÓGICA) --- #}
+    <div class="form-main-container mt-4">
+        <fieldset class="dark-group">
+            <legend class="dark-label">🔗 Otras Relaciones Asociadas</legend>
+
+             <h4 class="mt-3 dark-label">🔑 Usuarios del Sistema Vinculados ({{ object.usuarios_asignados.all|length }})</h4>
+             {% if object.usuarios_asignados.all %}
+                 <div class="table-container">
+                     <table class="data-table table-sm">
+                         <thead><tr><th>Username</th><th>Email</th><th>Acciones</th></tr></thead>
+                         <tbody>
+                             {% for usuario in object.usuarios_asignados.all %}
+                             <tr>
+                                 <td>{{ usuario.username|escape }}</td>
+                                 <td>{{ usuario.email|escape }}</td>
+                                 <td class="actions"><div class="action-group">
+                                     {% if perms.myapp.view_usuario %}
+                                     <a href="{% url 'myapp:usuario_detail' usuario.pk %}" class="action-icon" title="Ver Usuario">👁️</a>
+                                     {% endif %}
+                                 </div></td>
+                             </tr>
+                             {% endfor %}
+                         </tbody>
+                     </table>
+                 </div>
+             {% else %}
+                 <p>No hay usuarios del sistema directamente vinculados a este intermediario.</p>
+             {% endif %}
+
+             <h4 class="mt-3 dark-label">📄 Contratos Individuales Asociados ({{ contratos_individuales_asociados.count|default:0 }})</h4>
+              {% if contratos_individuales_asociados %}
+                 <div class="table-container">
+                     <table class="data-table table-sm">
+                          <thead><tr><th>N° Contrato</th><th>Afiliado</th><th class="text-end">Monto</th><th>Estatus</th><th>Acciones</th></tr></thead>
+                         <tbody>
+                             {% for contrato_ind in contratos_individuales_asociados %}
+                             <tr>
+                                 <td>{{ contrato_ind.numero_contrato }}</td>
+                                 <td>{{ contrato_ind.afiliado.nombre_completo|escape|default:"-" }}</td>
+                                 <td class="text-end">${{ contrato_ind.monto_total|floatformat:2|intcomma }}</td>
+                                 <td><span class="badge {% if contrato_ind.estatus == 'VIGENTE' %}badge-success{% elif contrato_ind.estatus == 'VENCIDO' %}badge-danger{% else %}badge-warning{% endif %}">{{ contrato_ind.get_estatus_display }}</span></td>
+                                 <td class="actions"><div class="action-group">
+                                     {% if perms.myapp.view_contratoindividual %}
+                                     <a href="{% url 'myapp:contrato_individual_detail' contrato_ind.pk %}" class="action-icon" title="Ver Contrato">👁️</a>
+                                     {% endif %}
+                                 </div></td>
+                             </tr>
+                             {% endfor %}
+                         </tbody>
+                     </table>
+                 </div>
+             {% else %}
+                  <p>No hay contratos individuales directamente asociados a este intermediario.</p>
+             {% endif %}
+
+             <h4 class="mt-3 dark-label">📑 Contratos Colectivos Asociados ({{ contratos_colectivos_asociados.count|default:0 }})</h4>
+              {% if contratos_colectivos_asociados %}
+                 <div class="table-container">
+                     <table class="data-table table-sm">
+                           <thead><tr><th>N° Contrato</th><th>Razón Social</th><th class="text-end">Monto</th><th>Estatus</th><th>Acciones</th></tr></thead>
+                         <tbody>
+                             {% for contrato_col in contratos_colectivos_asociados %}
+                             <tr>
+                                 <td>{{ contrato_col.numero_contrato }}</td>
+                                 <td>{{ contrato_col.razon_social|escape }}</td>
+                                 <td class="text-end">${{ contrato_col.monto_total|floatformat:2|intcomma }}</td>
+                                 <td><span class="badge {% if contrato_col.estatus == 'VIGENTE' %}badge-success{% elif contrato_col.estatus == 'VENCIDO' %}badge-danger{% else %}badge-warning{% endif %}">{{ contrato_col.get_estatus_display }}</span></td>
+                                 <td class="actions"><div class="action-group">
+                                     {% if perms.myapp.view_contratocolectivo %}
+                                     <a href="{% url 'myapp:contrato_colectivo_detail' contrato_col.pk %}" class="action-icon" title="Ver Contrato">👁️</a>
+                                     {% endif %}
+                                 </div></td>
+                             </tr>
+                             {% endfor %}
+                         </tbody>
+                     </table>
+                 </div>
+             {% else %}
+                  <p>No hay contratos colectivos directamente asociados a este intermediario.</p>
+             {% endif %}
+        </fieldset>
+    </div> {# Fin del segundo form-main-container para relaciones #}
+  </section>
+</div>
+
+{# Estos ya están en tu base.html, así que no son necesarios aquí de nuevo #}
+{# <link rel="stylesheet" href="{% static 'styles.css' %}"> #}
+{# <script src="{% static 'scripts.js' %}"></script> #}
+{% endblock content %}

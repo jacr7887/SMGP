@@ -1,0 +1,30 @@
+{% extends "home.html" %} {% load humanize %} {% block content %}
+<div role="main" aria-labelledby="main-content">
+  <h1 id="main-content">📈 Comisiones de Intermediarios</h1>
+  <div class="comisiones">
+    <p>Total de comisiones generadas: {{ total_comisiones }}</p>
+    <ul>
+      {% for intermediario in intermediarios %}
+      <li>
+        {{ intermediario.nombre_completo }}: {{ intermediario.comision_total }}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endblock %}
+
+<div role="main" aria-labelledby="main-content">
+  <h1 id="main-content">📈 Comisiones de Intermediarios</h1>
+  <div class="comisiones">
+    <p>Total de comisiones generadas: {{ total_comisiones }}</p>
+    <ul>
+      {% for intermediario in intermediarios %}
+      <li>
+        {{ intermediario.nombre_completo }}: {{ intermediario.comision_total }}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endblock %}

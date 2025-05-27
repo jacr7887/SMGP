@@ -1,0 +1,69 @@
+{% extends "home.html" %}
+{% load static humanize %}
+
+{% block content %}
+<div class="dark-container" role="main" aria-labelledby="main-heading"> {# Clase ajustada #}
+  <section>
+    <h1 id="main-heading">🗑️ Confirmar Eliminación de Registro de Auditoría #{{ object.id }}</h1> {# Título ajustado #}
+
+    <div class="header-actions">
+        <a href="{% url 'myapp:auditoria_sistema_detail' object.pk %}" class="nav_link" aria-label="Cancelar y volver al detalle del registro">
+            ⬅️ Cancelar y Volver al Detalle
+        </a>
+         <a href="{% url 'myapp:auditoria_sistema_list' %}" class="nav_link" aria-label="Volver al listado de auditoría">
+            ⬅️ Volver al Listado
+        </a>
+    </div>
+
+    <div class="delete-confirmation mt-3" data-section="confirmacion-eliminacion"> {# Margen añadido #}
+        <h2 class="dark-label">⚠️ Confirmación de Eliminación</h2> {# Usar clase dark-label #}
+        <p>Estás a punto de eliminar permanentemente el siguiente registro de auditoría. Verifica los datos:</p>
+
+        <div class="detail-summary"> {# Contenedor para el resumen #}
+            <div class="detail-section">
+                <h3 class="section-title visually-hidden">Datos Principales</h3>
+                 <div class="dark-group"><span class="dark-label">#️⃣ ID Registro:</span><span class="data-value">{{ object.pk }}</span></div>
+                 <div class="dark-group"><span class="dark-label">🔄 Tipo Acción:</span><span class="data-value">{{ object.get_tipo_accion_display|default:object.tipo_accion }}</span></div>
+                 <div class="dark-group"><span class="dark-label">✅ Resultado:</span><span class="badge {% if object.resultado_accion == 'EXITO' %}badge-success{% elif object.resultado_accion == 'ERROR' %}badge-danger{% else %}badge-secondary{% endif %}">{{ object.get_resultado_accion_display|default:object.resultado_accion }}</span></div>
+                 <div class="dark-group"><span class="dark-label">👤 Usuario:</span><span class="data-value">{{ object.usuario.get_full_name|default:object.usuario.username|default:"Sistema" }}</span></div>
+                 <div class="dark-group"><span class="dark-label">📦 Tabla Afectada:</span><span class="data-value">{{ object.tabla_afectada|default:"N/A" }}</span></div>
+                 <div class="dark-group"><span class="dark-label">🔢 ID Reg. Afectado:</span><span class="data-value">{{ object.registro_id_afectado|default:"N/A" }}</span></div>
+            </div>
+             <div class="detail-section">
+                 <h3 class="section-title visually-hidden">Detalle y Contexto</h3>
+                 <div class="dark-group" style="grid-column: span 2;"><span class="dark-label">📝 Detalle:</span><span class="data-value">{{ object.detalle_accion|escape|truncatechars:100|default:"-" }}</span></div>
+                 <div class="dark-group"><span class="dark-label">🌐 IP:</span><span class="data-value">{{ object.direccion_ip|default:"-" }}</span></div>
+                 <div class="dark-group" style="grid-column: span 2;"><span class="dark-label">📱 Agente:</span><span class="data-value">{{ object.agente_usuario|escape|truncatechars:50|default:"-" }}</span></div>
+            </div>
+             <div class="detail-section">
+                 <h3 class="section-title visually-hidden">Tiempos</h3>
+                 <div class="dark-group"><span class="dark-label">⏰ Inicio:</span><span class="data-value">{{ object.tiempo_inicio|date:"d/m/Y H:i:s.u" }}</span></div>
+                 <div class="dark-group"><span class="dark-label">⏳ Fin:</span><span class="data-value">{{ object.tiempo_final|date:"d/m/Y H:i:s.u"|default:"N/A" }}</span></div>
+                 <div class="dark-group"><span class="dark-label">⏱️ Control:</span><span class="data-value">{{ object.control_fecha_actual|date:"d/m/Y H:i:s.u" }}</span></div>
+            </div>
+             {# --- CAMPOS HEREDADOS ELIMINADOS --- #}
+             {# No se muestran primer_nombre, activo, fecha_creacion, etc. #}
+        </div>
+
+        <div class="alert-warning mt-4" role="alert">
+            <p><strong>¡Atención!</strong> Esta acción no se puede deshacer.</p>
+            <p>La eliminación de registros de auditoría debe hacerse con precaución y de acuerdo a las políticas de retención.</p>
+            <p>¿Estás completamente seguro de que deseas continuar?</p>
+        </div>
+
+        <form method="post" class="delete-form" aria-label="Formulario de confirmación de eliminación">
+            {% csrf_token %}
+            <div class="form-actions">
+                <button type="submit" class="btn-danger">
+                    🗑️ Eliminar Definitivamente
+                </button>
+                <a href="{% url 'myapp:auditoria_sistema_detail' object.pk %}" class="btn-success">
+                    🚫 No, cancelar
+                </a>
+            </div>
+        </form>
+    </div>
+  </section>
+</div>
+
+{% endblock %}

@@ -1,0 +1,225 @@
+{% extends "base.html" %} {# O home.html, tu plantilla base principal #}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Detalle Reclamación #{{ object.pk|default:reclamacion.pk }}{% endblock %}
+
+{% block content %}
+<div class="dark-container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading">📢 Detalle de Reclamación #{{ object.pk|default:reclamacion.pk|escape }}</h1>
+
+
+    {# --- Botones de Acción (Sin Cambios) --- #}
+    <div class="detail-actions-container mb-4"> {# Tu clase #}
+      {% if perms.myapp.change_reclamacion %}
+        <a href="{% url 'myapp:reclamacion_update' reclamacion.pk %}" class="btn btn-success" aria-label="Editar esta reclamación">✏️ Editar</a>
+      {% endif %}
+      {% if perms.myapp.delete_reclamacion %}
+        <a href="{% url 'myapp:reclamacion_delete' reclamacion.pk %}" class="btn btn-danger delete-link" aria-label="Eliminar esta reclamación">❌ Eliminar</a>
+      {% endif %}
+      <a href="{% url 'myapp:reclamacion_list' %}" class="nav_link" aria-label="Volver al listado de reclamaciones">⬅️ Volver al Listado</a>
+    </div>
+
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show compact-form" role="alert" style="margin-bottom: 1rem;">
+                {{ message|escape }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="form-main-container"> {# Asumiendo que esta clase envuelve tus fieldsets #}
+
+      <fieldset class="mb-4 dark-group">
+        <legend class="dark-label">📌 Información Principal de la Reclamación</legend>
+        <div class="dark-grid">
+            <div class="dark-group">
+                <span class="dark-label">#️⃣ ID Reclamación:</span>
+                <span>{{ object.pk|default:reclamacion.pk }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🏷️ Tipo Reclamación:</span>
+                <span>{{ tipo_reclamacion_display|escape|default:object.get_tipo_reclamacion_display }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">🚦 Estado:</span>
+                <span class="badge {% if object.estado == 'CERRADA' or object.estado == 'PAGADA' or object.estado == 'RECHAZADA' %}badge-danger{% elif object.estado == 'APROBADA' %}badge-success{% else %}badge-warning{% endif %}">{{ estado_display|escape|default:object.get_estado_display }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">💰 Monto Reclamado:</span>
+                <span>${{ object.monto_reclamado|floatformat:2|intcomma|default:"0.00" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">📅 Fecha Reclamo:</span>
+                <span>{{ object.fecha_reclamo|date:"d/m/Y" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🏁 Fecha Cierre:</span>
+                <span>{{ object.fecha_cierre_reclamo|date:"d/m/Y"|default:"-" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">⏳ Días en Proceso:</span>
+                <span>
+                    {% if dias_en_proceso is not None and dias_en_proceso >= 0 %}
+                        {{ dias_en_proceso }} día{{ dias_en_proceso|pluralize }}
+                    {% else %}
+                        No Disponible
+                    {% endif %}
+                </span>
+            </div>
+             <div class="dark-group" style="grid-column: span 2;">
+                <span class="dark-label">📝 Descripción del Reclamo:</span>
+                 <p style="margin:0;">{{ object.descripcion_reclamo|escape|linebreaksbr|default:"-" }}</p>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">ℹ️ Diagnóstico Principal:</span>
+                <span>{{ object.get_diagnostico_principal_display|default:object.diagnostico_principal|escape|default:"-" }}</span>
+            </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="mb-4 dark-group">
+       <legend class="dark-label">🔗 Información Asociada</legend>
+       <div class="dark-grid">
+           <div class="dark-group">
+               <span class="dark-label">📄 Contrato Vinculado:</span>
+               <span>
+                   {% if contrato_asociado_url %}
+                       <a href="{{ contrato_asociado_url }}">
+                           {{ contrato_asociado_display|escape }}
+                       </a>
+                   {% else %}
+                       <span class="{% if 'No asociado' in contrato_asociado_display %}text-warning{% endif %}">
+                           {{ contrato_asociado_display|escape }}
+                       </span>
+                   {% endif %}
+               </span>
+           </div>
+           <div class="dark-group">
+               <span class="dark-label">👤 Afiliado/Empresa:</span>
+                <span>
+                   {{ afiliado_final_display|escape|default:"-" }}
+               </span>
+           </div>
+           <div class="dark-group">
+               <span class="dark-label">🤝 Intermediario (Contrato):</span>
+                <span>
+                   {% if intermediario_final_url %}
+                        <a href="{{ intermediario_final_url }}">
+                            {{ intermediario_final_nombre|escape }}
+                        </a>
+                   {% else %}
+                        <span class="text-muted">{{ intermediario_final_nombre|escape|default:"No asignado" }}</span>
+                   {% endif %}
+                </span>
+           </div>
+           <div class="dark-group">
+                <span class="dark-label">👤 Usuario Asignado (Reclamo):</span>
+                 <span>
+                 {% if object.usuario_asignado %}
+                     {% if perms.myapp.view_usuario %} {# Asumiendo que usas el modelo Usuario de Django para el FK #}
+                     <a href="{% url 'myapp:usuario_detail' object.usuario_asignado.pk %}">{{ object.usuario_asignado.get_full_name|default:object.usuario_asignado.username|escape }}</a>
+                     {% else %}
+                     {{ object.usuario_asignado.get_full_name|default:object.usuario_asignado.username|escape }}
+                     {% endif %}
+                 {% else %}
+                     <span class="text-muted">-</span>
+                 {% endif %}
+                 </span>
+             </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="mb-4 dark-group">
+        <legend class="dark-label">📝 Observaciones y Documentos</legend>
+         <div class="dark-grid">
+              <div class="dark-group" style="grid-column: span 2;">
+                <span class="dark-label">🤫 Observaciones Internas:</span>
+                <p style="margin:0;">{{ object.observaciones_internas|escape|linebreaksbr|default:"-" }}</p>
+              </div>
+               <div class="dark-group" style="grid-column: span 2;">
+                <span class="dark-label">🗣️ Observaciones para Cliente:</span>
+                 <p style="margin:0;">{{ object.observaciones_cliente|escape|linebreaksbr|default:"-" }}</p>
+              </div>
+               <div class="dark-group">
+                 <span class="dark-label">📎 Documentos Adjuntos:</span>
+                 <span>
+                     {% if object.documentos_adjuntos and object.documentos_adjuntos.url %}
+                         <a href="{{ object.documentos_adjuntos.url }}" target="_blank" class="nav_link">
+                             📄 Ver/Descargar Documento
+                         </a>
+                         <small class="form-text text-muted" style="display:block; margin-top: 5px;">({{ object.documentos_adjuntos.name }})</small>
+                     {% else %}
+                         No adjuntado
+                     {% endif %}
+                 </span>
+             </div>
+        </div>
+      </fieldset>
+
+       <fieldset class="dark-group"> {# Quité mb-4 para que sea el último fieldset pegado al footer si es el caso #}
+        <legend class="dark-label">⚙️ Datos del Sistema</legend>
+         <div class="dark-grid">
+            <div class="dark-group">
+                <span class="dark-label">💡 Registro Activo:</span>
+                 <span class="badge {% if object.activo %}badge-success{% else %}badge-danger{% endif %}">
+                     {{ object.activo|yesno:"Sí,No" }}
+                 </span>
+            </div>
+             <div class="dark-group">
+               <span class="dark-label">➕ Fecha Creación Registro:</span>
+               <span>{{ object.fecha_creacion|date:"d/m/Y H:i:s" }}</span>
+             </div>
+             <div class="dark-group">
+               <span class="dark-label">🔄 Fecha Modificación:</span>
+               <span>{{ object.fecha_modificacion|date:"d/m/Y H:i:s" }}</span>
+             </div>
+        </div>
+       </fieldset>
+
+    </div> {# Fin form-main-container #}
+
+    {# --- Tabla de Pagos --- #}
+    <div class="dark-container mt-4"> {# mt-4 para separar de los fieldsets anteriores #}
+        <fieldset class="dark-group">
+            <legend class="dark-label">💳 Pagos Registrados para esta Reclamación ({{ pagos_asociados|length }}) - Total: ${{ total_pagado_reclamacion|floatformat:2|intcomma }} / Pendiente: ${{ monto_pendiente_reclamacion|floatformat:2|intcomma }}</legend>
+            {% if pagos_asociados %}
+                 <div class="table-container">
+                     <table class="data-table table-sm"> {# table-sm para hacerla más compacta #}
+                         <thead><tr><th>ID Pago</th><th>Fecha</th><th class="text-end">Monto</th><th>Forma Pago</th><th>Referencia</th><th>Estado</th><th>Acciones</th></tr></thead>
+                         <tbody>
+                             {% for pago in pagos_asociados %}
+                             <tr>
+                                 <td>{{ pago.pk }}</td>
+                                 <td>{{ pago.fecha_pago|date:"d/m/y" }}</td>
+                                 <td class="text-end">${{ pago.monto_pago|floatformat:2|intcomma }}</td>
+                                 <td>{{ pago.get_forma_pago_display|default:"-" }}</td>
+                                 <td>{{ pago.referencia_pago|escape|default:"-" }}</td>
+                                 <td>
+                                     <span class="badge {% if pago.activo %}badge-success{% else %}badge-secondary{% endif %}">
+                                         {{ pago.activo|yesno:"Activo,Inactivo" }}
+                                     </span>
+                                 </td>
+                                 <td class="actions"><div class="action-group">
+                                     {% if perms.myapp.view_pago %}
+                                     <a href="{% url 'myapp:pago_detail' pago.pk %}" class="action-icon" title="Ver Pago">👁️</a>
+                                     {% endif %}
+                                 </div></td>
+                             </tr>
+                             {% endfor %}
+                         </tbody>
+                     </table>
+                 </div>
+             {% else %}
+                  <p>No hay pagos registrados directamente para esta reclamación.</p>
+             {% endif %}
+        </fieldset>
+    </div>
+    {# --- Fin Tabla de Pagos --- #}
+
+  </section>
+</div>
+{% endblock content %}

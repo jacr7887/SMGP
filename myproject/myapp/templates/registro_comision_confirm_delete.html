@@ -1,0 +1,57 @@
+{% extends "home.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Confirmar Eliminación de Registro de Comisión{% endblock %}
+
+{% block content %}
+<div class="container" role="main" aria-labelledby="main-heading">
+    <section>
+        <h1 id="main-heading">⚠️ Confirmar Eliminación de Registro de Comisión</h1>
+
+        <div class="form-main-container">
+            <p class="lead">¿Estás seguro de que deseas eliminar permanentemente el siguiente registro de comisión?</p>
+            
+            <div class="detail-summary mb-3 p-3 border rounded">
+                <div class="dark-group">
+                    <span class="dark-label">🆔 ID Comisión:</span>
+                    <span>{{ object.pk|escape }}</span>
+                </div>
+                <div class="dark-group">
+                    <span class="dark-label">👤 Intermediario Beneficiario:</span>
+                    <span>{{ object.intermediario.nombre_completo|escape|default:"N/A" }}</span>
+                </div>
+                <div class="dark-group">
+                    <span class="dark-label">📋 Tipo:</span>
+                    <span>{{ object.get_tipo_comision_display|escape }}</span>
+                </div>
+                <div class="dark-group">
+                    <span class="dark-label">💰 Monto:</span>
+                    <span>${{ object.monto_comision|floatformat:2|intcomma|default:"0.00" }}</span>
+                </div>
+                <div class="dark-group">
+                    <span class="dark-label">📅 Fecha Cálculo:</span>
+                    <span>{{ object.fecha_calculo|date:"d/m/Y H:i"|default:"-" }}</span>
+                </div>
+                 <div class="dark-group">
+                    <span class="dark-label">🚦 Estado Actual:</span>
+                    <span>{{ object.get_estatus_pago_comision_display|escape }}</span>
+                </div>
+            </div>
+
+            <div class="alert alert-warning" role="alert">
+                <strong>¡Atención!</strong> Esta acción no se puede deshacer. Eliminar este registro de comisión podría afectar los reportes financieros y los saldos de los intermediarios. Considere marcar la comisión como "ANULADA" si es más apropiado.
+            </div>
+
+            <form method="post" class="mt-3">
+                {% csrf_token %}
+                <div class="form-actions detail-actions-container">
+                    <button type="submit" class="btn btn-danger">🗑️ Sí, eliminar permanentemente</button>
+                    <a href="{% url 'myapp:registro_comision_detail' object.pk %}" class="btn btn-success">🚫 No, cancelar</a>
+                </div>
+            </form>
+        </div>
+    </section>
+</div>
+
+{% endblock %}

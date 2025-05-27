@@ -1,0 +1,203 @@
+{% extends "home.html" %}
+{% load static %}
+{% load querystring_tags %} {# Necesario para ordenar/paginar manteniendo filtros #}
+
+{% block content %}
+<div class="container" role="main" aria-labelledby="main-heading"> {# Usar fluid para tabla potencialmente ancha #}
+  <section>
+    <h1 id="main-heading">🏢 Listado Completo de Afiliados Colectivos</h1> {# Icono relevante #}
+
+    <div class="header-actions"> {# Clase requerida #}
+      {% if perms.myapp.add_afiliadocolectivo %} {# Chequeo de permiso #}
+      <a href="{% url 'myapp:afiliado_colectivo_create' %}" class="nav_link" aria-label="Agregar nuevo afiliado colectivo"> {# Clase requerida #}
+        ➕ Nuevo Afiliado Colectivo
+      </a>
+      {% endif %}
+    </div>
+
+    {# --- Formulario de Búsqueda --- #}
+    <form method="get" class="search-form mb-3" aria-label="Formulario de búsqueda de afiliados colectivos"> {# Clase requerida #}
+      <input
+        type="text"
+        name="search" {# Parámetro usado en la vista #}
+        placeholder="🔍 Buscar por Razón Social, RIF, Email..."
+        value="{{ search_query|escape }}" {# Variable del contexto #}
+        aria-label="Campo de búsqueda global"
+        class="search-input" {# Clase requerida #}
+      />
+      <button type="submit" class="nav_link">Buscar</button> {# Clase requerida #}
+      <a href="{% url 'myapp:afiliado_colectivo_list' %}" class="nav_link" style="margin-left: 10px;" title="Limpiar búsqueda y filtros">Limpiar</a>
+    </form>
+
+    {# --- Contenedor de Tabla con Scroll --- #}
+    <div class="table-container" role="region" aria-labelledby="table-caption">
+      <table class="data-table" role="table">
+        <caption id="table-caption" class="visually-hidden">
+          Lista completa de afiliados colectivos registrados con todos sus campos. Haga clic en las cabeceras para ordenar.
+        </caption>
+        <thead role="rowgroup">
+          <tr role="row">
+            {# --- Cabeceras con Ordenación para TODOS los campos --- #}
+            <th class="sort-header" role="columnheader"> {# Clase requerida #}
+                <a href="?{% query_transform sort='razon_social' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🏢 Razón Social
+                    {% if current_sort == 'razon_social' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                </a>
+            </th>
+            <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='rif' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🆔 RIF
+                    {% if current_sort == 'rif' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+            </th>
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='activo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    💡 Activo
+                    {% if current_sort == 'activo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='tipo_empresa' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🏭 Tipo Empresa
+                    {% if current_sort == 'tipo_empresa' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+            <th class="sort-header" role="columnheader">
+                <a href="?{% query_transform sort='direccion_comercial' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    📍 Dir. Comercial
+                    {% if current_sort == 'direccion_comercial' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                </a>
+            </th>
+            <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='estado' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🗺️ Estado
+                    {% if current_sort == 'estado' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+            </th>
+            <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='municipio' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🏘️ Municipio
+                    {% if current_sort == 'municipio' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+            </th>
+            <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='ciudad' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🏙️ Ciudad
+                    {% if current_sort == 'ciudad' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+            </th>
+            <th class="sort-header" role="columnheader">
+                <a href="?{% query_transform sort='zona_postal' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    📮 Cód. Postal
+                    {% if current_sort == 'zona_postal' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+            <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='telefono_contacto' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    📞 Tel. Contacto
+                    {% if current_sort == 'telefono_contacto' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+            </th>
+            <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='email_contacto' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    📧 Email Contacto
+                    {% if current_sort == 'email_contacto' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+            </th>
+            <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='intermediario__nombre_completo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🤝 Intermediario
+                    {% if current_sort == 'intermediario__nombre_completo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+             {# Campos heredados de ModeloBase #}
+
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='fecha_creacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    ➕ F. Creación
+                    {% if current_sort == 'fecha_creacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+            </th>
+             <th class="sort-header" role="columnheader">
+                 <a href="?{% query_transform sort='fecha_modificacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🔄 F. Modificación
+                    {% if current_sort == 'fecha_modificacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                 </a>
+             </th>
+            <th role="columnheader">⚙️ Acciones</th> {# No ordenable #}
+          </tr>
+        </thead>
+        <tbody role="rowgroup">
+          {% for afiliado in object_list %} {# Usar context_object_name o object_list #}
+          <tr role="row">
+            {# --- Celdas con TODOS los campos --- #}
+            <td role="cell">{{ afiliado.razon_social|escape }}</td>
+            <td role="cell">{{ afiliado.rif|escape|default:"-" }}</td>
+            <td role="cell">
+                <span class="badge {% if afiliado.activo %}badge-success{% else %}badge-danger{% endif %}">
+                    {{ afiliado.activo|yesno:"Sí,No" }}
+                </span>
+            </td>
+            <td role="cell">{{ afiliado.get_tipo_empresa_display|escape }}</td>
+            <td role="cell" title="{{ afiliado.direccion_comercial|escape|default:'' }}">{{ afiliado.direccion_comercial|escape|truncatechars:30|default:"-" }}</td>
+            <td role="cell">{{ afiliado.get_estado_display|escape|default:"-" }}</td>
+            <td role="cell">{{ afiliado.municipio|escape|default:"-" }}</td>
+            <td role="cell">{{ afiliado.ciudad|escape|default:"-" }}</td>
+            <td role="cell">{{ afiliado.zona_postal|escape|default:"-" }}</td>
+            <td role="cell">{{ afiliado.telefono_contacto|escape|default:"-" }}</td>
+            <td role="cell">{{ afiliado.email_contacto|escape|default:"-" }}</td>
+            <td role="cell">{{ afiliado.intermediario.nombre_completo|escape|default:"-" }}</td>
+            {# Campos heredados #}
+            <td role="cell">{{ afiliado.fecha_creacion|date:"d/m/Y H:i" }}</td>
+            <td role="cell">{{ afiliado.fecha_modificacion|date:"d/m/Y H:i" }}</td>
+
+            {# --- Acciones --- #}
+            <td class="actions" role="cell"> {# Clase requerida #}
+              <div class="action-group"> {# Clase requerida #}
+                 {% if perms.myapp.view_afiliadocolectivo %}
+                  <a href="{% url 'myapp:afiliado_colectivo_detail' afiliado.pk %}" class="action-icon" title="Ver Detalles" aria-label="Ver detalles del afiliado {{ afiliado.razon_social|escape }}">👁️</a> {# Clase requerida #}
+                {% endif %}
+                {% if perms.myapp.change_afiliadocolectivo %}
+                  <a href="{% url 'myapp:afiliado_colectivo_update' afiliado.pk %}" class="action-icon" title="Editar" aria-label="Editar afiliado {{ afiliado.razon_social|escape }}">✏️</a> {# Clase requerida #}
+                {% endif %}
+                {% if perms.myapp.delete_afiliadocolectivo %}
+                  <a href="{% url 'myapp:afiliado_colectivo_delete' afiliado.pk %}" class="action-icon delete-link" title="Eliminar" aria-label="Eliminar afiliado {{ afiliado.razon_social|escape }}">❌</a> {# Clases requeridas #}
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr role="row">
+             {# Ajusta colspan al número TOTAL de columnas (18 datos + 1 acción = 19) #}
+            <td colspan="19" class="no-results" role="cell"> {# Clase requerida #}
+              📭 No se encontraron afiliados colectivos que coincidan con la búsqueda.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# --- Paginación --- #}
+    {% if is_paginated %}
+    <nav aria-label="Navegación de páginas de afiliados colectivos">
+      <div class="django-pagination"> {# Clase requerida #}
+        {% if page_obj.has_previous %}
+          <a href="?{% query_transform page=1 %}" class="btn-pagination" aria-label="Primera página">« Primera</a> {# Clase requerida #}
+          <a href="?{% query_transform page=page_obj.previous_page_number %}" class="btn-pagination" aria-label="Página anterior">‹ Anterior</a> {# Clase requerida #}
+        {% endif %}
+        <span class="pagination-current" aria-current="page"> {# Clase requerida #}
+          Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+        </span>
+        {% if page_obj.has_next %}
+          <a href="?{% query_transform page=page_obj.next_page_number %}" class="btn-pagination" aria-label="Siguiente página">Siguiente ›</a> {# Clase requerida #}
+          <a href="?{% query_transform page=page_obj.paginator.num_pages %}" class="btn-pagination" aria-label="Última página">Última »</a> {# Clase requerida #}
+        {% endif %}
+      </div>
+    </nav>
+    {% endif %}
+
+  </section>
+</div>
+
+{% endblock content %}

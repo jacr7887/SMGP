@@ -1,0 +1,52 @@
+{% extends "base.html" %} {% block content %}
+<div class="container">
+  <h2>{{ view.model._meta.verbose_name_plural }}</h2>
+
+  <div class="mb-3">
+    <input
+      type="text"
+      id="searchInput"
+      placeholder="Buscar..."
+      class="form-control"
+    />
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-striped table-hover">
+      <thead>
+        <tr>
+          {% for field in view.model._meta.fields %}
+          <th data-sort="{{ field.get_internal_type }}">
+            {{ field.verbose_name }}
+          </th>
+          {% endfor %}
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for object in object_list %}
+        <tr>
+          {% for field in view.model._meta.fields %}
+          <td>{{ object|getattr:field.name }}</td>
+          {% endfor %}
+          <td>
+            <a
+              href="{% url view.model|get_update_url object.pk %}"
+              class="btn btn-sm btn-warning"
+              >✏️</a
+            >
+            <a
+              href="{% url view.model|get_delete_url object.pk %}"
+              class="btn btn-sm btn-danger"
+              >🗑️</a
+            >
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% include "pagination.html" %}
+</div>
+{% endblock %}

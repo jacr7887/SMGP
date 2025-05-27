@@ -1,0 +1,102 @@
+{% extends "home.html" %}
+{% load static %}
+
+{% block title %}⚠️ Confirmar Eliminación Factura{% endblock title %}
+
+{% block content %}
+<div class="container" role="main" aria-labelledby="main-heading">
+    <section>
+        <h1 id="main-heading">⚠️ Confirmar Eliminación Factura: {{ object.numero_recibo|escape|default:"[Sin Número]" }}</h1>
+
+        <p>Estás a punto de eliminar permanentemente la siguiente factura. Revisa los detalles:</p>
+
+        {% if tiene_pagos %}
+        <div class="alert alert-danger" role="alert"> {# Usar alert-danger para bloqueo #}
+            <strong>¡OPERACIÓN BLOQUEADA!</strong> Esta factura tiene <strong>{{ cantidad_pagos }} pago{{ cantidad_pagos|pluralize:" ,s" }} asociado{{ cantidad_pagos|pluralize:" ,s" }}</strong> y no puede ser eliminada. Primero debe eliminar o desvincular los pagos.
+        </div>
+        {% else %}
+        <div class="alert alert-warning" role="alert">
+            <strong>¡Advertencia Importante!</strong> Esta acción es <strong>irreversible</strong>.
+        </div>
+        {% endif %}
+
+        <div class="form-main-container detail-summary mb-4">
+            <fieldset class="mb-4">
+                <legend>👤 Datos del Titular</legend>
+                <div class="dark-grid">
+                    <div class="dark-group"><span class="dark-label">👤 Nombre</span><span>{{ object.get_full_name_factura|escape|default:"-" }}</span></div>
+                </div>
+            </fieldset>
+
+             <fieldset class="mb-4">
+                <legend>🧾 Detalles Factura</legend>
+                <div class="dark-grid">
+                    <div class="dark-group"><span class="dark-label">#️⃣ ID</span><span>{{ object.id }}</span></div>
+                    <div class="dark-group"><span class="dark-label">🧾 Número Recibo</span><span>{{ object.numero_recibo|escape|default:"-" }}</span></div>
+                    <div class="dark-group"><span class="dark-label">🗓️ Vigencia</span><span>{{ object.vigencia_recibo_desde|date:"d/m/y" }} - {{ object.vigencia_recibo_hasta|date:"d/m/y" }}</span></div>
+                    <div class="dark-group"><span class="dark-label">📅 Días Período</span><span>{{ object.dias_periodo_cobro|default:"-" }}</span></div>
+                </div>
+            </fieldset>
+
+            <fieldset class="mb-4">
+                <legend>🔗 Contrato e Intermediario</legend>
+                 <div class="dark-grid">
+                    <div class="dark-group"><span class="dark-label">📜 Contrato</span><span>{% if object.contrato_individual %}{{ object.contrato_individual }}{% elif object.contrato_colectivo %}{{ object.contrato_colectivo }}{% else %}-{% endif %}</span></div>
+                    <div class="dark-group"><span class="dark-label">🤝 Intermediario</span><span>{{ object.intermediario|default:"-" }}</span></div>
+                </div>
+            </fieldset>
+
+            <fieldset class="mb-4">
+                <legend>💲 Montos y Pagos</legend>
+                <div class="dark-grid">
+                    <div class="dark-group"><span class="dark-label">💲 Monto Total</span><span>{{ object.monto|floatformat:2 }}</span></div>
+                    <div class="dark-group"><span class="dark-label">⏳ Monto Pendiente</span><span>{{ object.monto_pendiente|floatformat:2 }}</span></div>
+                    <div class="dark-group"><span class="dark-label">✅ Pagada</span><span>{% if object.pagada %}<span class="badge badge-success">Sí</span>{% else %}<span class="badge badge-danger">No</span>{% endif %}</span></div>
+                    <div class="dark-group"><span class="dark-label">💲 Aplica IGTF</span><span>{% if object.aplica_igtf %}<span class="badge badge-success">Sí</span>{% else %}<span class="badge badge-danger">No</span>{% endif %}</span></div> {# Nuevo #}
+                    <div class="dark-group"><span class="dark-label">🔗 N° Rel. Ingreso</span><span>{{ object.relacion_ingreso|default:"-" }}</span></div>
+                </div>
+            </fieldset>
+
+            <fieldset class="mb-4">
+                <legend>📊 Estatus y Configuración</legend>
+                <div class="dark-grid">
+                    <div class="dark-group"><span class="dark-label">⚡ Activo</span><span>{% if object.activo %}<span class="badge badge-success">Activo</span>{% else %}<span class="badge badge-danger">Inactivo</span>{% endif %}</span></div>
+                    <div class="dark-group"><span class="dark-label">📊 Estatus Factura</span><span>{{ object.get_estatus_factura_display }}</span></div>
+                    <div class="dark-group"><span class="dark-label">📨 Estatus Emisión</span><span>{{ object.get_estatus_emision_display }}</span></div>
+                </div>
+            </fieldset>
+
+            <fieldset class="mb-4"> {# Nuevo #}
+                <legend>📝 Observaciones</legend>
+                <div class="dark-grid">
+                    <div class="dark-group" style="grid-column: 1 / -1;">
+                         <span class="dark-label">📝 Observaciones</span>
+                         {% if object.observaciones %}<p>{{ object.observaciones|escape|linebreaksbr }}</p>{% else %}<span>-</span>{% endif %}
+                    </div>
+                </div>
+            </fieldset>
+
+             <fieldset class="mb-4">
+                <legend>⏳ Metadatos</legend>
+                 <div class="dark-grid">
+                    <div class="dark-group"><span class="dark-label">⏳ Creado</span><span>{{ object.fecha_creacion|date:"d/m/Y H:i" }}</span></div>
+                    <div class="dark-group"><span class="dark-label">🔄 Modificado</span><span>{{ object.fecha_modificacion|date:"d/m/Y H:i" }}</span></div>
+                </div>
+            </fieldset>
+
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-actions">
+                {# El botón se deshabilita si hay pagos para evitar confusión, aunque la vista lo bloquea #}
+                <button type="submit" class="btn btn-warning" {% if tiene_pagos %}disabled title="No se puede eliminar: tiene pagos asociados"{% endif %}>
+                    ✔️ Sí, eliminar permanentemente
+                </button>
+                <a href="{{ object.get_absolute_url }}" class="btn btn-success" style="margin-left: 15px;">❌ No, cancelar</a>
+            </div>
+        </form>
+
+    </section>
+</div>
+{% endblock content %}

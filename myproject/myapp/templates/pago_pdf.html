@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    
+    <meta charset="UTF-8">
+    {% load humanize %}
+    <title>Recibo de Pago {% if pago.referencia_pago %}{{ pago.referencia_pago|escape }}{% else %}#{{ pago.pk }}{% endif %}</title>
+    <style type="text/css">
+        @page {
+            size: letter;
+            margin: 1.5cm;
+        }
+        @frame header_frame {
+            -pdf-frame-content: header_content;
+            left: 1.5cm; width: 18.6cm;
+            top: 1cm; height: 2cm;
+        }
+        @frame content_frame {
+            left: 1.5cm; width: 18.6cm;
+            top: 3.5cm;
+            height: 21.5cm;
+        }
+        @frame footer_frame {
+            -pdf-frame-content: footer_content;
+            left: 1.5cm; width: 18.6cm;
+            bottom: 1cm; height: 1cm;
+        }
+
+        body {
+            font-family: "Helvetica", Arial, sans-serif;
+            font-size: 10pt;
+            color: #333333;
+            line-height: 1.4;
+        }
+
+        #header_content .company-details {
+            text-align: left;
+            font-size: 9pt;
+            color: #555555;
+        }
+        #header_content h1 {
+            margin: 0;
+            padding: 0;
+            font-size: 18pt;
+            color: #000000;
+            text-align: center;
+            padding-top: 0.5cm;
+        }
+        #footer_content {
+            text-align: center;
+            font-size: 8pt;
+            color: #666666;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 0.8cm;
+            page-break-inside: auto;
+        }
+        th, td {
+            border: 1px solid #cccccc;
+            padding: 5pt;
+            text-align: left;
+            vertical-align: top;
+            font-size: 9.5pt;
+            page-break-inside: avoid;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+            color: #000000;
+        }
+        tr { page-break-inside: avoid; }
+
+        .section-title {
+            font-size: 12pt;
+            font-weight: bold;
+            margin-top: 0.8cm;
+            margin-bottom: 0.4cm;
+            border-bottom: 1px solid #000000;
+            padding-bottom: 3pt;
+            page-break-after: avoid;
+        }
+
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .text-bold { font-weight: bold; }
+        .no-border td { border: none; }
+
+        .info-grid {
+            width: 100%;
+            margin-bottom: 0.5cm;
+            border: none;
+        }
+        .info-grid td {
+            border: none;
+            padding: 2pt 0;
+            vertical-align: middle;
+        }
+        .info-grid .label {
+            font-weight: bold;
+            width: 28%;
+            padding-right: 6pt;
+        }
+        .info-grid .value {
+            width: 72%;
+        }
+
+        .observaciones {
+            margin-top: 0.8cm;
+            padding: 0.5cm;
+            border: 1px dashed #cccccc;
+            font-size: 9pt;
+            background-color: #f9f9f9;
+            page-break-inside: avoid;
+        }
+
+        .nota-igtf {
+            font-size: 8.5pt;
+            color: #444444;
+            margin-top: 0.5cm;
+            text-align: center;
+            page-break-inside: avoid;
+            border-top: 1px dotted #ccc;
+            padding-top: 0.3cm;
+        }
+        .nota-igtf .text-bold {
+            color: #8B0000;
+        }
+    </style>
+</head>
+<body>
+    <div id="header_content">
+        <div class="company-details">
+            <strong>TU EMPRESA S.A.</strong><br>
+            RIF: J-12345678-9<br>
+            Dirección Fiscal Completa, Ciudad, Estado<br>
+            Teléfono: +58 XXX-XXXXXXX | Email: info@tuempresa.com
+        </div>
+        <h1>RECIBO DE PAGO</h1>
+    </div>
+
+    <div id="footer_content">
+        Documento generado el {% now "d/m/Y H:i" %} - Página <pdf:pagenumber /> de <pdf:pagecount />
+    </div>
+
+    <div id="main_content">
+        <table class="info-grid">
+            <tr>
+                <td class="label">Recibo N°:</td>
+                <td class="value text-bold">{% if pago.referencia_pago %}{{ pago.referencia_pago|escape }}{% else %}Interno #{{ pago.pk }}{% endif %}</td>
+                <td class="label">Fecha de Pago:</td>
+                <td class="value text-bold">{{ pago.fecha_pago|date:"d/m/Y" }}</td>
+            </tr>
+            <tr>
+                <td class="label">Fecha de Registro:</td>
+                <td class="value">{% if pago.fecha_notificacion_pago %}{{ pago.fecha_notificacion_pago|date:"d/m/Y" }}{% else %}{{ pago.fecha_creacion|date:"d/m/Y" }}{% endif %}</td>
+                <td class="label">Monto Recibido:</td>
+                <td class="value text-bold" style="font-size: 11pt;">${{ pago.monto_pago|default:0|floatformat:2|intcomma }}</td>
+            </tr>
+            <tr>
+                <td class="label">Forma de Pago:</td>
+                <td class="value">{{ pago.get_forma_pago_display|default:"No especificado" }}</td>
+                <td class="label">Referencia Banco/Op:</td>
+                <td class="value">{{ pago.referencia_pago|default:"-" }}</td>
+            </tr>
+            {% if pago_con_igtf %}
+            <tr>
+                <td class="label" style="color: #8B0000;">Pago en Divisas:</td>
+                <td class="value text-bold" colspan="3" style="color: #8B0000;">
+                    Sí (Sujeto a retención IGTF {{ tasa_igtf_display }})
+                </td>
+            </tr>
+            {% endif %}
+        </table>
+
+        <div class="section-title">Información del Cliente</div>
+        <table class="info-grid">
+            <tr>
+                <td class="label">Nombre / Razón Social:</td>
+                <td class="value">{{ cliente_nombre|default:"(No identificado)"|escape }}</td>
+            </tr>
+            <tr>
+                <td class="label">C.I. / RIF:</td>
+                <td class="value">{{ cliente_doc|default:"N/A"|escape }}</td>
+            </tr>
+            {% if contrato_asociado %}
+            <tr>
+                <td class="label">Contrato Vinculado:</td>
+                <td class="value">{{ contrato_asociado.numero_contrato|default:"N/A" }} ({{ contrato_asociado.get_ramo_display|default:'-' }})</td>
+            </tr>
+            {% endif %}
+        </table>
+
+        <div class="section-title">Concepto del Pago</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Concepto</th>
+                    <th class="text-right">Monto Aplicado</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        {% if factura_asociada %}
+                            Abono/Pago a Factura N° <span class="text-bold">{{ factura_asociada.numero_recibo|default:'S/N' }}</span>
+                            (Período: {{ factura_asociada.vigencia_recibo_desde|date:"d/m/Y" }} - {{ factura_asociada.vigencia_recibo_hasta|date:"d/m/Y" }})
+                            {% if factura_asociada.aplica_igtf %}
+                                <br><small style="color:#555; font-style: italic;">(Factura original incluye IGTF)</small>
+                            {% endif %}
+                        {% elif reclamacion_asociada %}
+                            Pago por Reclamación ID <span class="text-bold">{{ reclamacion_asociada.pk }}</span>
+                            (Tipo: {{ reclamacion_asociada.get_tipo_reclamacion_display }})
+                        {% else %}
+                            Pago recibido sin asociación específica en sistema.
+                        {% endif %}
+                    </td>
+                    <td class="text-right text-bold">${{ pago.monto_pago|default:0|floatformat:2|intcomma }}</td>
+                </tr>
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td class="text-right text-bold" style="border-top: 1px solid #555;">Total Recibido:</td>
+                    <td class="text-right text-bold" style="border-top: 1px solid #555;">${{ pago.monto_pago|default:0|floatformat:2|intcomma }}</td>
+                </tr>
+                {% if pago_con_igtf %}
+                <tr>
+                    <td class="text-right">Retención IGTF ({{ tasa_igtf_display }}):</td>
+                    <td class="text-right">${{ monto_igtf_percibido|default:0|floatformat:2|intcomma }}</td>
+                </tr>
+                <tr>
+                    <td class="text-right text-bold">Neto Aplicado:</td>
+                    <td class="text-right text-bold">${{ monto_abonado|default:0|floatformat:2|intcomma }}</td>
+                </tr>
+                {% endif %}
+            </tfoot>
+        </table>
+
+        {% if pago.observaciones_pago %}
+        <div class="observaciones">
+            <span class="text-bold">Observaciones Adicionales:</span><br>
+            {{ pago.observaciones_pago|escape|linebreaksbr }}
+        </div>
+        {% endif %}
+
+        {% if pago_con_igtf %}
+        <p class="nota-igtf">
+            Este pago fue realizado en divisas y estuvo sujeto a la retención del 
+            <span class="text-bold">Impuesto a las Grandes Transacciones Financieras (IGTF)</span>
+            a la tasa vigente ({{ tasa_igtf_display }}). Se aplicó una retención de 
+            ${{ monto_igtf_percibido|default:0|floatformat:2|intcomma }}, resultando un monto neto aplicado de 
+            ${{ monto_abonado|default:0|floatformat:2|intcomma }}.
+        </p>
+        {% endif %}
+
+        <div style="margin-top: 1.5cm; font-size: 9pt; text-align: center; border-top: 1px solid #ccc; padding-top: 0.5cm;">
+            Este recibo confirma la recepción del pago descrito. Para cualquier consulta, contacte a nuestro departamento de cobranzas.
+            <br><strong>*** Documento No Fiscal ***</strong>
+        </div>
+    </div>
+</body>
+</html>

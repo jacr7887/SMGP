@@ -1,0 +1,44 @@
+{% comment %}
+Este include renderiza un campo de formulario con su etiqueta, errores y texto de ayuda.
+Contexto esperado:
+- field: El BoundField de Django (ej. form.nombre_campo)
+- label_icon: (Opcional) Emoji o HTML para un icono antes de la etiqueta.
+- required_star: (Opcional) Booleano, si es True añade un (*) a la etiqueta.
+- nolabel: (Opcional) Booleano, si es True no renderiza la <label>.
+{% endcomment %}
+
+{% if field %}
+  <div class="dark-group {% if field.errors %}error{% endif %} {% if field.field.widget_type == 'checkboxinput' and not field.label_tag|find:'switch' %}form-field-inline{% endif %}">
+    {% if not nolabel %}
+      <label class="dark-label" for="{{ field.id_for_label }}">
+        {% if label_icon %}<span class="label-icon" aria-hidden="true">{{ label_icon|safe }}</span> {% endif %}
+        {{ field.label }}
+        {% if required_star or field.field.required %}(*){% endif %}
+      </label>
+    {% endif %}
+
+    {% if field.field.widget_type == 'checkboxinput' and not field.css_classes|find:'switch' %}
+      {# Renderizado especial para checkboxes sin la clase 'switch' para alineación #}
+      <div class="checkbox-container">
+        {{ field }}
+      </div>
+    {% elif field.css_classes|find:'switch' %}
+      {# Si ya tiene la clase switch, asumimos que la etiqueta <label class="switch"> está manejada por el widget o el template principal #}
+      {{ field }}
+    {% else %}
+      {{ field }}
+    {% endif %}
+
+    {% if field.errors %}
+      <ul class="error-messages" role="alert" aria-live="assertive">
+        {% for error in field.errors %}
+          <li>{{ error|escape }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {% if field.help_text %}
+      <small class="form-text text-muted" id="{{ field.id_for_label }}-help">{{ field.help_text|escape }}</small>
+    {% endif %}
+  </div>
+{% endif %}

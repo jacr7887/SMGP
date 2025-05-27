@@ -1,0 +1,122 @@
+{% extends "home.html" %} {% load humanize %} {% load i18n %} {% block content
+%}
+
+<article aria-label="Detalle de Recibo">
+  <h1>Gestión de Recibo #{{ object.numero_recibo }}</h1>
+  <form method="post" enctype="multipart/form-data" role="form">
+    {% csrf_token %}
+    <fieldset>
+      <legend>Datos Principales</legend>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="id_numero_recibo">Número de Recibo:</label>
+          {{ form.numero_recibo }}
+        </div>
+        <div class="form-group">
+          <label>Contrato Individual:</label>
+          {% if object.contrato_individual %}
+          <div class="related-preview">
+            <a
+              href="{% url 'contrato_detail' object.contrato_individual.pk %}"
+              aria-label="Ver contrato individual"
+            >
+              {{ object.contrato_individual.numero_contrato }}
+            </a>
+            <span
+              >{{ object.contrato_individual.afiliado.nombre_completo }}</span
+            >
+          </div>
+          {% else %} {{ form.contrato_individual }} {% endif %}
+        </div>
+        <div class="form-group">
+          <label>Contrato Colectivo:</label>
+          {% if object.contrato_colectivo %}
+          <div class="related-preview">
+            <a
+              href="{% url 'contrato_detail' object.contrato_colectivo.pk %}"
+              aria-label="Ver contrato colectivo"
+            >
+              {{ object.contrato_colectivo.numero_contrato }}
+            </a>
+            <span>{{ object.contrato_colectivo.razon_social }}</span>
+          </div>
+          {% else %} {{ form.contrato_colectivo }} {% endif %}
+        </div>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Vigencia y Montos</legend>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Vigencia Desde:</label>
+          {{ form.vigencia_recibo_desde }}
+        </div>
+        <div class="form-group">
+          <label>Vigencia Hasta:</label>
+          {{ form.vigencia_recibo_hasta }}
+        </div>
+        <div class="form-group">
+          <label>Monto Total:</label>
+          {{ form.monto }}
+        </div>
+        <div class="form-group">
+          <label>Días Período Cobro:</label>
+          {{ form.dias_periodo_cobro }}
+        </div>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Estado y Pagos</legend>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Estatus Emisión:</label>
+          {{ form.estatus_emision }}
+        </div>
+        <div class="form-group">
+          <label>Pagada:</label>
+          {{ form.pagada }}
+        </div>
+        <div class="form-group">
+          <label>Relación de Ingreso:</label>
+          {{ form.relacion_ingreso }}
+        </div>
+      </div>
+    </fieldset>
+    <fieldset class="auditoria">
+      <legend>Auditoría</legend>
+      <div class="audit-info">
+        <p>Creado el: {{ object.fecha_creacion|date:"d/m/Y H:i" }}</p>
+        <p>
+          Última modificación: {{ object.fecha_modificacion|date:"d/m/Y H:i" }}
+        </p>
+        <p>Estado: {% if object.activo %}Activo{% else %}Inactivo{% endif %}</p>
+      </div>
+    </fieldset>
+    <div class="form-actions">
+      <button type="submit" aria-label="Guardar cambios">
+        Guardar Cambios
+      </button>
+      <a href="{% url 'recibo_list' %}" class="cancel" aria-label="Cancelar"
+        >Cancelar</a
+      >
+    </div>
+  </form>
+  <section aria-label="Pagos Relacionados">
+    <h2>Pagos Asociados</h2>
+    {% if object.pago_set.all %}
+    <ul class="related-list">
+      {% for pago in object.pago_set.all %}
+      <li>
+        <a href="{% url 'pago_detail' pago.pk %}" aria-label="Ver pago">
+          Pago #{{ pago.id }} - {{ pago.monto_pago|floatformat:2|intcomma }}
+        </a>
+        <span class="status">{{ pago.get_forma_pago_display }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p>No existen pagos asociados a este recibo</p>
+    {% endif %}
+  </section>
+</article>
+{% endblock %}

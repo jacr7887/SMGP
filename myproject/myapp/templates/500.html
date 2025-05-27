@@ -1,0 +1,95 @@
+{% extends "base.html" %} 
+{% load static %}
+
+{% block title %}Error Arcano Inesperado - ¡Fallo en el Hechizo!{% endblock %} {# Título temático #}
+
+{% block extra_css %}
+<style>
+    .servererror-container { /* Cambiado nombre de clase */
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 60vh; 
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-light);
+        /* Fondo ligeramente diferente para indicar seriedad, pero aún oscuro */
+        background: radial-gradient(circle, rgba(var(--danger-rgb), 0.1) 0%, rgba(var(--bg-dark-rgb), 0.5) 70%), var(--bg-dark);
+    }
+    .servererror-icon { /* Cambiado nombre de clase */
+        font-size: 5rem; 
+        color: var(--danger); /* Rojo para indicar error grave */
+        margin-bottom: 1.5rem;
+        text-shadow: 0 0 20px rgba(var(--danger-rgb), 0.6); /* Brillo rojo */
+        animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) both infinite; /* Animación de temblor */
+        transform: translate3d(0, 0, 0);
+    }
+     /* Animación simple de temblor */
+    @keyframes shake {
+      10%, 90% { transform: translate3d(-1px, 0, 0); }
+      20%, 80% { transform: translate3d(2px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-3px, 0, 0); }
+      40%, 60% { transform: translate3d(3px, 0, 0); }
+    }
+    .servererror-title { /* Cambiado nombre de clase */
+        font-size: 2rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: var(--text-light);
+    }
+    .servererror-message { /* Cambiado nombre de clase */
+        font-size: 1.1rem;
+        color: var(--text-muted);
+        max-width: 650px; /* Un poco más ancho */
+        margin-bottom: 2rem;
+        line-height: 1.6;
+    }
+    .servererror-actions .btn { /* Cambiado nombre de clase */
+        margin: 0 0.5rem;
+    }
+    .error-details { /* Para mostrar detalles técnicos si DEBUG=True (no recomendado en prod) */
+        margin-top: 2rem;
+        padding: 1rem;
+        background: rgba(0,0,0,0.3);
+        border-radius: 8px;
+        font-family: monospace;
+        font-size: 0.8rem;
+        color: #ccc;
+        text-align: left;
+        max-width: 800px;
+        max-height: 200px;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="servererror-container">
+    {# Icono de explosión, calavera, o engranaje roto #}
+    {# <i class="fas fa-bomb fa-5x servererror-icon"></i> #}
+    <div class="servererror-icon">🤯💥</div> {# Usando emoji de explosión #}
+    
+    <h1 class="servererror-title">¡Algo anda mal! (Error 500)</h1> 
+    
+    <p class="servererror-message">
+        Nuestros escribas arcanos ya han sido notificados y están trabajando para restaurar el orden.<br><br>
+        Por favor, intenta refrescar la página en unos momentos o regresa al inicio. Disculpa las molestias causadas por esta perturbación mágica.
+    </p>
+    
+    <div class="servererror-actions">
+        <button onclick="window.location.reload();" class="btn nav_link-sidebar">Intentar Recargar Hechizo 💫</button> 
+    </div>
+
+    {# Mostrar detalles del error solo si DEBUG está activo (NO en producción) #}
+    {% if debug %} 
+        <div class="error-details">
+            <h4>Detalles Técnicos (Solo Desarrollo):</h4>
+            <pre>{{ exception|escape }}</pre> {# Asume que la vista pasa 'exception' #}
+        </div>
+    {% endif %}
+
+</div>
+{% endblock %}

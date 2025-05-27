@@ -1,0 +1,103 @@
+{% extends "home.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block content %}
+<div class="container" role="main" aria-labelledby="main-heading">
+  <section>
+    <h1 id="main-heading">📋 Detalle de Auditoría del Sistema #{{ object.pk }}</h1>
+
+    <div class="header-actions">
+      <a href="{% url 'myapp:auditoria_sistema_list' %}" class="nav_link" aria-label="Volver al listado de auditorías">
+        ⬅️ Volver al Listado
+      </a>
+      {# Opcional: Permitir editar/eliminar auditoría (generalmente no recomendado) #}
+      {% if perms.myapp.change_auditoriasistema %}
+      <a href="{% url 'myapp:auditoria_sistema_update' object.pk %}" class="nav_link" aria-label="Editar auditoría {{ object.pk }}">
+        ✏️ Editar
+      </a>
+      {% endif %}
+      {% if perms.myapp.delete_auditoriasistema %}
+      <a href="{% url 'myapp:auditoria_sistema_delete' object.pk %}" class="nav_link delete-link" aria-label="Eliminar auditoría {{ object.pk }}">
+        ❌ Eliminar
+      </a>
+      {% endif %}
+    </div>
+
+    <div class="form-main-container"> {# Usando la clase de otros detalles #}
+
+      <fieldset class="mb-4">
+          <legend>ℹ️ Detalles de la Acción</legend>
+          <div class="dark-grid">
+            <div class="dark-group">
+                <span class="dark-label">#️⃣ ID Registro:</span>
+                <span>{{ object.pk }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🔄 Tipo de Acción:</span>
+                <span>{{ object.get_tipo_accion_display|default:object.tipo_accion }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">✅ Resultado:</span>
+                 <span class="badge {% if object.resultado_accion == 'EXITO' %}badge-success{% elif object.resultado_accion == 'ERROR' %}badge-danger{% else %}badge-secondary{% endif %}">
+                     {{ object.get_resultado_accion_display|default:object.resultado_accion }}
+                 </span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">👤 Usuario:</span>
+                <span>{{ object.usuario.get_full_name|default:object.usuario.username|default:"Sistema" }}</span>
+            </div>
+             <div class="dark-group">
+                <span class="dark-label">📦 Tabla Afectada:</span>
+                <span>{{ object.tabla_afectada|default:"N/A" }}</span>
+            </div>
+            <div class="dark-group">
+                <span class="dark-label">🔢 ID Registro Afectado:</span>
+                <span>{{ object.registro_id_afectado|default:"N/A" }}</span>
+            </div>
+             <div class="dark-group" style="grid-column: span 2;">
+                <span class="dark-label">📝 Detalle de Acción:</span>
+                 <p style="margin:0; white-space: pre-wrap;">{{ object.detalle_accion|escape|default:"-" }}</p>
+            </div>
+          </div>
+      </fieldset>
+
+      <fieldset>
+          <legend>⚙️ Información Técnica y de Tiempo</legend>
+           <div class="dark-grid">
+              <div class="dark-group">
+                <span class="dark-label">🌐 Dirección IP:</span>
+                <span>{{ object.direccion_ip|default:"-" }}</span>
+              </div>
+              <div class="dark-group" style="grid-column: span 2;">
+                <span class="dark-label">📱 Agente de Usuario:</span>
+                <p style="margin:0; word-break: break-all;">{{ object.agente_usuario|escape|default:"-" }}</p>
+              </div>
+              <div class="dark-group">
+                <span class="dark-label">⏰ Tiempo de Inicio:</span>
+                <span>{{ object.tiempo_inicio|date:"d/m/Y H:i:s.u" }}</span> {# Mostrar microsegundos #}
+              </div>
+              <div class="dark-group">
+                <span class="dark-label">⏳ Tiempo Final:</span>
+                <span>{{ object.tiempo_final|date:"d/m/Y H:i:s.u"|default:"-" }}</span> {# Mostrar microsegundos #}
+              </div>
+              <div class="dark-group">
+                <span class="dark-label">⏱️ Control Fecha Actual:</span>
+                <span>{{ object.control_fecha_actual|date:"d/m/Y H:i:s.u" }}</span> {# Mostrar microsegundos #}
+              </div>
+               {# Opcional: Calcular duración si existe tiempo final #}
+               {% if object.tiempo_final and object.tiempo_inicio %}
+               <div class="dark-group">
+                  <span class="dark-label">⏱️ Duración:</span>
+                   <span>{{ object.tiempo_final|timesince:object.tiempo_inicio }}</span> {# Usar timesince #}
+                   {# O para más precisión: {{ tiempo_proceso }} segundos (calculado en la vista) #}
+               </div>
+               {% endif %}
+           </div>
+      </fieldset>
+
+    </div>
+  </section>
+</div>
+
+{% endblock %}

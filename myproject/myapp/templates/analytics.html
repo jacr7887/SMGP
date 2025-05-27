@@ -1,0 +1,102 @@
+<!-- analytics.html -->
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ page_title }}</title>
+    <!-- Incluir Plotly localmente -->
+    <script src="{% static 'js/plotly-latest.min.js' %}"></script>
+  </head>
+  <body>
+    <h1>{{ page_title }}</h1>
+
+    <!-- Contenedor para las gráficas -->
+    <div id="graficas-container"></div>
+
+    <!-- Script para renderizar las gráficas -->
+    <script>
+      // Obtener los datos directamente del contexto de Django
+      const graficasData = JSON.parse("{{ graficas|escapejs }}");
+
+      // Función para renderizar una gráfica
+      function renderChart(containerId, data) {
+        try {
+          const { titulo, tipo, datos, etiquetas, colores } = data;
+
+          // Validar que los datos sean válidos
+          if (!datos || typeof datos !== "object") {
+            console.error(`Datos inválidos para la gráfica: ${titulo}`);
+            return;
+          }
+
+          // Procesar datos según el tipo de gráfica
+          let trace;
+          if (tipo === "pie") {
+            // Gráfica de tipo "pie"
+            trace = {
+              labels: Object.keys(datos),
+              values: Object.values(datos),
+              type: tipo,
+              marker: { colors: colores || ["#FF6384", "#36A2EB", "#FFCE56"] },
+            };
+          } else if (tipo === "scatter") {
+            // Gráfica de tipo "scatter"
+            trace = {
+              x: Object.keys(datos),
+              y: Object.values(datos),
+              type: tipo,
+              mode: "lines+markers",
+              line: { shape: "spline" },
+              marker: { color: colores || "#4bc0c0" },
+            };
+          } else {
+            // Gráfica de tipo "bar" u otros
+            trace = {
+              x: Object.keys(datos),
+              y: Object.values(datos),
+              type: tipo,
+              marker: { color: colores || "#4bc0c0" },
+            };
+          }
+
+          // Configuración del layout
+          const layout = {
+            title: titulo,
+            xaxis: { title: etiquetas?.x || "Categoría" },
+            yaxis: { title: etiquetas?.y || "Valor" },
+            plot_bgcolor: "rgba(0,0,0,0)",
+            paper_bgcolor: "rgba(0,0,0,0)",
+          };
+
+          // Renderizar la gráfica
+          Plotly.newPlot(containerId, [trace], layout);
+        } catch (error) {
+          console.error(`Error al renderizar la gráfica "${titulo}":`, error);
+        }
+      }
+
+      // Renderizar todas las gráficas
+      document.addEventListener("DOMContentLoaded", () => {
+        const container = document.getElementById("graficas-container");
+
+        // Validar que los datos sean válidos
+        if (!Array.isArray(graficasData)) {
+          console.error("Los datos de las gráficas no son válidos.");
+          return;
+        }
+
+        // Iterar sobre cada gráfica y renderizarla
+        graficasData.forEach((grafica, index) => {
+          const div = document.createElement("div");
+          div.id = `chart-${index}`;
+          div.style.width = "100%";
+          div.style.height = "400px";
+          container.appendChild(div);
+
+          renderChart(div.id, grafica);
+        });
+      });
+    </script>
+  </body>
+</html>

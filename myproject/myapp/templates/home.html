@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% load static %}
+
+<meta name="description" content="Panel de control para gestión de contratos, afiliados, reclamaciones y más" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';" >
+
+{% block content %}
+<main class="container" role="main"> {# CLASE 'container': Muy genérica. ¿Hay estilos globales para .container que interfieran? #}
+
+  {% if messages %}
+  <div class="messages-container" aria-live="polite">
+    {% for message in messages %}
+      {# CLASE 'alert': Común en frameworks. ¿Tienes estilos propios o de otro sitio que la usen? #}
+    <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %}" role="alert">
+      {{ message }}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if error %}
+    {# CLASE 'alert', 'alert-danger': Comunes. Verificar conflictos. #}
+  <div class="alert alert-danger" role="alert">
+    <span aria-hidden="true">⚠️</span> Error: {{ error }}
+  </div>
+  {% endif %}
+
+  {# CLASES: 'graphs-carousel-container', 'glass-card', 'animated'. 'animated' podría añadir transforms/transitions conflictivos. #}
+  <section class="graphs-carousel-container glass-card animated" aria-labelledby="graphs-heading">
+    <h2 id="graphs-heading" class="section-title">Carrusel de gráficos 🔮</h2>
+
+    <div class="search-container">
+       {# CLASES: 'search-form', 'search-input', 'nav_link-sidebar'. ¿Conflictos con otros formularios/botones? #}
+      <form method="get" action="" class="search-form" aria-label="Formulario de búsqueda de gráficas">
+        {% csrf_token %}
+        <input
+          type="text"
+          name="graph_search"
+          placeholder="Buscar gráficas..."
+          value="{{ graph_search|escape }}"
+          class="search-input"
+          aria-label="Buscar gráficas"
+        />
+        <button type="submit" class="nav_link-sidebar">
+          <span aria-hidden="true">🔍</span> Buscar
+        </button>
+      </form>
+    </div>
+
+    {# CLASE: 'carousel-container'. ¿Estilos asociados en CSS? #}
+    <div class="carousel-container">
+
+      {# CLASES: 'carousel-control', 'carousel-prev'. Críticas para JS/CSS. ¿Estilos genéricos de 'button' interfieren? #}
+      <button class="carousel-control carousel-prev" aria-label="Anterior gráfica">
+        <span aria-hidden="true">◀</span>
+      </button>
+
+      {# CLASE: 'carousel-wrapper'. ¿Estilos asociados? #}
+      <div class="carousel-wrapper">
+        {# CLASE: 'carousel-inner'. Crítica para JS/CSS. #}
+        <div class="carousel-inner">
+          {% for grafica in graficas %}
+          {# CLASES: 'carousel-item', 'active'. 'active' es MUY genérica. ¿Hay un '.active { display: block !important; }' o similar en otro sitio? #}
+          <div
+            class="carousel-item {% if forloop.first %}active{% endif %}"
+            id="grafica-{{ grafica.id }}"
+            data-graph-id="{{ grafica.id }}"
+          >
+            {# CLASES: 'graph-card', 'graph-title', 'graph-content'. Probablemente específicas. #}
+            <div class="graph-card">
+              <h3 class="graph-title">{{ grafica.title|escape }}</h3>
+              <div class="graph-content">
+                {{ grafica.html|safe }}
+              </div>
+            </div>
+          </div>
+          {% empty %}
+          <div class="carousel-item active"> {# Correcto que tenga 'active' aquí #}
+            <div class="graph-card">
+              <h3 class="graph-title">No hay gráficas disponibles</h3>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <button class="carousel-control carousel-next" aria-label="Siguiente gráfica">
+        <span aria-hidden="true">▶</span>
+      </button>
+
+    </div>
+
+    {# CLASE: 'carousel-indicators'. Crítica para JS/CSS. #}
+    <div class="carousel-indicators" role="tablist">
+      {% for grafica in graficas %}
+      {# CLASES: 'carousel-indicator', 'active'. Críticas. ¿Conflicto con '.active'? #}
+      <button
+        class="carousel-indicator {% if forloop.first %}active{% endif %}"
+        data-slide-to="{{ forloop.counter0 }}"
+        aria-label="Gráfica {{ forloop.counter }}"
+        role="tab"
+        aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
+        aria-controls="grafica-{{ grafica.id }}"
+      ></button>
+      {% endfor %}
+    </div>
+
+  </section>
+
+</main>
+{% endblock %}
