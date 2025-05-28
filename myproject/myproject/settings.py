@@ -118,6 +118,9 @@ LICENSE_EXEMPT_URL_NAMES = [
 LOGIN_REDIRECT_URL = '/home/'
 
 SMGP_LICENSE_VERIFY_KEY_B64 = '48FUC+B/1sYVGhvmnRQuXKWwKqcIsg1cE49xF5VRxIY='
+if not SMGP_LICENSE_VERIFY_KEY_B64:
+
+    print("WARNING: SMGP_LICENSE_VERIFY_KEY_B64 no está definida en el entorno. La verificación de licencias podría fallar.")
 
 WSGI_APPLICATION = 'myproject.wsgi.application'
 

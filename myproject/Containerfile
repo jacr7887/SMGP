@@ -1,34 +1,50 @@
-# Usa una imagen base de Python
-FROM python:3.13
+# Usa una imagen base de Python delgada
+FROM python:3.10-slim
+# Considera 3.10 o 3.11 en lugar de 3.13 si sigues teniendo problemas de compatibilidad de paquetes
+# FROM python:3.13-slim
 
 # Establecer variables de entorno para Python
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
-# Establecer directorio de trabajo
+# Establecer directorio de trabajo DENTRO del contenedor
 WORKDIR /app
 
-# Instalar dependencias del sistema (si psycopg2 las necesita, etc.)
-# Para Debian/Ubuntu based:
+# Instalar dependencias del sistema necesarias para psycopg2 (PostgreSQL)
+# y cualquier otra que tus paquetes Python puedan necesitar para compilarse.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
-    # Otras dependencias que puedas necesitar (gcc, etc.)
+    # gcc \ # Descomenta si algún paquete Python necesita compilar extensiones C
     && rm -rf /var/lib/apt/lists/*
 
-# Copiar archivos de requerimientos e instalar dependencias de Python
-COPY requirements.txt .
+# Copiar SOLO el archivo de requerimientos primero para aprovechar el cacheado de capas
+# Asume que requirements.txt está en myproject/ (el contexto de construcción)
+COPY requirements.txt ./requirements.txt
+# Instalar dependencias de Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar el resto de tu aplicación
-COPY . .
+# Copiar el script de entrypoint al WORKDIR (/app) y darle permisos de ejecución
+# Asume que entrypoint.sh está en myproject/ (el contexto de construcción)
+COPY entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+# También puedes ponerlo directamente en /usr/local/bin si prefieres:
+# COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+# RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Copiar el script de entrypoint y darle permisos
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Copiar TODO el resto del código de la aplicación (desde el contexto myproject/)
+# al WORKDIR (/app) dentro del contenedor.
+# Esto incluirá myapp/, manage.py, etc.
+COPY . .
+# Dado que el contexto es myproject/, y el WORKDIR es /app,
+# myproject/manage.py -> /app/manage.py
+# myproject/myapp/   -> /app/myapp/
+# El Containerfile mismo y requirements.txt también se copiarán a /app, lo cual es inofensivo.
 
 # Exponer el puerto que usa tu aplicación (ej. 8000 para Gunicorn)
 EXPOSE 8000
 
 # Comando por defecto que se ejecuta cuando el contenedor inicia
-ENTRYPOINT ["/entrypoint.sh"]
-# CMD [] # Puedes tener un CMD si quieres que el entrypoint sea más flexible
+# Ahora que entrypoint.sh está en /app/entrypoint.sh (o /usr/local/bin/):
+ENTRYPOINT ["/app/entrypoint.sh"]
+# O si lo copiaste a /usr/local/bin:
+# ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
