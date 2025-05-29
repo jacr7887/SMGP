@@ -1,44 +1,35 @@
-# Usa una imagen base de Python delgada
-FROM python:3.11-slim
+# Ubicado en ~/SMGP/myproject/Containerfile
+# Para ser construido desde ~/SMGP/myproject/ con: podman build -t mi-smgp-app .
 
-# Establecer variables de entorno para Python
+FROM python:3.11-slim # O la versión que te esté funcionando mejor
+
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
-
-# Establecer variables de entorno para pip
-# Estas desactivan la caché de pip y la comprobación de versión,
-# lo que puede acelerar los builds y reducir el tamaño de la imagen.
 ENV PIP_NO_CACHE_DIR=off
 ENV PIP_DISABLE_PIP_VERSION_CHECK=on
-# NOTA: Los comentarios van en líneas separadas o después de la definición completa.
 
-# Establecer directorio de trabajo dentro del contenedor
 WORKDIR /app
 
-# Instalar dependencias del sistema
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
-    build-essential \
-    gcc \
-    git \
+    # build-essential gcc # Descomenta si pip install falla por compilación
     && rm -rf /var/lib/apt/lists/*
 
-# Actualizar pip a la última versión DENTRO del contenedor
-# Es buena práctica hacerlo después de instalar dependencias de sistema y antes de instalar requerimientos
 RUN pip install --upgrade pip
 
-# Copiar SOLO el archivo de requerimientos primero
+# Copia requirements.txt (desde el contexto myproject/) a /app/ en la imagen
 COPY requirements.txt ./requirements.txt
-# Instalar dependencias de Python
-RUN pip install --no-cache-dir -r requirements.txt # pip ahora usará PIP_NO_CACHE_DIR=off
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar el script de entrypoint y darle permisos de ejecución
+# Copia entrypoint.sh (desde el contexto myproject/) a /app/ en la imagen
 COPY entrypoint.sh ./entrypoint.sh
-RUN chmod +x ./entrypoint.sh
+# Asegura permisos de ejecución DENTRO de la imagen
+RUN chmod +x /app/entrypoint.sh 
 
-# Copiar TODO el resto del código de la aplicación al WORKDIR (/app)
+# Copia todo el contenido del contexto actual (myproject/) a /app/
 COPY . .
 
 EXPOSE 8000
 
+# El ENTRYPOINT ahora buscará entrypoint.sh en /app/
 ENTRYPOINT ["/app/entrypoint.sh"]
