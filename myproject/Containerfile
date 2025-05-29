@@ -26,6 +26,6 @@ RUN chmod +x /app/entrypoint.sh
 COPY . .
 
 EXPOSE 8000
-
+RUN ls -la /app/entrypoint.sh && cat /app/entrypoint.sh && head -n 1 /app/entrypoint.sh | od -c
 # El ENTRYPOINT ahora buscará entrypoint.sh en /app/
 ENTRYPOINT ["/app/entrypoint.sh"]
