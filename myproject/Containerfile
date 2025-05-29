@@ -1,67 +1,46 @@
-# Usa una imagen base de Python delgada
+# Usa una imagen base de Python delgada (ej. 3.11 o 3.10)
 FROM python:3.11-slim
 
+# Establecer variables de entorno para Python
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
+
+# Establecer variables de entorno para pip
 ENV PIP_NO_CACHE_DIR=off
 ENV PIP_DISABLE_PIP_VERSION_CHECK=on
 
+# Establecer directorio de trabajo dentro del contenedor
 WORKDIR /app
 
+# Instalar dependencias del sistema (libpq-dev para psycopg2, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
-    # build-essential gcc git # Ya los instalaste, Podman probablemente use cache aquí
+    # gcc \ # Descomenta si algún paquete Python necesita compilar extensiones C
+    # git \ # Descomenta si necesitas git dentro de la imagen por alguna razón
     && rm -rf /var/lib/apt/lists/*
 
+# Actualizar pip
 RUN pip install --upgrade pip
 
-# Copia requirements.txt (desde el contexto myproject/) a /app/ en la imagen
+# Copiar el archivo de requerimientos (desde el contexto, ej. myproject/requirements.txt)
 COPY requirements.txt ./requirements.txt
+# Instalar dependencias de Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia TODO el contenido del contexto actual (myproject/) a /app/
-# Esto incluye entrypoint.sh, manage.py, myapp/, etc.
+# Copiar TODO el contenido del contexto de construcción (myproject/) a /app/ en la imagen
+# Esto copiará manage.py, entrypoint.sh, myapp/, myproject/ (la carpeta de settings), etc.
 COPY . .
 
-# AHORA, dale permisos de ejecución al entrypoint.sh que acabas de copiar con COPY . .
+# Dar permisos de ejecución al entrypoint.sh que ahora está en /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
-# Y si manage.py también necesita ser ejecutable directamente (aunque python lo ejecuta)
+# Opcional: Dar permisos a manage.py si es necesario para algún script
 # RUN chmod +x /app/manage.py
 
-# Tu línea de depuración (puedes quitarla una vez que funcione)
-# Usa una imagen base de Python delgada
-FROM python:3.11-slim
+# Línea de depuración para verificar permisos y contenido del entrypoint (puedes comentarla después)
+RUN ls -la /app/entrypoint.sh && echo "--- Content of entrypoint.sh: ---" && cat /app/entrypoint.sh && echo "--- End of entrypoint.sh ---" && echo "--- First line hex: ---" && head -n 1 /app/entrypoint.sh | od -c && echo "--- End of hex ---"
 
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
-ENV PIP_NO_CACHE_DIR=off
-ENV PIP_DISABLE_PIP_VERSION_CHECK=on
-
-WORKDIR /app
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq-dev \
-    # build-essential gcc git # Ya los instalaste, Podman probablemente use cache aquí
-    && rm -rf /var/lib/apt/lists/*
-
-RUN pip install --upgrade pip
-
-# Copia requirements.txt (desde el contexto myproject/) a /app/ en la imagen
-COPY requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copia TODO el contenido del contexto actual (myproject/) a /app/
-# Esto incluye entrypoint.sh, manage.py, myapp/, etc.
-COPY . .
-
-# AHORA, dale permisos de ejecución al entrypoint.sh que acabas de copiar con COPY . .
-RUN chmod +x /app/entrypoint.sh
-# Y si manage.py también necesita ser ejecutable directamente (aunque python lo ejecuta)
-# RUN chmod +x /app/manage.py
-
-# Tu línea de depuración (puedes quitarla una vez que funcione)
-RUN ls -la /app/entrypoint.sh && cat /app/entrypoint.sh && head -n 1 /app/entrypoint.sh | od -c
-
+# Exponer el puerto que usa tu aplicación
 EXPOSE 8000
 
+# Comando por defecto que se ejecuta cuando el contenedor inicia
 ENTRYPOINT ["/app/entrypoint.sh"]
