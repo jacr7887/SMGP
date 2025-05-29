@@ -5,11 +5,24 @@ set -e
 
 echo "RUNNING: Django MPC Entrypoint Script..."
 echo "----------------------------------------"
+echo "INFO: Current working directory: $(pwd)"
+echo "INFO: Listing files in current directory (/app):"
+ls -la
+echo "----------------------------------------"
+
+# Verificar si manage.py existe en la ubicación esperada
+if [ ! -f "manage.py" ]; then
+    echo "CRITICAL ERROR: manage.py not found in $(pwd) (expected in /app). Check your COPY commands in Containerfile."
+    # Listar contenido de /app para depuración
+    echo "INFO: Listing /app/ directory content:"
+    ls -la /app/
+    exit 1
+fi
 
 # 1. Aplicar migraciones de la base de datos
 echo "RUNNING: Applying database migrations..."
 python manage.py migrate --noinput
-echo "COMPLETED: Migrations (or noinput if already up-to-date)."
+echo "COMPLETED: Migrations (or no_input if already up-to-date)."
 echo "----------------------------------------"
 
 # 2. Crear/Asegurar el superusuario (usará las variables de entorno)
@@ -20,22 +33,23 @@ echo "----------------------------------------"
 
 # 3. Poblar con datos de demostración (seed_db)
 echo "INFO: Checking if database needs seeding..."
-NUM_CONTRATOS=$(python manage.py shell -c "from myapp.models import ContratoIndividual, ContratoColectivo; print(ContratoIndividual.objects.count() + ContratoColectivo.objects.count())" 2>/dev/null || echo "Error_Checking_Contracts")
-# El "2>/dev/null || echo "Error_Checking_Contracts" es para capturar errores si el comando shell falla
-# y asignar un valor no numérico a NUM_CONTRATOS para que el if siguiente no falle por sintaxis.
+# Usar --skip-checks para acelerar la ejecución del shell si es posible y no hay dependencias de settings completas
+# Capturar la salida de forma más robusta
+PYTHON_SHELL_COMMAND="from myapp.models import ContratoIndividual, ContratoColectivo; print(ContratoIndividual.objects.count() + ContratoColectivo.objects.count())"
+NUM_CONTRATOS=$(python manage.py shell --command="$PYTHON_SHELL_COMMAND" 2>/dev/null)
 
-echo "INFO: Current number of contracts found: '$NUM_CONTRATOS'"
-
-# Intentar convertir a entero para la comparación, si falla, asumir 0
-if ! [ "$NUM_CONTRATOS" -eq "$NUM_CONTRATOS" ] 2>/dev/null || [ -z "$NUM_CONTRATOS" ] || [ "$NUM_CONTRATOS" = "Error_Checking_Contracts" ]; then
-    echo "WARNING: Could not reliably determine contract count, assuming 0 for seeding decision."
+# Verificar si NUM_CONTRATOS es un número
+if ! echo "$NUM_CONTRATOS" | grep -Eq '^[0-9]+$'; then
+    echo "WARNING: Could not reliably determine contract count (Output: '$NUM_CONTRATOS'). Assuming 0 for seeding decision."
     NUM_CONTRATOS_INT=0
 else
     NUM_CONTRATOS_INT=$NUM_CONTRATOS
 fi
 
+echo "INFO: Current number of contracts found (integer): '$NUM_CONTRATOS_INT'"
+
 # Ajusta este umbral según sea necesario
-UMBRAL_CONTRATOS_PARA_SEED=5 
+UMBRAL_CONTRATOS_PARA_SEED=5
 
 if [ "$NUM_CONTRATOS_INT" -lt "$UMBRAL_CONTRATOS_PARA_SEED" ]; then
     echo "RUNNING: Number of contracts ($NUM_CONTRATOS_INT) is less than $UMBRAL_CONTRATOS_PARA_SEED. Seeding database..."
@@ -49,28 +63,46 @@ else
 fi
 echo "----------------------------------------"
 
-# 4. Recolectar archivos estáticos (DESCOMENTA SI NO LO HACES EN EL CONTAINERFILE)
-# echo "RUNNING: Collecting static files..."
-# python manage.py collectstatic --noinput --clear
-# echo "COMPLETED: Static files collected."
-# echo "----------------------------------------"
+# 4. Recolectar archivos estáticos (MUY IMPORTANTE si DEBUG=False y Gunicorn los va a servir o un proxy)
+# Si usas WhiteNoise, a menudo no necesitas un collectstatic explícito aquí si tus
+# archivos estáticos ya están en la imagen y WhiteNoise los encuentra.
+# Pero si vas a servir estáticos con Nginx o Gunicorn directamente (menos común para Django),
+# necesitas collectstatic.
+# Si tu Containerfile ya hace esto, puedes comentarlo aquí.
+# Si DEBUG=True, el servidor de desarrollo de Django maneja los estáticos.
+if [ "$DEBUG" = "False" ] || [ "$DJANGO_COLLECTSTATIC_ON_STARTUP" = "true" ] ; then
+    echo "RUNNING: Collecting static files (DEBUG is False or DJANGO_COLLECTSTATIC_ON_STARTUP is true)..."
+    python manage.py collectstatic --noinput --clear
+    echo "COMPLETED: Static files collected."
+    echo "----------------------------------------"
+else
+    echo "INFO: Skipping collectstatic (DEBUG is True and DJANGO_COLLECTSTATIC_ON_STARTUP is not 'true')."
+    echo "----------------------------------------"
+fi
+
 
 # 5. Iniciar el servidor de aplicación Gunicorn
 echo "RUNNING: Starting Gunicorn server..."
-echo "INFO: About to execute Gunicorn. If container exits now, Gunicorn failed to start or an earlier script command failed and exited due to 'set -e'."
-# sleep 10 # Descomenta esta línea temporalmente si quieres una pausa para revisar los logs antes de que Gunicorn intente iniciar y potencialmente falle rápido.
+echo "INFO: About to execute Gunicorn."
+echo "INFO: WSGI application path: myproject_config.wsgi:application" # AJUSTA ESTO
+echo "INFO: Binding to 0.0.0.0:8000"
+# sleep 10 # Descomenta para depurar si el contenedor se cierra muy rápido
 
-# Asegúrate de que la ruta a tu aplicación WSGI sea correcta.
-# Si tu WORKDIR es /app y tu proyecto Django se llama 'myproject' (la carpeta que contiene settings.py y wsgi.py),
-# y esa carpeta 'myproject' está directamente bajo /app (ej. /app/myproject/wsgi.py), entonces 'myproject.wsgi:application' es correcto.
-# Si la carpeta del proyecto Django se llama diferente o está en otra subruta de /app, ajusta 'myproject.wsgi:application'.
-exec gunicorn myproject.wsgi:application \
+# ¡¡¡ASEGÚRATE DE QUE 'myproject_config' SEA EL NOMBRE CORRECTO DE LA CARPETA!!!
+# (la carpeta que contiene tu wsgi.py, creada por "django-admin startproject myproject_config .")
+# Si tu manage.py está en /app/manage.py y tu wsgi.py está en /app/myproject_config/wsgi.py,
+# entonces Gunicorn necesita poder encontrar 'myproject_config.wsgi'.
+# El WORKDIR /app se añade al PYTHONPATH por defecto.
+exec gunicorn myproject_config.wsgi:application \
     --bind 0.0.0.0:8000 \
-    --workers 3 \
-    --log-level=debug \
+    --workers ${GUNICORN_WORKERS:-3} \
+    --threads ${GUNICORN_THREADS:-2} \
+    --timeout ${GUNICORN_TIMEOUT:-120} \
+    --log-level ${GUNICORN_LOG_LEVEL:-debug} \
     --access-logfile '-' \
     --error-logfile '-'
 
-# Si el script llega aquí, significa que 'exec gunicorn' no reemplazó el proceso del shell, lo cual es un problema.
-echo "ERROR: Gunicorn exec command did not take over as expected. Script is finishing, but Gunicorn is likely not running correctly."
-exit 1 # Salir con error si exec no funcionó
+# Si el script llega aquí, significa que 'exec gunicorn' no reemplazó el proceso del shell.
+echo "CRITICAL ERROR: Gunicorn exec command did not take over. Gunicorn likely failed to start or is misconfigured."
+echo "Check Gunicorn installation and WSGI application path."
+exit 1
