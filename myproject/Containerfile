@@ -1,21 +1,21 @@
-# Usa una imagen base de Python delgada y una versión estable como 3.10 o 3.11
-# Python 3.13 es muy nuevo y podría no tener wheels para todas tus dependencias.
+# Usa una imagen base de Python delgada
 FROM python:3.11-slim
-# FROM python:3.10-slim
 
 # Establecer variables de entorno para Python
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
-ENV PIP_NO_CACHE_DIR off # 'on' o 'off' para pip cache
-ENV PIP_DISABLE_PIP_VERSION_CHECK on
 
-# Establecer directorio de trabajo DENTRO del contenedor
+# Establecer variables de entorno para pip
+# Estas desactivan la caché de pip y la comprobación de versión,
+# lo que puede acelerar los builds y reducir el tamaño de la imagen.
+ENV PIP_NO_CACHE_DIR=off
+ENV PIP_DISABLE_PIP_VERSION_CHECK=on
+# NOTA: Los comentarios van en líneas separadas o después de la definición completa.
+
+# Establecer directorio de trabajo dentro del contenedor
 WORKDIR /app
 
-# Instalar dependencias del sistema necesarias
-# libpq-dev es para psycopg2 (PostgreSQL).
-# build-essential y gcc son por si algún paquete Python necesita compilar extensiones C.
-# git por si algún paquete se instala desde un repo git.
+# Instalar dependencias del sistema
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     build-essential \
@@ -23,37 +23,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiar SOLO el archivo de requerimientos primero para aprovechar el cacheado de capas
-# Asume que requirements.txt está en el contexto de construcción (myproject/)
-COPY requirements.txt ./requirements.txt
-
-# Instalar dependencias de Python
-# Considera actualizar pip primero dentro del build
+# Actualizar pip a la última versión DENTRO del contenedor
+# Es buena práctica hacerlo después de instalar dependencias de sistema y antes de instalar requerimientos
 RUN pip install --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar el script de entrypoint al WORKDIR (/app) y darle permisos de ejecución
-# Asume que entrypoint.sh está en el contexto de construcción (myproject/)
+# Copiar SOLO el archivo de requerimientos primero
+COPY requirements.txt ./requirements.txt
+# Instalar dependencias de Python
+RUN pip install --no-cache-dir -r requirements.txt # pip ahora usará PIP_NO_CACHE_DIR=off
+
+# Copiar el script de entrypoint y darle permisos de ejecución
 COPY entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
-# Alternativa: copiar a una ruta estándar y añadirla al PATH si fuera necesario
-# COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-# RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Copiar TODO el resto del código de la aplicación (desde el contexto myproject/)
-# al WORKDIR (/app) dentro del contenedor.
-# Esto incluirá myapp/, manage.py, myproject_config/ (con settings.py, wsgi.py) etc.
+# Copiar TODO el resto del código de la aplicación al WORKDIR (/app)
 COPY . .
-# Estructura resultante dentro de /app/:
-# /app/manage.py
-# /app/requirements.txt (copiado de nuevo, inofensivo)
-# /app/entrypoint.sh (copiado de nuevo, inofensivo)
-# /app/myapp/
-# /app/myproject_config/ (o como se llame la carpeta de tu proyecto Django)
-# etc.
 
-# Exponer el puerto que usa tu aplicación (ej. 8000 para Gunicorn)
 EXPOSE 8000
 
-# Comando por defecto que se ejecuta cuando el contenedor inicia
 ENTRYPOINT ["/app/entrypoint.sh"]
