@@ -6,15 +6,13 @@ set -e
 echo "RUNNING: Django MPC Entrypoint Script..."
 echo "----------------------------------------"
 echo "INFO: Current working directory: $(pwd)" # Debería ser /app (debido al WORKDIR en Containerfile)
-echo "INFO: Listing files in current directory (/app):"
-ls -la
+echo "INFO: Listing files in /app:"
+ls -la /app
 echo "----------------------------------------"
 
-# Verificar si manage.py existe en /app/manage.py (la ruta absoluta es más segura)
+# Verificar si manage.py existe en /app/manage.py
 if [ ! -f "/app/manage.py" ]; then
     echo "CRITICAL ERROR: /app/manage.py not found. WORKDIR or COPY commands in Containerfile might be incorrect."
-    echo "INFO: Listing /app/ directory content for debugging:"
-    ls -la /app/
     exit 1
 fi
 echo "INFO: manage.py found at /app/manage.py"
@@ -27,18 +25,20 @@ echo "----------------------------------------"
 
 # 2. Crear/Asegurar el superusuario (usará las variables de entorno)
 echo "RUNNING: Ensuring superuser exists..."
-python /app/manage.py ensure_superuser # Asume que este comando personalizado existe y funciona
-echo "COMPLETED: Superuser check/creation."
+python /app/manage.py ensure_superuser
+echo "COMPLETED: Superuser check/creation." # El comando ensure_superuser.py ahora da logs más detallados
 echo "----------------------------------------"
 
 # 3. Poblar con datos de demostración (seed_db)
 echo "INFO: Checking if database needs seeding..."
 PYTHON_SHELL_COMMAND="from myapp.models import ContratoIndividual, ContratoColectivo; print(ContratoIndividual.objects.count() + ContratoColectivo.objects.count())"
-NUM_CONTRATOS_OUTPUT=$(python /app/manage.py shell --command="$PYTHON_SHELL_COMMAND" 2>/dev/null || echo "ErrorDetectingContracts")
-NUM_CONTRATOS=$(echo "$NUM_CONTRATOS_OUTPUT" | tail -n 1) # Toma solo la última línea que debería ser el número
+# Ejecutar el comando de Django y capturar la salida. Redirige stderr a /dev/null. Si falla, NUM_CONTRATOS_OUTPUT será vacío.
+NUM_CONTRATOS_OUTPUT=$(python /app/manage.py shell --command="$PYTHON_SHELL_COMMAND" 2>/dev/null)
+# Extraer el último número de la salida, o default a "0_error" si no hay número
+NUM_CONTRATOS=$(echo "$NUM_CONTRATOS_OUTPUT" | grep -oE '[0-9]+$' | tail -n 1)
 
-if ! echo "$NUM_CONTRATOS" | grep -Eq '^[0-9]+$'; then
-    echo "WARNING: Could not reliably determine contract count (Raw output: '$NUM_CONTRATOS_OUTPUT', Extracted: '$NUM_CONTRATOS'). Assuming 0 for seeding."
+if [ -z "$NUM_CONTRATOS" ] || ! echo "$NUM_CONTRATOS" | grep -Eq '^[0-9]+$'; then
+    echo "WARNING: Could not reliably determine contract count (Raw output from shell: '$NUM_CONTRATOS_OUTPUT', Extracted for check: '$NUM_CONTRATOS'). Assuming 0 for seeding."
     NUM_CONTRATOS_INT=0
 else
     NUM_CONTRATOS_INT=$NUM_CONTRATOS
@@ -58,29 +58,27 @@ else
 fi
 echo "----------------------------------------"
 
-# 4. Recolectar archivos estáticos (importante si DEBUG=False)
+# 4. Recolectar archivos estáticos
 # Comprueba la variable de entorno DEBUG (debería ser pasada desde deploy.env)
 if [ "$DEBUG" = "False" ] || [ "$DJANGO_COLLECTSTATIC_ON_STARTUP" = "true" ] ; then
-    echo "RUNNING: Collecting static files (DEBUG is False or DJANGO_COLLECTSTATIC_ON_STARTUP is true)..."
+    echo "RUNNING: Collecting static files..."
     python /app/manage.py collectstatic --noinput --clear
     echo "COMPLETED: Static files collected."
     echo "----------------------------------------"
 else
-    echo "INFO: Skipping collectstatic (DEBUG is likely True and DJANGO_COLLECTSTATIC_ON_STARTUP is not 'true')."
+    echo "INFO: Skipping collectstatic (DEBUG is likely True or DJANGO_COLLECTSTATIC_ON_STARTUP not 'true')."
     echo "----------------------------------------"
 fi
 
 # 5. Iniciar el servidor de aplicación Gunicorn
 echo "RUNNING: Starting Gunicorn server..."
-echo "INFO: WSGI application path will be: myproject.wsgi:application"
+# Asumiendo que tu proyecto Django (la carpeta con settings.py, wsgi.py) se llama 'myproject'
+# y está en /app/myproject/ dentro del contenedor.
+WSGI_APP_MODULE="myproject.wsgi:application" 
+echo "INFO: WSGI application path will be: $WSGI_APP_MODULE"
 echo "INFO: Gunicorn will bind to 0.0.0.0:8000"
 
-# El WORKDIR /app se añade al PYTHONPATH, por lo que Gunicorn debería poder importar 'myproject.wsgi'
-# si tu estructura dentro de /app es:
-# /app/manage.py
-# /app/myproject/ (esta es la carpeta que contiene settings.py y wsgi.py)
-# /app/myapp/
-exec gunicorn myproject.wsgi:application \
+exec gunicorn "$WSGI_APP_MODULE" \
     --bind 0.0.0.0:8000 \
     --workers ${GUNICORN_WORKERS:-3} \
     --threads ${GUNICORN_THREADS:-2} \
@@ -91,5 +89,5 @@ exec gunicorn myproject.wsgi:application \
 
 # Si el script llega aquí, significa que 'exec gunicorn' no reemplazó el proceso del shell (ERROR).
 echo "CRITICAL ERROR (ENTRYPOINT): Gunicorn did not take over or exited unexpectedly."
-echo "Check Gunicorn installation, WSGI application path, and Gunicorn logs above."
+echo "Check Gunicorn installation, WSGI application path ('$WSGI_APP_MODULE'), and Gunicorn logs above."
 exit 1
