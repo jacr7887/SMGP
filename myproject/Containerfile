@@ -1,4 +1,6 @@
+# Usa una imagen base de Python delgada
 FROM python:3.11-slim
+
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 ENV PIP_NO_CACHE_DIR=off
@@ -8,7 +10,7 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
-    # build-essential gcc # Descomenta si pip install falla por compilación
+    # build-essential gcc git # Ya los instalaste, Podman probablemente use cache aquí
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --upgrade pip
@@ -17,15 +19,18 @@ RUN pip install --upgrade pip
 COPY requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia entrypoint.sh (desde el contexto myproject/) a /app/ en la imagen
-COPY entrypoint.sh ./entrypoint.sh
-# Asegura permisos de ejecución DENTRO de la imagen
-RUN chmod +x /app/entrypoint.sh 
-
-# Copia todo el contenido del contexto actual (myproject/) a /app/
+# Copia TODO el contenido del contexto actual (myproject/) a /app/
+# Esto incluye entrypoint.sh, manage.py, myapp/, etc.
 COPY . .
 
-EXPOSE 8000
+# AHORA, dale permisos de ejecución al entrypoint.sh que acabas de copiar con COPY . .
+RUN chmod +x /app/entrypoint.sh
+# Y si manage.py también necesita ser ejecutable directamente (aunque python lo ejecuta)
+# RUN chmod +x /app/manage.py
+
+# Tu línea de depuración (puedes quitarla una vez que funcione)
 RUN ls -la /app/entrypoint.sh && cat /app/entrypoint.sh && head -n 1 /app/entrypoint.sh | od -c
-# El ENTRYPOINT ahora buscará entrypoint.sh en /app/
+
+EXPOSE 8000
+
 ENTRYPOINT ["/app/entrypoint.sh"]
