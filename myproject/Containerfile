@@ -1,45 +1,62 @@
-# Usa una imagen base de Python delgada (ej. 3.11 o 3.10)
+# Usa una imagen base de Python delgada (Python 3.11 o 3.10 son buenas opciones estables)
 FROM python:3.11-slim
 
-# Establecer variables de entorno para Python
+# Establecer variables de entorno para Python (buenas prácticas)
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
-# Establecer variables de entorno para pip
+# Establecer variables de entorno para pip (desactivar caché y chequeo de versión)
 ENV PIP_NO_CACHE_DIR=off
 ENV PIP_DISABLE_PIP_VERSION_CHECK=on
 
-# Establecer directorio de trabajo dentro del contenedor
+# Establecer directorio de trabajo DENTRO del contenedor
 WORKDIR /app
 
-# Instalar dependencias del sistema (libpq-dev para psycopg2, etc.)
+# Instalar dependencias del sistema operativo necesarias
+# libpq-dev es para psycopg2 (PostgreSQL)
+# build-essential y gcc son necesarios si algún paquete Python necesita compilar extensiones C
+# git podría ser necesario si instalas algo directamente de un repo Git en requirements.txt
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
-    # gcc \ # Descomenta si algún paquete Python necesita compilar extensiones C
-    # git \ # Descomenta si necesitas git dentro de la imagen por alguna razón
+    build-essential \
+    gcc \
+    # git \ # Descomenta si es necesario
     && rm -rf /var/lib/apt/lists/*
 
-# Actualizar pip
+# Actualizar pip a la última versión dentro del contenedor
 RUN pip install --upgrade pip
 
-# Copiar el archivo de requerimientos (desde el contexto, ej. myproject/requirements.txt)
+# Copiar SOLO el archivo de requerimientos primero para aprovechar el cacheado de capas
+# Asume que requirements.txt está en el contexto de build (myproject/)
 COPY requirements.txt ./requirements.txt
 # Instalar dependencias de Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar TODO el contenido del contexto de construcción (myproject/) a /app/ en la imagen
-# Esto copiará manage.py, entrypoint.sh, myapp/, myproject/ (la carpeta de settings), etc.
+# Copiar TODO el contenido del contexto de construcción (myproject/) al WORKDIR (/app)
+# Esto copiará manage.py, entrypoint.sh, myapp/, myproject/ (carpeta de settings), etc.
 COPY . .
+# Ahora /app/manage.py, /app/entrypoint.sh, /app/myapp/, /app/myproject/ (settings) existen.
 
 # Dar permisos de ejecución al entrypoint.sh que ahora está en /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
-# Opcional: Dar permisos a manage.py si es necesario para algún script
+# Opcional: si manage.py necesita ser ejecutable directamente por alguna razón
 # RUN chmod +x /app/manage.py
 
 # Línea de depuración para verificar permisos y contenido del entrypoint (puedes comentarla después)
-RUN ls -la /app/entrypoint.sh && echo "--- Content of entrypoint.sh: ---" && cat /app/entrypoint.sh && echo "--- End of entrypoint.sh ---" && echo "--- First line hex: ---" && head -n 1 /app/entrypoint.sh | od -c && echo "--- End of hex ---"
+RUN ls -la /app/entrypoint.sh && \
+    echo "--- Content of /app/entrypoint.sh: ---" && \
+    cat /app/entrypoint.sh && \
+    echo "--- End of /app/entrypoint.sh ---" && \
+    echo "--- First line hex of /app/entrypoint.sh: ---" && \
+    head -n 1 /app/entrypoint.sh | od -c && \
+    echo "--- End of hex ---" && \
+    echo "--- Listing /app directory: ---" && \
+    ls -la /app/ && \
+    echo "--- Listing /app/myproject directory (settings/wsgi): ---" && \
+    ls -la /app/myproject/
 
-# Exponer el puerto que usa tu aplicación
+
+# Exponer el puerto que usa tu aplicación (Gunicorn escuchará en este puerto)
 EXPOSE 8000
 
 # Comando por defecto que se ejecuta cuando el contenedor inicia
