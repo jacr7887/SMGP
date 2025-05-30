@@ -97,4 +97,4 @@ exec gunicorn myproject.wsgi:application \
 
 echo "CRITICAL ERROR (ENTRYPOINT): Gunicorn did not take over or exited unexpectedly."
 echo "Check Gunicorn installation, WSGI application path, and Gunicorn logs above."
-exit 1
+exit 

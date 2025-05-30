@@ -1,105 +1,108 @@
 # myapp/management/commands/ensure_superuser.py
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
-from django.db import transaction, IntegrityError
+from django.db import transaction  # Para asegurar atomicidad
 import os
+import sys  # Para escribir en stderr
 
 User = get_user_model()
 
 
 class Command(BaseCommand):
-    help = 'Robustly ensures a superuser exists or is created/updated with credentials from environment variables.'
+    help = 'Ensures a superuser exists with credentials from env, creating or updating as necessary.'
 
     def handle(self, *args, **options):
-        email = os.environ.get('DJANGO_SUPERUSER_EMAIL', '').strip()
-        password = os.environ.get('DJANGO_SUPERUSER_PASSWORD')
-        first_name = os.environ.get('DJANGO_SUPERUSER_PRIMER_NOMBRE', 'Admin')
-        last_name = os.environ.get('DJANGO_SUPERUSER_PRIMER_APELLIDO', 'User')
+        self.stdout.write(self.style.NOTICE(
+            "--- CMD ensure_superuser: Comando INICIADO ---"))
 
-        # Variables de tu modelo Usuario que necesitamos asegurar
-        # Asume un valor por defecto o léelo del env
-        tipo_usuario_admin = os.environ.get(
-            'DJANGO_SUPERUSER_TIPO_USUARIO', 'ADMIN')
-        nivel_acceso_admin = int(os.environ.get(
-            'DJANGO_SUPERUSER_NIVEL_ACCESO', 5))  # Asume 5 o léelo
+        email = os.environ.get('DJANGO_SUPERUSER_EMAIL')
+        password = os.environ.get('DJANGO_SUPERUSER_PASSWORD')
+        first_name = os.environ.get(
+            'DJANGO_SUPERUSER_PRIMER_NOMBRE', '')  # Default a vacío
+        last_name = os.environ.get(
+            'DJANGO_SUPERUSER_PRIMER_APELLIDO', '')  # Default a vacío
+
+        # Determinar el valor para el USERNAME_FIELD
+        # Si USERNAME_FIELD es 'email', username_val será el email.
+        # Si USERNAME_FIELD es 'username', y DJANGO_SUPERUSER_USERNAME está definido, se usa ese.
+        # Si no, se usa el email como fallback para 'username'.
+        username_val = email
+        if User.USERNAME_FIELD == 'username':  # Si el campo de usuario es 'username'
+            env_username = os.environ.get('DJANGO_SUPERUSER_USERNAME')
+            if env_username:
+                username_val = env_username
+            self.stdout.write(self.style.NOTICE(
+                f"--- CMD ensure_superuser: USERNAME_FIELD es 'username'. Usando '{username_val}' como username. ---"))
 
         if not email:
             self.stderr.write(self.style.ERROR(
-                'CRITICAL: DJANGO_SUPERUSER_EMAIL environment variable not set.'))
-            return 1  # Salir con código de error
+                '--- CMD ensure_superuser: ERROR CRÍTICO: DJANGO_SUPERUSER_EMAIL no está definido. ---'))
+            sys.exit(1)  # Salir con error
         if not password:
             self.stderr.write(self.style.ERROR(
-                'CRITICAL: DJANGO_SUPERUSER_PASSWORD environment variable not set.'))
-            return 1  # Salir con código de error
+                '--- CMD ensure_superuser: ERROR CRÍTICO: DJANGO_SUPERUSER_PASSWORD no está definido. ---'))
+            sys.exit(1)  # Salir con error
 
         self.stdout.write(self.style.NOTICE(
-            f"--- ensure_superuser.py: Comando INICIADO para email: '{email}' ---"))
+            f"--- CMD ensure_superuser: Asegurando superusuario con email: '{email}' (username a usar: '{username_val}') ---"))
 
         try:
             with transaction.atomic():
-                # Usamos el email como el campo para buscar o crear, ya que es tu USERNAME_FIELD
-                user, created = User.objects.get_or_create(
-                    email=email,
-                    defaults={
-                        # Estos son los campos que se usarán SOLO SI el usuario es NUEVO
-                        # Tu UsuarioManager se encargará de generar el 'username' si no se provee aquí
+                # Intentar obtener por email primero, ya que es único
+                user = None
+                try:
+                    user = User.objects.get(email=email)
+                    self.stdout.write(self.style.NOTICE(
+                        f"--- CMD ensure_superuser: Usuario con email '{email}' encontrado (PK: {user.pk}). Forzando actualización de contraseña y flags... ---"))
+                    created = False
+                except User.DoesNotExist:
+                    self.stdout.write(self.style.NOTICE(
+                        f"--- CMD ensure_superuser: Usuario con email='{email}' NO encontrado. Intentando crear... ---"))
+
+                    # Preparar los campos para la creación
+                    create_kwargs = {
+                        User.USERNAME_FIELD: username_val,  # Usar el USERNAME_FIELD
+                        'email': email,  # Asegurar que el email también se pase
                         'primer_nombre': first_name,
                         'primer_apellido': last_name,
-                        'tipo_usuario': tipo_usuario_admin,  # Asegúrate que tu modelo/manager lo espere
-                        'nivel_acceso': nivel_acceso_admin,  # Se establecerá aquí y luego save() lo usa
-                        'activo': True,  # Asegurar que esté activo
-                        # 'username': email, # Opcional: si quieres que el username inicial sea el email
-                        # tu manager lo generará si no lo pasas
+                        # Agrega aquí otros campos obligatorios de tu modelo Usuario si los tienes
                     }
-                )
+                    user = User.objects.create_superuser(**create_kwargs)
+                    # create_superuser ya debería manejar set_password y los flags is_staff, is_superuser, is_active
+                    self.stdout.write(self.style.SUCCESS(
+                        f"--- CMD ensure_superuser: Superusuario '{email}' CREADO (PK: {user.pk}). Estableciendo contraseña explícitamente... ---"))
+                    created = True
 
+                # Siempre establecer/restablecer la contraseña y asegurar flags
+                user.set_password(password)
+                user.is_superuser = True
+                user.is_staff = True
+                user.is_active = True  # Muy importante para el login
+
+                # Actualizar otros campos si no fue una creación reciente y se proveyeron
+                if not created:
+                    if first_name:
+                        user.primer_nombre = first_name
+                    if last_name:
+                        user.primer_apellido = last_name
+
+                user.save()
                 if created:
                     self.stdout.write(self.style.SUCCESS(
-                        f"--- ensure_superuser.py: Superusuario '{email}' CREADO (PK: {user.pk}). Estableciendo contraseña y flags finales... ---"))
-                    # Para usuarios recién creados, create_superuser (si es llamado por get_or_create debido al manager)
-                    # ya debería haber establecido la contraseña y los flags de superuser/staff
-                    # Pero para estar seguros y cubrir el caso de create_user + flags:
-                    # Establecer/Re-establecer la contraseña
-                    user.set_password(password)
-                    user.is_staff = True
-                    user.is_superuser = True
-                    user.activo = True  # Tu campo personalizado
-                    user.is_active = True  # El campo de Django
-                    user.nivel_acceso = 5  # Forzar nivel de superusuario
-                    # Asegurar campos de nombre si create_superuser no los tomó de defaults
-                    user.primer_nombre = first_name
-                    user.primer_apellido = last_name
-                    user.save()
-                    self.stdout.write(self.style.SUCCESS(
-                        f"--- ensure_superuser.py: Contraseña y flags finales establecidos para NUEVO superusuario '{email}'. ---"))
+                        f"--- CMD ensure_superuser: Contraseña y flags establecidos para nuevo superusuario '{email}' (PK: {user.pk}). ---"))
                 else:
-                    self.stdout.write(self.style.NOTICE(
-                        f"--- ensure_superuser.py: Usuario '{email}' ENCONTRADO (PK: {user.pk}). Forzando actualización de contraseña y flags... ---"))
-                    # ¡SIEMPRE actualiza la contraseña!
-                    user.set_password(password)
-                    user.is_staff = True
-                    user.is_superuser = True
-                    user.activo = True  # Tu campo personalizado
-                    user.is_active = True  # El campo de Django
-                    user.nivel_acceso = 5  # Forzar nivel de superusuario
-
-                    # Actualiza otros campos si quieres que se sobrescriban siempre
-                    user.primer_nombre = first_name
-                    user.primer_apellido = last_name
-                    user.save()
                     self.stdout.write(self.style.SUCCESS(
-                        f"--- ensure_superuser.py: Detalles y contraseña del superusuario '{email}' actualizados. ---"))
+                        f"--- CMD ensure_superuser: Detalles y contraseña del superusuario '{email}' (PK: {user.pk}) actualizados. ---"))
 
-        except IntegrityError as ie:
-            self.stderr.write(self.style.ERROR(
-                f"--- ensure_superuser.py: IntegrityError para '{email}': {ie} ---"))
-            self.stderr.write(self.style.ERROR(
-                "--- ensure_superuser.py: Podría ser un username duplicado si no es el email, o un email que ya existe pero no es el que se busca. ---"))
         except Exception as e:
             self.stderr.write(self.style.ERROR(
-                f"--- ensure_superuser.py: ERROR INESPERADO para '{email}': {type(e).__name__} - {e} ---"))
+                f"--- CMD ensure_superuser: !!! ERROR INESPERADO procesando superusuario '{email}': {type(e).__name__} - {e} !!! ---"))
             import traceback
-            traceback.print_exc(file=self.stderr)
+            self.stderr.write(
+                "--- Traceback del error en ensure_superuser: ---")
+            traceback.print_exc(file=sys.stderr)  # Imprimir traceback a stderr
+            # Salir con error para detener el entrypoint.sh si algo grave pasa aquí
+            sys.exit(1)
 
         self.stdout.write(self.style.NOTICE(
-            "--- ensure_superuser.py: Comando FINALIZADO ---"))
+            "--- CMD ensure_superuser: Comando FINALIZADO ---"))
