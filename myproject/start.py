@@ -114,9 +114,9 @@ def setup_database():
                 f"--- start.py: Sembrando base de datos (contratos: {num_contratos} < {umbral_contratos_para_seed})... ---")
             # Ajusta los argumentos de seed_db según necesites
             # Es buena idea hacer estos parámetros configurables también, quizás vía settings o .env
-            call_command('seed_db', users=10, intermediarios=5, afiliados_ind=15, afiliados_col=5,
-                         tarifas=10, contratos_ind=12, contratos_col=5, facturas=30,
-                         reclamaciones=10, pagos=20, igtf_chance=25, pago_parcial_chance=30)  # Ejemplo
+            call_command('seed_db', users=20, intermediarios=10, afiliados_ind=30, afiliados_col=10,
+                         tarifas=20, contratos_ind=24, contratos_col=10, facturas=60,
+                         reclamaciones=20, pagos=40, igtf_chance=50, pago_parcial_chance=60)  # Ejemplo
             print("--- start.py: Sembrado de base de datos completado. ---")
         else:
             print(

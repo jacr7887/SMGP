@@ -323,47 +323,75 @@ class Command(BaseCommand):
         try:
             with transaction.atomic():
                 # --- 1. License Info ---
+                # --- 1. License Info ---
                 model_name = 'LicenseInfo'
                 stats_m = stats[model_name]
+
+                fecha_actual = timezone.localdate()
+                fecha_expiracion_7_dias = fecha_actual + timedelta(days=7)
+                nueva_license_key = fake.uuid4()
+
+                logger.info(
+                    f"--- seed_db: Intentando asegurar LicenseInfo con ID {LicenseInfo.SINGLETON_ID} ---")
+                logger.info(
+                    f"--- seed_db: Nueva license_key: {nueva_license_key}, Nueva expiry_date: {fecha_expiracion_7_dias} ---")
+
                 try:
-                    # Calcular la fecha de expiración exactamente 7 días desde hoy
-                    # Si expiry_date es DateField, usa date(). Si es DateTimeField, usa timezone.now().
-                    # Asumamos que es DateField por tu comentario.
-                    # Obtiene la fecha actual en la zona horaria del proyecto
-                    fecha_actual = timezone.localdate()
-                    fecha_expiracion_exacta = fecha_actual + timedelta(days=7)
-
-                    license_defaults = {
-                        'license_key': fake.uuid4(),
-                        'expiry_date': fecha_expiracion_exacta,  # Usar la fecha calculada
-                        'license_type': 'TRIAL',  # Podrías añadir un tipo de licencia
-                        'is_active': True,
-                        # 'max_users': 1, # Ejemplo de restricción para trial
-                        # 'features_enabled': 'feature1,feature2' # Ejemplo
-                    }
-
-                    # Usar update_or_create para manejar si ya existe una entrada (por SINGLETON_ID)
-                    license_obj, created = LicenseInfo.objects.update_or_create(
-                        id=LicenseInfo.SINGLETON_ID,  # Asumiendo que tienes un ID fijo para la licencia única
-                        defaults=license_defaults
+                    # Intentar obtener la instancia única.
+                    # El método save() del modelo se encargará de forzar pk=SINGLETON_ID.
+                    # El método clean() del modelo se encargará de la unicidad.
+                    license_obj, created = LicenseInfo.objects.get_or_create(
+                        # Usar pk en lugar de id para get_or_create es más estándar
+                        pk=LicenseInfo.SINGLETON_ID,
+                        defaults={
+                            'license_key': nueva_license_key,
+                            'expiry_date': fecha_expiracion_7_dias
+                        }
                     )
 
                     if created:
+                        # Ya se creó con los defaults, no es necesario guardar de nuevo a menos que modifiques más.
                         self.stdout.write(self.style.SUCCESS(
-                            f"  {model_name}: Licencia de prueba CREADA, expira el {fecha_expiracion_exacta}."))
+                            f"  {model_name}: Licencia de prueba CREADA, expira el {fecha_expiracion_7_dias}."))
+                        logger.info(
+                            f"--- seed_db: LicenseInfo CREADA (PK: {license_obj.pk}), expira: {fecha_expiracion_7_dias} ---")
                     else:
+                        # Si ya existía, actualizamos los campos necesarios.
+                        logger.info(
+                            f"--- seed_db: LicenseInfo ENCONTRADA (PK: {license_obj.pk}). Actualizando...")
+                        license_obj.license_key = nueva_license_key
+                        license_obj.expiry_date = fecha_expiracion_7_dias
+                        # Esto llamará a tu save() personalizado que fuerza el PK.
+                        license_obj.save()
                         self.stdout.write(self.style.SUCCESS(
-                            f"  {model_name}: Licencia de prueba ACTUALIZADA, expira el {fecha_expiracion_exacta}."))
+                            f"  {model_name}: Licencia de prueba ACTUALIZADA, expira el {fecha_expiracion_7_dias}."))
+                        logger.info(
+                            f"--- seed_db: LicenseInfo ACTUALIZADA (PK: {license_obj.pk}), expira: {fecha_expiracion_7_dias} ---")
 
                     stats_m['created'] += 1
 
-                except Exception as e:
-                    stats_m['failed'] += 1
-                    stats_m['errors'][e.__class__.__name__] += 1
+                except ValidationError as ve:  # Capturar ValidationError de tu método clean()
                     logger.error(
-                        f"Error creando/actualizando {model_name}: {e}", exc_info=True)
+                        f"--- seed_db: ValidationError creando/actualizando {model_name}: {ve} ---", exc_info=True)
+                    stats_m['failed'] += 1
+                    stats_m['errors']["ValidationError_LicenseInfo"] += 1
                     self.stderr.write(self.style.ERROR(
-                        f"  Error con {model_name}: {e}"))
+                        f"  Error de validación con {model_name}: {ve}"))
+                except IntegrityError as ie:  # Por si unique=True en license_key causa problemas
+                    logger.error(
+                        f"--- seed_db: IntegrityError creando/actualizando {model_name}: {ie} ---", exc_info=True)
+                    stats_m['failed'] += 1
+                    stats_m['errors']["IntegrityError_LicenseInfo"] += 1
+                    self.stderr.write(self.style.ERROR(
+                        f"  Error de integridad con {model_name}: {ie}"))
+                except Exception as e_lic:  # Captura general para otros errores
+                    logger.error(
+                        f"--- seed_db: ERROR GENERAL creando/actualizando {model_name}: {e_lic} ---", exc_info=True)
+                    stats_m['failed'] += 1
+                    stats_m['errors'][e_lic.__class__.__name__ +
+                                      "_LicenseInfo_Gen"] += 1
+                    self.stderr.write(self.style.ERROR(
+                        f"  Error con {model_name}: {e_lic}"))
 
                 # --- 2. Tarifas ---
                 model_name = 'Tarifa'

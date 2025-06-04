@@ -30,11 +30,11 @@
     --success-rgb: 40, 167, 69;
     --text-light-rgb: 255, 255, 255;
     --dark-rgb: 15, 18, 36;
-    
+    --topbar-height: 65px; /* Aumentar de 30px a 60px */
+
     /* Responsive variables */
     --sidebar-width: 250px;
     --sidebar-collapsed-width: 70px;
-    --topbar-height: 30px;
     --carousel-height: 700px; /* Mantenido de v14.2 FIXED */
 }
 
@@ -97,7 +97,7 @@ button { cursor: pointer; font-family: inherit; }
 .tab-button { border-radius: var(--glass-border-radius); }
 .tab-content { border-radius: 0 0 var(--glass-border-radius) var(--glass-border-radius); }
 .notification_dropdown, .user_menu_dropdown { border-radius: 15px; } /* Mantenido de v14.2 */
-.notification_toggle, .user_menu_toggle { border-radius: 50%; }
+.notification_toggle, .user_menu_toggle {     padding: 0.8rem; font-size: 1.3rem; border-radius: 50%; }
 .topbar, .footer { border-radius: 0 !important; }
 
 .glass-card { padding: var(--glass-padding); margin-bottom: 1rem; }
@@ -283,18 +283,24 @@ button { cursor: pointer; font-family: inherit; }
 
 /* === TOPBAR === (MENÚ NOTIFICACIONES CENTRADO YA ESTABA BIEN, SE MANTIENE DE v14.2) */
 .topbar {
+    padding: 1.2rem 1.8rem !important; /* Aumento significativo */
+    height: var(--topbar-height) !important; /* Usar nueva altura */
     background: rgba(15, 18, 36, 0.8); backdrop-filter: var(--blur);
-    border-bottom: 0px solid var(--border-light); padding: 1rem 1rem;
+    border-bottom: 0px solid var(--border-light);
     display: flex; justify-content: space-between; align-items: center;
     position: sticky; /* YA ESTÁ COMO STICKY */
-    padding: 1rem 1rem; /* <--- Padding actual (vertical: 0.3rem, horizontal: 1rem) */
     top: 0;           /* PEGAR AL TOPE */
     z-index: 950;     /* ASEGURAR QUE ESTÉ POR ENCIMA DE OTRO CONTENIDO (EXCEPTO SIDEBAR MÓVIL) */
     border-radius: 0 !important;
     box-shadow: 0 2px 5px rgba(0,0,0,0.3); 
-    height: var(--topbar-height); /* Altura definida por variable CSS */
 }
-.topbar_left, .topbar_right { display: flex; align-items: center; gap: 1rem; }
+.topbar_left, 
+.topbar_right {
+    height: 100%; /* Usar altura completa */
+    display: flex;
+    align-items: center; /* Centrado vertical interno */
+    gap: 1.2rem; /* Espaciado entre elementos */
+}
 .breadcrumbs { font-size: 0.8rem; color: var(--text-muted); }
 .breadcrumb_item { margin-right: 0.3rem; color: var(--text-light); }
 .breadcrumb_item:not(:last-child)::after { content: '>'; margin-left: 0.3rem; color: var(--text-muted); }
@@ -322,7 +328,7 @@ button { cursor: pointer; font-family: inherit; }
 }
 .notification_dropdown, .user_menu_dropdown {
     position: absolute; 
-    top: calc(100% + 10px); 
+    top: calc(100% + 12px) !important; /* Mayor distancia del topbar */
     right: 0; 
     display: none; 
     flex-direction: column;
@@ -340,6 +346,14 @@ button { cursor: pointer; font-family: inherit; }
     transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s linear 0.2s;
     visibility: hidden;
 }
+
+/* Ajustar alineación vertical del contenido del topbar */
+.topbar_left, 
+.topbar_right {
+  height: 100%; /* Usar toda la altura disponible */
+  align-items: center; /* Centrar contenido verticalmente */
+}
+
 .notification_menu.open .notification_dropdown, 
 .user_menu.open .user_menu_dropdown { 
     display: flex; 
