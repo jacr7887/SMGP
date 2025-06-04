@@ -326,15 +326,44 @@ class Command(BaseCommand):
                 model_name = 'LicenseInfo'
                 stats_m = stats[model_name]
                 try:
-                    _, created = LicenseInfo.objects.update_or_create(id=LicenseInfo.SINGLETON_ID, defaults={
-                                                                      # DateField, no necesita aware
-                                                                      'license_key': fake.uuid4(), 'expiry_date': fake.future_date(end_date='+7d')})
+                    # Calcular la fecha de expiración exactamente 7 días desde hoy
+                    # Si expiry_date es DateField, usa date(). Si es DateTimeField, usa timezone.now().
+                    # Asumamos que es DateField por tu comentario.
+                    # Obtiene la fecha actual en la zona horaria del proyecto
+                    fecha_actual = timezone.localdate()
+                    fecha_expiracion_exacta = fecha_actual + timedelta(days=7)
+
+                    license_defaults = {
+                        'license_key': fake.uuid4(),
+                        'expiry_date': fecha_expiracion_exacta,  # Usar la fecha calculada
+                        'license_type': 'TRIAL',  # Podrías añadir un tipo de licencia
+                        'is_active': True,
+                        # 'max_users': 1, # Ejemplo de restricción para trial
+                        # 'features_enabled': 'feature1,feature2' # Ejemplo
+                    }
+
+                    # Usar update_or_create para manejar si ya existe una entrada (por SINGLETON_ID)
+                    license_obj, created = LicenseInfo.objects.update_or_create(
+                        id=LicenseInfo.SINGLETON_ID,  # Asumiendo que tienes un ID fijo para la licencia única
+                        defaults=license_defaults
+                    )
+
+                    if created:
+                        self.stdout.write(self.style.SUCCESS(
+                            f"  {model_name}: Licencia de prueba CREADA, expira el {fecha_expiracion_exacta}."))
+                    else:
+                        self.stdout.write(self.style.SUCCESS(
+                            f"  {model_name}: Licencia de prueba ACTUALIZADA, expira el {fecha_expiracion_exacta}."))
+
                     stats_m['created'] += 1
+
                 except Exception as e:
                     stats_m['failed'] += 1
                     stats_m['errors'][e.__class__.__name__] += 1
                     logger.error(
-                        f"Error creando {model_name}: {e}", exc_info=True)
+                        f"Error creando/actualizando {model_name}: {e}", exc_info=True)
+                    self.stderr.write(self.style.ERROR(
+                        f"  Error con {model_name}: {e}"))
 
                 # --- 2. Tarifas ---
                 model_name = 'Tarifa'
