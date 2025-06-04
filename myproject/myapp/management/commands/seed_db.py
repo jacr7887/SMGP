@@ -62,7 +62,6 @@ class Command(BaseCommand):
                             type=int, default=40, metavar="[0-100]")
 
     def _initialize_stats(self, options):
-        # ... (sin cambios) ...
         stats = collections.defaultdict(
             lambda: {'requested': 0, 'created': 0, 'failed': 0, 'errors': collections.Counter()})
         stats['LicenseInfo']['requested'] = 1
@@ -82,7 +81,6 @@ class Command(BaseCommand):
         return stats
 
     def _disconnect_signals_for_clean(self):
-        # ... (sin cambios) ...
         disconnected_info = []
         signals_to_manage = [
             (post_delete, pago_post_delete_handler, Pago),
@@ -105,7 +103,6 @@ class Command(BaseCommand):
         return disconnected_info
 
     def _reconnect_signals(self, disconnected_signals_info):
-        # ... (sin cambios) ...
         self.stdout.write(self.style.NOTICE(
             "  Signal reconnection will be handled by Django's AppConfig.ready() on next full app load."))
 
@@ -310,7 +307,6 @@ class Command(BaseCommand):
             return historial
 
         def get_random_pk_from_lists(created_list, db_list, allow_none=False, model_name_for_error="Entidad"):
-            # ... (sin cambios) ...
             candidate_pks = list(set(created_list + db_list))
             if not candidate_pks:
                 if allow_none:
@@ -327,13 +323,12 @@ class Command(BaseCommand):
         try:
             with transaction.atomic():
                 # --- 1. License Info ---
-                # ... (sin cambios) ...
                 model_name = 'LicenseInfo'
                 stats_m = stats[model_name]
                 try:
                     _, created = LicenseInfo.objects.update_or_create(id=LicenseInfo.SINGLETON_ID, defaults={
                                                                       # DateField, no necesita aware
-                                                                      'license_key': fake.uuid4(), 'expiry_date': fake.future_date(end_date='+730d')})
+                                                                      'license_key': fake.uuid4(), 'expiry_date': fake.future_date(end_date='+7d')})
                     stats_m['created'] += 1
                 except Exception as e:
                     stats_m['failed'] += 1
@@ -342,7 +337,6 @@ class Command(BaseCommand):
                         f"Error creando {model_name}: {e}", exc_info=True)
 
                 # --- 2. Tarifas ---
-                # ... (sin cambios, usa DateField) ...
                 model_name = 'Tarifa'
                 stats_m = stats[model_name]
                 if stats_m['requested'] > 0:
@@ -384,7 +378,6 @@ class Command(BaseCommand):
                                 f"Failed to create emergency tariff: {e}"))
 
                 # --- 3. Usuarios ---
-                # ... (sin cambios, usa DateField para fecha_nacimiento, date_joined y last_login son manejados por Django como aware) ...
                 model_name = 'User'
                 stats_m = stats[model_name]
                 try:
@@ -438,7 +431,6 @@ class Command(BaseCommand):
                         logger.error(f"Error creando User: {e}", exc_info=True)
 
                 # --- 4. Intermediarios ---
-                # ... (sin cambios de fecha) ...
                 model_name = 'Intermediario'
                 stats_m = stats[model_name]
                 parent_intermediario_pks_this_run = []
@@ -556,7 +548,6 @@ class Command(BaseCommand):
                                     f"Error asignando intermediario a usuario {user_obj_assign.pk}: {e_assign}")
 
                 # --- 5. Afiliados Individuales ---
-                # ... (sin cambios, usa DateField) ...
                 model_name = 'AfiliadoIndividual'
                 stats_m = stats[model_name]
                 for _ in range(max(0, stats_m['requested'])):
@@ -625,7 +616,6 @@ class Command(BaseCommand):
                             f"Failed to create emergency AfiliadoIndividual: {e}"))
 
                 # --- 6. Afiliados Colectivos ---
-                # ... (sin cambios de fecha) ...
                 model_name = 'AfiliadoColectivo'
                 stats_m = stats[model_name]
                 for _ in range(max(0, stats_m['requested'])):
@@ -871,7 +861,6 @@ class Command(BaseCommand):
                     set(contrato_col_ids_created + contrato_col_ids_db))
 
                 # --- 9. Facturas ---
-                # ... (sin cambios, usan DateField) ...
                 model_name = 'Factura'
                 stats_m = stats[model_name]
                 qs_contratos_ind_fact = ContratoIndividual.objects.filter(
@@ -1010,7 +999,6 @@ class Command(BaseCommand):
                                 f"Error creando Factura: {e_f}", exc_info=True)
 
                 # --- 10. Reclamaciones ---
-                # ... (sin cambios, usan DateField) ...
                 model_name = 'Reclamacion'
                 stats_m = stats[model_name]
                 qs_contratos_ind_rec = ContratoIndividual.objects.filter(
@@ -1125,7 +1113,6 @@ class Command(BaseCommand):
                                 f"Error creando Reclamacion: {e_r}", exc_info=True)
 
                 # --- 11. Pagos ---
-                # ... (sin cambios, usan DateField) ...
                 model_name = 'Pago'
                 stats_m = stats[model_name]
                 current_factura_pks_for_pago = list(
@@ -1213,7 +1200,8 @@ class Command(BaseCommand):
                             except ValueError:
                                 fecha_pag_val = date.today()
 
-                            aplica_igtf_para_este_pago = fake.boolean(chance_of_getting_true=igtf_chance)
+                            aplica_igtf_para_este_pago = fake.boolean(
+                                chance_of_getting_true=igtf_chance)
 
                             pago_instance = Pago(
                                 factura_id=target_factura_id_pago,
@@ -1222,7 +1210,7 @@ class Command(BaseCommand):
                                     [c[0] for c in CommonChoices.FORMA_PAGO_RECLAMACION]),
                                 fecha_pago=fecha_pag_val,
                                 monto_pago=monto_pag_val,
-                                aplica_igtf_pago=aplica_igtf_para_este_pago, # <--- AÑADIDO AQUÍ
+                                aplica_igtf_pago=aplica_igtf_para_este_pago,  # <--- AÑADIDO AQUÍ
                                 referencia_pago=fake.bothify(
                                     text='Ref-#####-???'),
                                 activo=True,
@@ -1331,7 +1319,6 @@ class Command(BaseCommand):
                 "   Seeding incomplete. Changes were rolled back."))
 
         # --- === RESUMEN FINAL === ---
-        # ... (sin cambios) ...
         self.stdout.write(self.style.SUCCESS(
             "\n" + "="*25 + " Seeding Summary " + "="*25))
         col_width_model = 25

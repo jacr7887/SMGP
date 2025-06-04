@@ -238,12 +238,6 @@ class Notificacion(models.Model):
 
 # myapp/models.py
 
-# Si vas a asignar permisos programáticamente a grupos (opcional):
-# from django.contrib.auth.models import Permission
-# from django.contrib.contenttypes.models import ContentType
-
-# Asumo que estas importaciones están en tu archivo o las necesitas
-
 logger = logging.getLogger(__name__)
 
 # ---------------------------

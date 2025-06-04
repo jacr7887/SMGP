@@ -30,7 +30,7 @@ from django.db.models import Sum, Value, F, Case, When, ExpressionWrapper, Durat
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from .licensing import activate_or_update_license, get_license_info
 from django.contrib.admin.views.decorators import staff_member_required
-from .forms import LicenseActivationForm
+from .forms import LicenseActivationForm, LoginForm
 from .models import Factura, AuditoriaSistema, Pago, Notificacion  # Añadido Notificacion
 from django.views.decorators.csrf import csrf_protect  # Decorador csrf
 from django.utils.decorators import method_decorator  # Para csrf_protect en clases
@@ -79,7 +79,7 @@ from django.db.models import (Sum, Avg, Q, Count)
 from django.contrib.auth.views import LoginView, LogoutView
 from django.core.cache import caches
 # from django.shortcuts import redirect, render # Ya importados arriba
-
+import sys
 # import chardet # Ya importado arriba
 from . import graficas
 from django.urls import reverse_lazy, reverse
@@ -138,7 +138,16 @@ logger = logging.getLogger(__name__)
 
 
 def handler500(request):
-    return render(request, '500.html', status=500)
+    context = {
+        'debug': settings.DEBUG,
+    }
+    if settings.DEBUG:
+        # Obtener la información de la excepción actual
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        context['exception'] = exc_value  # Pasar el mensaje de la excepción
+        # También podrías querer pasar el traceback completo si lo necesitas,
+        # pero el mensaje suele ser suficiente para la plantilla.
+    return render(request, '500.html', context, status=500)
 
 
 # Constantes
@@ -4158,25 +4167,30 @@ def generar_figura_sin_datos_plotly(mensaje="No hay datos disponibles"):
 # En tu archivo de vistas
 # ... (importaciones existentes) ...
 
-def generar_grafico_total_primas_ramo_barras(data_ignorada=None): # Nuevo nombre para la nueva lógica
+# Nuevo nombre para la nueva lógica
+def generar_grafico_total_primas_ramo_barras(data_ignorada=None):
     try:
         fecha_fin_periodo_date = py_date.today()
         # Periodo: últimos 12 meses para tener una buena visión general
-        fecha_inicio_periodo_date = fecha_fin_periodo_date - relativedelta(years=1) + relativedelta(days=1)
+        fecha_inicio_periodo_date = fecha_fin_periodo_date - \
+            relativedelta(years=1) + relativedelta(days=1)
         ramo_map = dict(CommonChoices.RAMO)
 
         fecha_inicio_periodo_aware = django_timezone.make_aware(
-            py_datetime.combine(fecha_inicio_periodo_date, py_datetime.min.time()),
+            py_datetime.combine(fecha_inicio_periodo_date,
+                                py_datetime.min.time()),
             django_timezone.get_current_timezone()
         )
         fecha_fin_periodo_aware = django_timezone.make_aware(
-            py_datetime.combine(fecha_fin_periodo_date, py_datetime.max.time()),
+            py_datetime.combine(fecha_fin_periodo_date,
+                                py_datetime.max.time()),
             django_timezone.get_current_timezone()
         )
-        
+
         periodo_display_str = f"{fecha_inicio_periodo_date.strftime('%b %Y')} - {fecha_fin_periodo_date.strftime('%b %Y')}"
-        logger_graficas_debug.debug(f"Periodo para total primas por ramo (barras): {periodo_display_str}")
-        
+        logger_graficas_debug.debug(
+            f"Periodo para total primas por ramo (barras): {periodo_display_str}")
+
         primas_por_ramo = collections.defaultdict(Decimal)
 
         for contrato_model_class in [ContratoIndividual, ContratoColectivo]:
@@ -4191,60 +4205,76 @@ def generar_grafico_total_primas_ramo_barras(data_ignorada=None): # Nuevo nombre
                 fecha_emision__lte=fecha_fin_periodo_aware,
                 monto_total__gt=Decimal('0.00')
             ).values('ramo').annotate(total_primas_ramo=Sum('monto_total'))
-            
+
             for item in qs:
-                ramo_label = ramo_map.get(item['ramo'], str(item['ramo'] or "Desconocido"))
-                primas_por_ramo[ramo_label] += item['total_primas_ramo'] or Decimal('0.00')
-        
+                ramo_label = ramo_map.get(
+                    item['ramo'], str(item['ramo'] or "Desconocido"))
+                primas_por_ramo[ramo_label] += item['total_primas_ramo'] or Decimal(
+                    '0.00')
+
         if not primas_por_ramo:
             return plot(generar_figura_sin_datos_plotly(f"No hay datos de primas para el periodo."), output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
 
         # Convertir a DataFrame para facilitar el ordenamiento y el gráfico
-        df_primas = pd.DataFrame(list(primas_por_ramo.items()), columns=['ramo_label', 'total_prima_ramo'])
-        df_primas['total_prima_ramo'] = pd.to_numeric(df_primas['total_prima_ramo'], errors='coerce').fillna(0.0)
-        
+        df_primas = pd.DataFrame(list(primas_por_ramo.items()), columns=[
+                                 'ramo_label', 'total_prima_ramo'])
+        df_primas['total_prima_ramo'] = pd.to_numeric(
+            df_primas['total_prima_ramo'], errors='coerce').fillna(0.0)
+
         # Ordenar por total de primas para que la barra más larga esté arriba (o abajo)
-        df_primas = df_primas.sort_values(by='total_prima_ramo', ascending=True) # Ascending True para que la más grande esté arriba en barras horizontales
+        # Ascending True para que la más grande esté arriba en barras horizontales
+        df_primas = df_primas.sort_values(
+            by='total_prima_ramo', ascending=True)
 
         # Limitar a N ramos principales si hay demasiados
-        TOP_N_RAMOS_BARRAS = 7 # Puedes ajustar esto
+        TOP_N_RAMOS_BARRAS = 7  # Puedes ajustar esto
         if len(df_primas) > TOP_N_RAMOS_BARRAS:
-            df_otros = df_primas[:-TOP_N_RAMOS_BARRAS+1] # Todos excepto los N-1 más grandes
-            df_plot = df_primas[-TOP_N_RAMOS_BARRAS+1:] # Los N-1 más grandes
+            # Todos excepto los N-1 más grandes
+            df_otros = df_primas[:-TOP_N_RAMOS_BARRAS+1]
+            df_plot = df_primas[-TOP_N_RAMOS_BARRAS+1:]  # Los N-1 más grandes
             if not df_otros.empty:
                 otros_sum = df_otros['total_prima_ramo'].sum()
                 if otros_sum > 0:
-                    df_plot = pd.concat([df_plot, pd.DataFrame([{'ramo_label': 'Otros Ramos', 'total_prima_ramo': otros_sum}])], ignore_index=True)
-            df_plot = df_plot.sort_values(by='total_prima_ramo', ascending=True) # Re-ordenar después de añadir "Otros"
+                    df_plot = pd.concat([df_plot, pd.DataFrame(
+                        [{'ramo_label': 'Otros Ramos', 'total_prima_ramo': otros_sum}])], ignore_index=True)
+            # Re-ordenar después de añadir "Otros"
+            df_plot = df_plot.sort_values(
+                by='total_prima_ramo', ascending=True)
         else:
             df_plot = df_primas
-        
-        if df_plot.empty or df_plot['total_prima_ramo'].sum() == 0:
-             return plot(generar_figura_sin_datos_plotly(f"No hay primas significativas para el periodo."), output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
 
-        fig = px.bar(df_plot, 
-                     y='ramo_label',        # Ramos en el eje Y (barras horizontales)
-                     x='total_prima_ramo', 
+        if df_plot.empty or df_plot['total_prima_ramo'].sum() == 0:
+            return plot(generar_figura_sin_datos_plotly(f"No hay primas significativas para el periodo."), output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
+
+        fig = px.bar(df_plot,
+                     # Ramos en el eje Y (barras horizontales)
+                     y='ramo_label',
+                     x='total_prima_ramo',
                      orientation='h',      # Barras horizontales
-                     labels={'ramo_label': 'Ramo', 'total_prima_ramo': 'Total Primas Emitidas ($)'},
+                     labels={'ramo_label': 'Ramo',
+                             'total_prima_ramo': 'Total Primas Emitidas ($)'},
                      title=f'Total Primas por Ramo ({periodo_display_str})',
-                     text='total_prima_ramo' # Mostrar el valor en las barras
-                    )
-        
+                     text='total_prima_ramo'  # Mostrar el valor en las barras
+                     )
+
         # Usar el ciclo de colores por defecto de tu BASE_LAYOUT_DASHBOARD
         fig.update_traces(
-            texttemplate='$%{text:,.0f}', 
+            texttemplate='$%{text:,.0f}',
             textposition='outside',
             hovertemplate="<b>%{y}</b><br>Total Primas: $%{x:,.0f}<extra></extra>"
         )
 
         layout_actualizado = BASE_LAYOUT_DASHBOARD.copy()
         layout_actualizado.update(
-            xaxis={'title': {'text': "Total Primas Emitidas ($)"}, 'tickprefix': '$'},
-            yaxis={'title': {'text': None}, 'automargin': True}, # Automargin para nombres largos de ramos
-            height=max(500, len(df_plot) * 40 + 100), # Altura dinámica basada en número de ramos
-            showlegend=False, # No necesaria si cada barra es un ramo y tiene color del ciclo
-            margin=dict(t=60, b=50, l=200, r=30) # Margen izquierdo amplio para nombres de ramos
+            xaxis={
+                'title': {'text': "Total Primas Emitidas ($)"}, 'tickprefix': '$'},
+            # Automargin para nombres largos de ramos
+            yaxis={'title': {'text': None}, 'automargin': True},
+            # Altura dinámica basada en número de ramos
+            height=max(500, len(df_plot) * 40 + 100),
+            showlegend=False,  # No necesaria si cada barra es un ramo y tiene color del ciclo
+            # Margen izquierdo amplio para nombres de ramos
+            margin=dict(t=60, b=50, l=200, r=30)
         )
         fig.update_layout(**layout_actualizado)
 
@@ -4252,6 +4282,7 @@ def generar_grafico_total_primas_ramo_barras(data_ignorada=None): # Nuevo nombre
 
     except Exception as e_global:
         return plot(generar_figura_sin_datos_plotly(f"Error generando gráfico totales ramo ({type(e_global).__name__})"), output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
+
 
 def generar_grafico_estados_contrato(data_antiguedad_estatus):
     if not data_antiguedad_estatus or not any(isinstance(v, (int, float, Decimal)) and v > 0 for v in data_antiguedad_estatus.values()):
@@ -4901,10 +4932,11 @@ class ReporteGeneralView(LoginRequiredMixin, TemplateView):
             logger_rgv.debug("Calculando datos para IGTF (KPI y Gráfico)...")
             total_igtf_calculado_para_kpi = Decimal('0.00')
             data_igtf_para_grafico_dict = collections.defaultdict(Decimal)
-            TASA_IGTF_CALC = self.TASA_IGTF # Tasa definida en la clase
+            TASA_IGTF_CALC = self.TASA_IGTF  # Tasa definida en la clase
 
             # Definir ramo_map aquí si no está definido antes en el método
-            if not hasattr(self, '_ramo_map_cache_rgv'): # Cache simple para evitar re-crear el dict
+            # Cache simple para evitar re-crear el dict
+            if not hasattr(self, '_ramo_map_cache_rgv'):
                 self._ramo_map_cache_rgv = dict(CommonChoices.RAMO)
             ramo_map = self._ramo_map_cache_rgv
 
@@ -4913,7 +4945,7 @@ class ReporteGeneralView(LoginRequiredMixin, TemplateView):
                 aplica_igtf_pago=True,
                 monto_pago__gt=Decimal('0.00')
             ).select_related(
-                'factura__contrato_individual', # Traer el ContratoIndividual completo
+                'factura__contrato_individual',  # Traer el ContratoIndividual completo
                 'factura__contrato_colectivo'  # Traer el ContratoColectivo completo
             )
             # OJO: Si ContratoIndividual o ContratoColectivo tienen FKs a 'ramo' como un modelo separado,
@@ -4922,40 +4954,48 @@ class ReporteGeneralView(LoginRequiredMixin, TemplateView):
 
             for pago_obj in pagos_con_igtf_qs:
                 if (Decimal('1') + TASA_IGTF_CALC) == 0:
-                    logger_rgv.error(f"TASA_IGTF_CALC es -1, lo que causa división por cero. Pago PK: {pago_obj.pk}")
+                    logger_rgv.error(
+                        f"TASA_IGTF_CALC es -1, lo que causa división por cero. Pago PK: {pago_obj.pk}")
                     continue
-                    
-                monto_base_para_igtf = pago_obj.monto_pago / (Decimal('1') + TASA_IGTF_CALC)
-                igtf_del_pago = (monto_base_para_igtf * TASA_IGTF_CALC).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-                
+
+                monto_base_para_igtf = pago_obj.monto_pago / \
+                    (Decimal('1') + TASA_IGTF_CALC)
+                igtf_del_pago = (
+                    monto_base_para_igtf * TASA_IGTF_CALC).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
                 total_igtf_calculado_para_kpi += igtf_del_pago
 
-                categoria_igtf = "Otros Pagos IGTF" 
+                categoria_igtf = "Otros Pagos IGTF"
                 if pago_obj.factura:
                     factura_asociada = pago_obj.factura
                     contrato_asociado = factura_asociada.contrato_individual or factura_asociada.contrato_colectivo
-                    if contrato_asociado and hasattr(contrato_asociado, 'ramo') and contrato_asociado.ramo: # Acceder al atributo 'ramo'
+                    # Acceder al atributo 'ramo'
+                    if contrato_asociado and hasattr(contrato_asociado, 'ramo') and contrato_asociado.ramo:
                         categoria_igtf = f"Ramo: {ramo_map.get(contrato_asociado.ramo, str(contrato_asociado.ramo))}"
                     elif factura_asociada.contrato_individual:
                         categoria_igtf = "Cont. Individual"
                     elif factura_asociada.contrato_colectivo:
                         categoria_igtf = "Cont. Colectivo"
-                        
+
                 data_igtf_para_grafico_dict[categoria_igtf] += igtf_del_pago
 
-            context['kpi_total_igtf_recaudado'] = total_igtf_calculado_para_kpi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            logger_rgv.debug(f"KPI Total IGTF Recaudado asignado: {context['kpi_total_igtf_recaudado']}")
+            context['kpi_total_igtf_recaudado'] = total_igtf_calculado_para_kpi.quantize(
+                Decimal('0.01'), rounding=ROUND_HALF_UP)
+            logger_rgv.debug(
+                f"KPI Total IGTF Recaudado asignado: {context['kpi_total_igtf_recaudado']}")
 
             data_igtf_para_dona_plotly = {'Categoria': [], 'IGTF': []}
             for categoria, valor_igtf in data_igtf_para_grafico_dict.items():
                 if valor_igtf > 0:
                     data_igtf_para_dona_plotly['Categoria'].append(categoria)
-                    data_igtf_para_dona_plotly['IGTF'].append(float(valor_igtf))
+                    data_igtf_para_dona_plotly['IGTF'].append(
+                        float(valor_igtf))
 
             context['plotly_impuestos_categoria_html'] = generar_grafico_impuestos_por_categoria(
                 data_igtf_para_dona_plotly
             )
-            logger_rgv.debug("Datos para gráfico IGTF por categoría preparados y gráfico generado.")
+            logger_rgv.debug(
+                "Datos para gráfico IGTF por categoría preparados y gráfico generado.")
             # --- FIN Bloque IGTF ---
             # 6. Cartera Intermediarios Bubble
             top_n_inter_bubble_dash = 10
@@ -5195,7 +5235,7 @@ class BusquedaAvanzadaView(LoginRequiredMixin, TemplateView):
 # VISTA HOME DINÁMICA CORREGIDA
 # ============================================
 GRAFICAS_TITULOS = {
-    "01": "Distribución Total de Contratos por Ramo", "02": "Creación Mensual de Contratos Individuales (Vigentes)",
+    "01": "Distribución Total de Contratos por Ramo", "02": "Composición de la Cartera de Contratos Individuales por Antigüedad.",
     "03": "Indicadores Financieros Clave", "04": "Distribución de Edades", "05": "Tiempo Promedio Autorización Médica (días)",
     "06": "Estado de Morosidad", "07": "Flujo de Pagos Mensuales", "08": "Estado de Reclamaciones",
     "09": "Distribución de Reclamaciones por Edad del Afiliado", "10": "Frecuencia de Tipos de Reclamación",

@@ -4,16 +4,16 @@ import logging
 from datetime import datetime, timedelta
 from django.conf import settings
 from django.contrib.auth import logout, get_user_model
-from django.shortcuts import redirect, render
+from django.shortcuts import redirect, render, resolve_url
 from django.core.cache import caches
-from django.db import connection
+from django.db import connection, transaction
 from django.utils.deprecation import MiddlewareMixin
-from django.http import HttpResponse, HttpResponseServerError
+from django.http import HttpResponseForbidden, HttpResponseServerError
 from django.apps import apps
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 import traceback
 import re
-from .licensing import check_license  # Importar la función principal
+from .licensing import check_license
 import time
 from django.utils import timezone
 from django.urls import reverse, NoReverseMatch, reverse_lazy
@@ -68,23 +68,20 @@ class AuditoriaMiddleware:
         except Exception as e:
             exception_occurred = e
             logger.error(
-                f"Excepción durante get_response en AuditoriaMiddleware: {e}", exc_info=True)
-            raise e
+                f"Excepción capturada por AuditoriaMiddleware antes de _log_auditoria: {e}", exc_info=True)
+            raise
         finally:
             if AUDITORIA_ENABLED and AuditoriaSistema:
-                # Evitar loggear si la conexión ya está cerrada (causa común del error crítico)
                 try:
-                    connection.ensure_connection()
-                    if not connection.is_usable():
-                        logger.error(
-                            "[AuditoriaMiddleware._log] Conexión a BD no usable, omitiendo log de auditoría.")
-                    else:
-                        self._log_auditoria(
-                            request, response, exception_occurred)
-                except Exception as db_error:
+                    self._log_auditoria(request, response, exception_occurred)
+                except Exception as audit_log_error:
                     logger.error(
-                        f"[AuditoriaMiddleware._log] Error de conexión al intentar loggear auditoría: {db_error}")
-
+                        f"[AuditoriaMiddleware.__call__] Error CRÍTICO al intentar _log_auditoria: {audit_log_error}",
+                        exc_info=True
+                    )
+            elif not AUDITORIA_ENABLED or not AuditoriaSistema:
+                logger.debug(
+                    "[AuditoriaMiddleware.__call__] Auditoría desactivada o modelo no disponible. Omitiendo log.")
         return response
 
     def process_view(self, request, view_func, view_args, view_kwargs):
@@ -97,22 +94,23 @@ class AuditoriaMiddleware:
 
     def _get_client_ip(self, request):
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-        return x_forwarded_for.split(',')[0].strip() if x_forwarded_for else request.META.get('REMOTE_ADDR')
+        return x_forwarded_for.split(',')[0].strip() if x_forwarded_for else request.META.get('REMOTE_ADDR', 'N/A')
 
     def _get_object_pk_from_response(self, request, response):
         pk = getattr(request, '_audit_pk_from_kwargs', None)
         if pk:
             return pk
-        if request.method in ['POST', 'PUT', 'PATCH'] and response and 300 <= response.status_code < 400:
+        if request.method in ['POST', 'PUT', 'PATCH'] and response and hasattr(response, 'status_code') and 300 <= response.status_code < 400:
             location = response.get('Location', '')
-            match = re.search(r'/(\d+)/?$', location)
-            if match:
-                try:
-                    return int(match.group(1))
-                except (ValueError, TypeError):
-                    pass
+            if location:
+                match = re.search(r'/(\d+)/?$', location)
+                if match:
+                    try:
+                        return int(match.group(1))
+                    except (ValueError, TypeError):
+                        pass
         parts = request.path.strip('/').split('/')
-        if len(parts) > 1 and parts[-1].isdigit():
+        if parts and parts[-1].isdigit():
             try:
                 return int(parts[-1])
             except (ValueError, TypeError):
@@ -124,7 +122,12 @@ class AuditoriaMiddleware:
         model_class = getattr(request, '_audit_model_from_view', None)
         if model_class:
             model_name = model_class.__name__
-            table_name = model_class._meta.db_table
+            try:
+                table_name = model_class._meta.db_table
+            except AttributeError:
+                logger.warning(
+                    f"[AuditoriaMiddleware] _audit_model_from_view ('{model_name}') no tiene _meta.db_table.")
+                table_name = model_name
         else:
             path_lower = request.path.lower()
             sorted_prefixes = sorted(
@@ -133,51 +136,82 @@ class AuditoriaMiddleware:
                 if path_lower.startswith(url_prefix):
                     model_name = self.URL_MODEL_MAP[url_prefix]
                     try:
-                        table_name = apps.get_model(
-                            'myapp', model_name)._meta.db_table
+                        # Verificar app y modelo
+                        if apps.is_installed('myapp') and apps.get_model('myapp', model_name):
+                            table_name = apps.get_model(
+                                'myapp', model_name)._meta.db_table
+                        else:
+                            table_name = model_name
                     except LookupError:
+                        logger.warning(
+                            f"[AuditoriaMiddleware] Modelo '{model_name}' no encontrado en app 'myapp' para URL {url_prefix}.")
                         table_name = model_name
                     break
         return model_name, table_name
 
     def _log_auditoria(self, request, response, exception):
-        if not hasattr(request, 'user') or not request.user.is_authenticated or request.method == 'GET':
+        if not hasattr(request, 'user') or not request.user.is_authenticated:
+            logger.debug(
+                "[AuditoriaMiddleware._log] Usuario no autenticado. Omitiendo log.")
+            return
+        if request.method == 'GET':
+            logger.debug(
+                "[AuditoriaMiddleware._log] Petición GET. Omitiendo log de cambios.")
             return
 
         start_log_time = time.time()
         try:
-            action = {'POST': 'CREACION', 'PUT': 'ACTUALIZACION', 'PATCH': 'ACTUALIZACION',
-                      'DELETE': 'ELIMINACION'}.get(request.method, 'OTRO')
-            result = 'ERROR' if exception else (
-                'EXITO' if response and 200 <= response.status_code < 400 else 'FALLO')
-            detalle = f"Excepción: {str(exception)[:200]}" if exception else f"{action} {request.path} - Status: {response.status_code if response else 'N/A'}"
+            action_map = {'POST': 'CREACION', 'PUT': 'ACTUALIZACION',
+                          'PATCH': 'ACTUALIZACION_PARCIAL', 'DELETE': 'ELIMINACION'}
+            action = action_map.get(request.method, f'OTRO ({request.method})')
+
+            status_code_for_log = 'N/A'
+            if response and hasattr(response, 'status_code'):
+                status_code_for_log = response.status_code
+
+            if exception:
+                result = 'ERROR_EXCEPCION'
+                detalle_base = f"Excepción: {type(exception).__name__} - {str(exception)}"
+            elif response and 200 <= status_code_for_log < 300:
+                result = 'EXITO'
+                detalle_base = f"{action} en {request.path}"
+            elif response and 300 <= status_code_for_log < 400:
+                result = 'EXITO_REDIRECCION'
+                detalle_base = f"{action} en {request.path} -> Redirección a {response.get('Location', 'N/A')}"
+            else:
+                result = 'FALLO_RESPUESTA'
+                detalle_base = f"{action} en {request.path}"
+
+            detalle_final = f"{detalle_base} - Status: {status_code_for_log}"
             model_name, table_name = self._get_model_info_from_request(request)
             record_pk = self._get_object_pk_from_response(request, response)
             user_to_log = request.user
 
-            if not isinstance(user_to_log, UserModel):
-                try:
-                    user_to_log = UserModel.objects.get(
-                        pk=getattr(user_to_log, 'pk', None))
-                except (UserModel.DoesNotExist, AttributeError, ValueError, TypeError):
-                    user_to_log = None
+            if not isinstance(user_to_log, UserModel) or not user_to_log.pk:
+                logger.warning(
+                    f"[AuditoriaMiddleware._log] Intento de log con usuario inválido o anónimo (PK: {getattr(user_to_log, 'pk', 'N/A')}). Omitiendo.")
+                return
 
-            if user_to_log:
-                AuditoriaSistema.objects.create(
-                    usuario=user_to_log, tipo_accion=action, resultado_accion=result,
-                    tabla_afectada=table_name, registro_id_afectado=record_pk,
-                    detalle_accion=detalle[:490], direccion_ip=self._get_client_ip(
-                        request),
-                    agente_usuario=request.META.get(
-                        'HTTP_USER_AGENT', '')[:490],
-                    tiempo_inicio=getattr(
-                        request, 'audit_start_time', timezone.now()),
-                    tiempo_final=timezone.now()
-                )
-        except Exception as e:
+            AuditoriaSistema.objects.create(
+                usuario=user_to_log, tipo_accion=action, resultado_accion=result,
+                tabla_afectada=table_name if table_name else "N/A",
+                registro_id_afectado=record_pk,
+                detalle_accion=detalle_final[:490],
+                direccion_ip=self._get_client_ip(request),
+                agente_usuario=request.META.get('HTTP_USER_AGENT', '')[:490],
+                tiempo_inicio=getattr(
+                    request, 'audit_start_time', timezone.now()),
+                tiempo_final=timezone.now()
+            )
+            log_duration = time.time() - start_log_time
+            logger.info(
+                f"[AuditoriaMiddleware._log] Auditoría guardada ({log_duration:.4f}s) para {action} en {request.path}. User PK: {user_to_log.pk}. Result: {result}.")
+        except Exception as e_create_log:
             log_duration = time.time() - start_log_time
             logger.error(
-                f"[AuditoriaMiddleware._log] !! ERROR CRÍTICO AL GUARDAR AUDITORÍA !! ({log_duration:.4f}s) para {request.method} {request.path}. User: {getattr(request.user, 'pk', 'N/A')}. Error: {e}", exc_info=True)
+                f"[AuditoriaMiddleware._log] !! ERROR CRÍTICO AL GUARDAR EN BD AuditoriaSistema !! ({log_duration:.4f}s) para {request.method} {request.path}. User PK: {getattr(request.user, 'pk', 'N/A')}. Error: {type(e_create_log).__name__} - {e_create_log}",
+                exc_info=True
+            )
 
 
 class CustomSessionMiddleware:
@@ -189,67 +223,64 @@ class CustomSessionMiddleware:
     def __call__(self, request):
         user_auth_before = hasattr(
             request, 'user') and request.user.is_authenticated
-        session_key_before = request.session.session_key
+        session_key_before = request.session.session_key if request.session else "N/A"
 
         if user_auth_before:
             session = request.session
             last_activity_str = session.get('ultima_actividad')
-            now = timezone.now() if settings.USE_TZ else datetime.now()
-            now_iso = now.isoformat()
-
+            current_time = timezone.now()
             try:
-                session['ultima_actividad'] = now_iso
+                session['ultima_actividad'] = current_time.isoformat()
                 if not settings.SESSION_SAVE_EVERY_REQUEST:
-                    session.save()
-            except Exception as e:
+                    session.modified = True
+            except Exception as e_session_save:
                 logger.error(
-                    f"[CustomSessionMiddleware] Error ACTUALIZANDO ultima_actividad user {request.user.pk} / session {session_key_before}: {e}")
+                    f"[CustomSessionMiddleware] Error actualizando 'ultima_actividad' para user PK {request.user.pk} / session {session_key_before}: {e_session_save}")
 
             if last_activity_str:
                 try:
-                    try:
-                        last_activity_dt = datetime.fromisoformat(
-                            last_activity_str)
-                    except ValueError:
-                        last_activity_dt = datetime.strptime(
-                            last_activity_str, '%Y-%m-%dT%H:%M:%S')
-
-                    if settings.USE_TZ and last_activity_dt.tzinfo is None:
+                    last_activity_dt = datetime.fromisoformat(
+                        last_activity_str)
+                    if settings.USE_TZ and timezone.is_naive(last_activity_dt):
                         last_activity_dt = timezone.make_aware(
                             last_activity_dt, timezone.get_default_timezone())
-                    elif not settings.USE_TZ and last_activity_dt.tzinfo is not None:
+                    elif not settings.USE_TZ and timezone.is_aware(last_activity_dt):
                         last_activity_dt = timezone.make_naive(
                             last_activity_dt, timezone.get_default_timezone())
 
                     inactivity_seconds = (
-                        now - last_activity_dt).total_seconds()
-
+                        current_time - last_activity_dt).total_seconds()
                     if inactivity_seconds > self.SESSION_TIMEOUT_SECONDS:
                         user_pk_before_logout = request.user.pk
                         logger.warning(
-                            f"[CustomSessionMiddleware] SESIÓN EXPIRADA por inactividad para user {user_pk_before_logout}. Deslogueando.")
+                            f"[CustomSessionMiddleware] SESIÓN EXPIRADA por inactividad ({inactivity_seconds:.0f}s > {self.SESSION_TIMEOUT_SECONDS}s) para user PK {user_pk_before_logout}. Deslogueando.")
                         logout(request)
-                        return redirect('myapp:login')
-                except (ValueError, TypeError) as e:
+                        try:
+                            return redirect(reverse_lazy('myapp:login'))
+                        except NoReverseMatch:
+                            logger.error(
+                                "[CustomSessionMiddleware] No se pudo resolver 'myapp:login' para redirección post-logout.")
+                            from django.http import HttpResponseRedirect
+                            return HttpResponseRedirect('/')
+                except (ValueError, TypeError) as e_parse:
                     logger.error(
-                        f"[CustomSessionMiddleware] Error parseando ultima_actividad ('{last_activity_str}') user {request.user.pk}: {e}")
-                    session['ultima_actividad'] = now_iso
-                except Exception as e:
+                        f"[CustomSessionMiddleware] Error parseando 'ultima_actividad' ('{last_activity_str}') para user PK {request.user.pk}: {e_parse}. Reiniciando timestamp.")
+                    session['ultima_actividad'] = current_time.isoformat()
+                except Exception as e_check_exp:
                     logger.exception(
-                        f"[CustomSessionMiddleware] Error INESPERADO validando expiración user {request.user.pk}: {e}")
+                        f"[CustomSessionMiddleware] Error INESPERADO validando expiración para user PK {request.user.pk}: {e_check_exp}")
 
         response = self.get_response(request)
-
         user_auth_after = hasattr(
             request, 'user') and request.user.is_authenticated
-        try:
-            logout_url = reverse('myapp:logout')
-            if user_auth_before and not user_auth_after and request.path != logout_url:
-                logger.warning(
-                    f"[CustomSessionMiddleware] Usuario ({session_key_before}) desautenticado INESPERADAMENTE durante vista {request.path}!")
-        except NoReverseMatch:
-            pass  # Ignorar si la URL de logout no existe
-
+        if user_auth_before and not user_auth_after:
+            try:
+                logout_url_path = resolve_url(reverse_lazy('myapp:logout'))
+                if request.path != logout_url_path:
+                    logger.warning(
+                        f"[CustomSessionMiddleware] Usuario (sesión {session_key_before}) desautenticado INESPERADAMENTE durante vista {request.path}!")
+            except NoReverseMatch:
+                pass
         return response
 
 
@@ -265,12 +296,18 @@ class GraphCacheMiddleware:
 
     def __call__(self, request):
         if self.cache and 'graph' in request.GET:
-            cache_key = f"graph_{request.GET['graph']}"
-            response = self.cache.get(cache_key)
-            if not response:
-                response = self.get_response(request)
-                if response.status_code == 200:
-                    self.cache.set(cache_key, response, 3600)
+            graph_id = request.GET['graph']
+            cache_key = f"graph_data_{graph_id}"
+            cached_response_data = self.cache.get(cache_key)
+            if cached_response_data is not None:
+                logger.debug(
+                    f"[GraphCacheMiddleware] Sirviendo gráfico '{graph_id}' desde caché.")
+                return cached_response_data
+            response = self.get_response(request)
+            if response.status_code == 200:
+                logger.debug(
+                    f"[GraphCacheMiddleware] Guardando gráfico '{graph_id}' en caché.")
+                self.cache.set(cache_key, response, timeout=3600)
             return response
         return self.get_response(request)
 
@@ -279,13 +316,15 @@ class QueryMonitorMiddleware(MiddlewareMixin):
     def process_response(self, request, response):
         if settings.DEBUG and 'queries' in request.GET:
             try:
-                q = connection.queries
-                t = sum(float(i.get('time', 0)) for i in q)
-                n = len(q)
-                msg = f"\n--- DB Queries ({request.path}) ---\nTotal:{n}\nTime:{t:.4f}s\n"
-                logger.debug(msg)
+                from django.db import connection
+                queries = connection.queries
+                num_queries = len(queries)
+                total_time = sum(float(q.get('time', 0)) for q in queries)
+                logger.info(
+                    f"[QueryMonitor] Path: {request.path} | Queries: {num_queries} | Time: {total_time:.4f}s")
             except Exception as e:
-                logger.error(f"[QueryMonitorMiddleware] Error: {e}")
+                logger.error(
+                    f"[QueryMonitorMiddleware] Error: {e}", exc_info=True)
         return response
 
 
@@ -305,83 +344,72 @@ class ErrorHandlerMiddleware:
                 return render(request, '500.html', status=500)
             except Exception as render_e:
                 logger.critical(
-                    f"[ErrorHandlerMiddleware] !! ERROR AL RENDERIZAR 500.html !!: {render_e}")
-                return HttpResponseServerError("Error Interno del Servidor", content_type="text/plain")
+                    f"[ErrorHandlerMiddleware] !! ERROR CRÍTICO AL RENDERIZAR 500.html !!: {render_e}", exc_info=True)
+                return HttpResponseServerError("Error Interno del Servidor. Por favor, contacte al administrador.", content_type="text/plain")
         return response
-
-
-# Asegúrate que 'license_invalid' exista en urls.py
-LICENSE_EXEMPT_URL_NAMES = ['myapp:login',
-                            'myapp:logout', 'myapp:license_invalid']
 
 
 class LicenseCheckMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
-        # Construir las rutas exentas una vez
-        self.exempt_paths = []
-        try:
-            self.exempt_paths.append(reverse('myapp:license_invalid'))
-            self.exempt_paths.append(reverse('myapp:activate_license'))
-            # Añade otras URLs que se resuelven desde nombres si es necesario
-        except Exception as e:
-            logger.error(
-                f"Error resolviendo URLs exentas en LicenseCheckMiddleware __init__: {e}")
-
-        # Añadir prefijos de path directamente
-        self.exempt_path_prefixes = [
+        self.exempt_url_names_from_settings = frozenset(
+            getattr(settings, 'LICENSE_EXEMPT_URL_NAMES', []))
+        self.exempt_path_prefixes = tuple(filter(None, [
             getattr(settings, 'STATIC_URL', '/static/'),
             getattr(settings, 'MEDIA_URL', '/media/'),
-            '/admin/'  # Para el login y navegación básica del admin
-        ]
-        # Lista de nombres de URL exentos de settings.py
-        self.exempt_url_names_from_settings = getattr(
-            settings, 'LICENSE_EXEMPT_URL_NAMES', [])
-
-        logger.debug("Middleware de Licencia inicializado.")
+            '/admin/'
+        ]))
+        self.license_invalid_url_name = 'myapp:license_invalid'
+        self.activate_license_url_name = 'myapp:activate_license'
+        logger.debug(
+            f"LicenseCheckMiddleware inicializado. Exentos (nombres): {self.exempt_url_names_from_settings}, Exentos (prefijos): {self.exempt_path_prefixes}")
 
     def __call__(self, request):
-        if not request.user or not request.user.is_authenticated:
+        if not hasattr(request, 'user') or not request.user.is_authenticated:
             return self.get_response(request)
 
-        # 1. Chequeo por PATH directo para las páginas de gestión de licencia
-        if request.path_info in self.exempt_paths:
-            logger.debug(
-                f"Acceso permitido a PATH exento: {request.path_info}")
-            return self.get_response(request)
-
-        # 2. Chequeo por prefijo de PATH (static, media, admin)
-        for prefix in self.exempt_path_prefixes:
-            if prefix and request.path_info.startswith(prefix):
+        try:
+            license_invalid_path = resolve_url(self.license_invalid_url_name)
+            activate_license_path = resolve_url(self.activate_license_url_name)
+            if request.path_info in [license_invalid_path, activate_license_path]:
                 logger.debug(
-                    f"Acceso permitido a PREFIJO exento: {request.path_info}")
+                    f"[LicenseCheck] Acceso permitido a PATH exento directo de licencia: {request.path_info}")
+                return self.get_response(request)
+        except NoReverseMatch:
+            logger.error(
+                f"[LicenseCheck] Error CRÍTICO resolviendo URLs de licencia '{self.license_invalid_url_name}' o '{self.activate_license_url_name}'.")
+            # return HttpResponseServerError("Error de configuración interna de licencia.") # Descomentar si se quiere bloquear
+
+        for prefix in self.exempt_path_prefixes:
+            if request.path_info.startswith(prefix):
+                logger.debug(
+                    f"[LicenseCheck] Acceso permitido a PREFIJO exento: {request.path_info} (prefijo: {prefix})")
                 return self.get_response(request)
 
-        # 3. Chequeo por NOMBRE de URL (resolver_match)
         current_url_name = None
         if request.resolver_match:
             current_url_name = f"{request.resolver_match.namespace}:{request.resolver_match.url_name}" if request.resolver_match.namespace else request.resolver_match.url_name
             if current_url_name in self.exempt_url_names_from_settings:
                 logger.debug(
-                    f"Acceso permitido a URL_NAME exento: {current_url_name} ({request.path_info})")
+                    f"[LicenseCheck] Acceso permitido a URL_NAME exento de settings: {current_url_name} ({request.path_info})")
                 return self.get_response(request)
 
-        # 4. Si no está exenta por ninguno de los métodos anteriores, verificar licencia
-        if not check_license():
-            user_type_log = "Superusuario" if request.user.is_superuser else "Usuario"
-            logger.warning(
-                f"Acceso DENEGADO para {user_type_log} {request.user.email} a '{request.path}' (URL name: {current_url_name}) por licencia inválida/expirada. Redirigiendo a 'myapp:license_invalid'.")
+        license_valid, license_details = check_license(detailed=True)
+        if not license_valid:
+            user_type_log = "Superusuario" if request.user.is_superuser else "Usuario Normal"
+            log_message = (
+                f"[LicenseCheck] Acceso DENEGADO para {user_type_log} {getattr(request.user, 'email', request.user.username)} "
+                f"a '{request.path_info}' (URL name: {current_url_name}) por licencia inválida/expirada. "
+                f"Detalles: {license_details}. Redirigiendo a '{self.license_invalid_url_name}'..."
+            )
+            logger.warning(log_message)
             try:
-                # No necesitamos chequear de nuevo si es 'myapp:license_invalid' porque
-                # ya debería haber sido capturado por self.exempt_paths
-                return redirect(reverse_lazy('myapp:license_invalid'))
+                return redirect(reverse_lazy(self.license_invalid_url_name))
             except Exception as e_redirect:
-                from django.http import HttpResponseForbidden
                 logger.error(
-                    f"Fallo al redirigir a 'myapp:license_invalid' para {request.user.email}: {e_redirect}. Devolviendo 403.", exc_info=True)
-                return HttpResponseForbidden("Error de Licencia: Su licencia es inválida o ha expirado.")
+                    f"[LicenseCheck] Fallo al redirigir a '{self.license_invalid_url_name}' para usuario {getattr(request.user, 'email', request.user.username)}: {e_redirect}. Devolviendo 403.", exc_info=True)
+                return HttpResponseForbidden(f"Error de Licencia: Su licencia es inválida o ha expirado. Detalles: {license_details}")
 
-        # Si la licencia es válida y la página no estaba exenta, permitir acceso
         logger.debug(
-            f"Acceso PERMITIDO (licencia válida) para {request.user.email} a '{request.path}'")
+            f"[LicenseCheck] Acceso PERMITIDO (licencia válida) para {getattr(request.user, 'email', request.user.username)} a '{request.path_info}'. Detalles: {license_details}")
         return self.get_response(request)

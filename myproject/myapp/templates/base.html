@@ -200,7 +200,7 @@
         </div>
       </aside>
 
-      <div class="main_content">
+      <div class="content_area_wrapper">
         <header class="topbar">
             <div class="topbar_left">
               <button class="sidebar_toggle mobile_only" id="mobileSidebarToggle" aria-label="Alternar menú móvil">☰</button>
@@ -267,12 +267,14 @@
                       <span class="user_name">{{ request.user.get_full_name|default:request.user.username }}</span>
                   </button>
                   <div class="user_menu_dropdown">
-                      <a href="{% url 'myapp:usuario_detail' request.user.pk %}" class="user_menu_item">
-                          <span class="item_icon">👤</span><span class="item_text">Mi Perfil</span>
-                      </a>
-                      <a href="{% url 'myapp:usuario_update' request.user.pk %}" class="user_menu_item">
-                          <span class="item_icon">⚙️</span><span class="item_text">Configuración</span>
-                      </a>
+                    {% if request.user.is_authenticated and request.user.pk is not None %}  {# Condición para ambos enlaces de usuario #}
+                        <a href="{% url 'myapp:usuario_detail' request.user.pk %}" class="user_menu_item"> {# Usar request.user consistentemente #}
+                            <span class="item_icon">👤</span><span class="item_text">Mi Perfil</span>
+                        </a>
+                        <a href="{% url 'myapp:usuario_update' request.user.pk %}" class="user_menu_item">
+                            <span class="item_icon">⚙️</span><span class="item_text">Configuración</span>
+                        </a>
+                    {% endif %}
                       <div class="divider"></div>
                       <form action="{% url 'myapp:logout' %}" method="post" style="margin: 0;">
                           {% csrf_token %}
@@ -281,10 +283,9 @@
                           </button>
                       </form>
                   </div>
-              </div>
-            </div>
         </header>
-
+        
+        <div class="main_content_scroll_wrapper"> 
         <main class="page_content" role="main">
           {% if messages %}
              <div class="messages_container" aria-live="polite">

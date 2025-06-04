@@ -70,7 +70,7 @@ def _get_license_object_from_db():  # Renombrado para evitar confusión con get_
         return None
 
 
-def check_license():
+def check_license(detailed=False):  # <--- MODIFICACIÓN CLAVE
     """Verifica si la licencia almacenada en la BD es válida (no expirada)."""
     logger.debug("Realizando chequeo de licencia desde la BD...")
     license_obj = _get_license_object_from_db()
@@ -78,26 +78,30 @@ def check_license():
     if not license_obj:
         logger.warning(
             "Chequeo licencia: FALLIDO (Registro de licencia no encontrado en BD)")
-        return False
+        # Devolver tupla si detailed es True
+        return (False, "Registro de licencia no encontrado en BD.") if detailed else False
 
     if not license_obj.license_key or not license_obj.expiry_date:
         logger.error(
-            "Chequeo licencia: FALLIDO (Registro de licencia en BD incompleto - falta clave o fecha de expiración)")
-        return False
+            "Chequeo licencia: FALLIDO (Registro de licencia en BD incompleto)")
+        return (False, "Registro de licencia en BD incompleto.") if detailed else False
 
+    # Asegúrate que 'date' esté importado de datetime
     if not isinstance(license_obj.expiry_date, date):
         logger.error(
-            f"Chequeo licencia: FALLIDO (Fecha de expiración almacenada es inválida: {license_obj.expiry_date}, tipo: {type(license_obj.expiry_date)})")
-        return False
+            f"Chequeo licencia: FALLIDO (Fecha de expiración almacenada es inválida: {license_obj.expiry_date})")
+        return (False, f"Fecha de expiración almacenada es inválida: {license_obj.expiry_date}.") if detailed else False
 
-    if timezone.localdate() <= license_obj.expiry_date:  # Usar timezone.localdate()
-        logger.info(
-            f"Chequeo licencia: VÁLIDA (Almacenada en BD, Expira: {license_obj.expiry_date.isoformat()})")
-        return True
+    is_valid = timezone.localdate() <= license_obj.expiry_date
+
+    if is_valid:
+        msg = f"VÁLIDA (Almacenada en BD, Expira: {license_obj.expiry_date.isoformat()})"
+        logger.info(f"Chequeo licencia: {msg}")
+        return (True, msg) if detailed else True
     else:
-        logger.warning(
-            f"Chequeo licencia: EXPIRADA (Almacenada en BD, Expiró el: {license_obj.expiry_date.isoformat()})")
-        return False
+        msg = f"EXPIRADA (Almacenada en BD, Expiró el: {license_obj.expiry_date.isoformat()})"
+        logger.warning(f"Chequeo licencia: {msg}")
+        return (False, msg) if detailed else False
 
 
 # Nombre con guion bajo, consistencia
