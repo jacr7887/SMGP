@@ -287,14 +287,6 @@ def grafico_01():
         return plot(fig_excepcion, output_type='div', config=GRAPH_CONFIG)
 
 
-# grafico_02 (NUEVA VERSIÓN - AJUSTADA PARA SER MÁS PEQUEÑA)
-# Cartera por Antigüedad del Contrato (ej. Individuales)
-
-# ... (tus otras importaciones)
-
-# Asume que BASE_LAYOUT, GRAPH_CONFIG, COLOR_PALETTE, generar_figura_sin_datos, plot, CommonChoices están definidos como antes
-
-
 def grafico_02():
     """Composición de la Cartera de Contratos Individuales por Antigüedad."""
     try:
