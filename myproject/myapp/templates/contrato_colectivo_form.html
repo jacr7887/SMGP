@@ -53,7 +53,7 @@
                 </div>
             {% endif %}
 
-            {% if form.tipo_empresa %}
+            {% if 'tipo_empresa' in form.fields %} {# Cambiado a if 'campo' in form.fields #}
             <div class="dark-group {% if form.tipo_empresa.errors %}error{% endif %}">
                 <label class="dark-label" for="{{ form.tipo_empresa.id_for_label }}">🏭 Tipo de Empresa</label>
                 {{ form.tipo_empresa }}
@@ -62,7 +62,7 @@
             </div>
             {% endif %}
 
-            {% if form.cantidad_empleados %}
+            {% if 'cantidad_empleados' in form.fields %}
             <div class="dark-group {% if form.cantidad_empleados.errors %}error{% endif %}">
                 <label class="dark-label" for="{{ form.cantidad_empleados.id_for_label }}">👥 Cantidad Empleados</label>
                 {{ form.cantidad_empleados }}
@@ -71,7 +71,7 @@
             </div>
             {% endif %}
             
-            {% if form.direccion_comercial %}
+            {% if 'direccion_comercial' in form.fields %}
             <div class="dark-group {% if form.direccion_comercial.errors %}error{% endif %}">
                 <label class="dark-label" for="{{ form.direccion_comercial.id_for_label }}">🏠 Dirección Comercial</label>
                 {{ form.direccion_comercial }}
@@ -80,7 +80,7 @@
             </div>
             {% endif %}
 
-            {% if form.zona_postal %}
+            {% if 'zona_postal' in form.fields %}
             <div class="dark-group {% if form.zona_postal.errors %}error{% endif %}">
                 <label class="dark-label" for="{{ form.zona_postal.id_for_label }}">📬 Zona Postal</label>
                 {{ form.zona_postal }}
@@ -100,15 +100,15 @@
                 <div class="dark-group readonly-group"><label class="dark-label">📜 Número Póliza</label><input type="text" value="{{ form.instance.numero_poliza|default:'N/A' }}" readonly class="dark-group-plaintext"></div>
                 <div class="dark-group readonly-group"><label class="dark-label">📜 Número Certificado</label><input type="text" value="{{ form.instance.certificado|default:'N/A' }}" readonly class="dark-group-plaintext"></div>
                 <div class="dark-group readonly-group"><label class="dark-label">🧾 Número Recibo Global</label><input type="text" value="{{ form.instance.numero_recibo|default:'N/A' }}" readonly class="dark-group-plaintext"></div>
-                <div class="dark-group readonly-group"><label class="dark-label">📅 Fecha Emisión</label><input type="text" value="{{ form.instance.fecha_emision|date:"d/m/Y H:i"|default:'N/A' }}" readonly class="dark-group-plaintext"></div>
+                <div class="dark-group readonly-group"><label class="dark-label">📅 Fecha Emisión (Registrada)</label><input type="text" value="{{ form.instance.fecha_emision|date:"d/m/Y H:i"|default:'N/A' }}" readonly class="dark-group-plaintext"></div>
                 <div class="dark-group readonly-group"><label class="dark-label">💰 Prima Total (Calculada)</label><input type="text" value="${{ form.instance.monto_total|floatformat:2|intcomma|default:'0.00' }}" readonly class="dark-group-plaintext"><small class="form-text text-muted">Monto histórico calculado.</small></div>
             {% endif %}
 
-            {% if form.activo %}
+            {% if 'activo' in form.fields %}
             <div class="dark-group form-field-inline {% if form.activo.errors %}error{% endif %}">
                 <label class="dark-label" for="{{ form.activo.id_for_label }}">💡 Activo</label>
                  <label class="switch">
-                     {{ form.activo }} {# El input checkbox va aquí #}
+                     {{ form.activo }}
                      <span class="slider"></span>
                  </label>
                 {% for error in form.activo.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
@@ -116,7 +116,7 @@
             </div>
             {% endif %}
 
-            {% if form.ramo %}
+            {% if 'ramo' in form.fields %}
             <div class="dark-group {% if form.ramo.errors %}error{% endif %}">
                 <label class="dark-label" for="{{ form.ramo.id_for_label }}">🌿 Ramo {% if form.ramo.field.required %}(*){% endif %}</label>
                 {{ form.ramo }}
@@ -125,7 +125,7 @@
             </div>
             {% endif %}
 
-            {% if form.plan_contratado %}
+            {% if 'plan_contratado' in form.fields %}
             <div class="dark-group {% if form.plan_contratado.errors %}error{% endif %}">
                 <label class="dark-label" for="{{ form.plan_contratado.id_for_label }}">📋 Plan Contratado</label>
                 {{ form.plan_contratado }}
@@ -134,7 +134,7 @@
             </div>
             {% endif %}
 
-            {% if form.suma_asegurada %}
+            {% if 'suma_asegurada' in form.fields %}
             <div class="dark-group {% if form.suma_asegurada.errors %}error{% endif %}">
                <label class="dark-label" for="{{ form.suma_asegurada.id_for_label }}">🛡️ Suma Asegurada / Cobertura</label>
                {{ form.suma_asegurada }}
@@ -143,7 +143,7 @@
            </div>
            {% endif %}
 
-            {% if form.intermediario %}
+            {% if 'intermediario' in form.fields %}
             <div class="dark-group {% if form.intermediario.errors %}error{% endif %}">
                 <label class="dark-label" for="{{ form.intermediario.id_for_label }}">🤝 Intermediario {% if form.intermediario.field.required %}(*){% endif %}</label>
                 {{ form.intermediario }}
@@ -152,17 +152,14 @@
             </div>
             {% endif %}
             
-            {# --- CAMPO TARIFA APLICADA --- #}
-            {# Renderizar incondicionalmente si el campo existe en el formulario #}
             {% if 'tarifa_aplicada' in form.fields %}
-            <div class="dark-group {% if form.tarifa_aplicada.errors %}error{% endif %}" id="tarifa-aplicada-wrapper-debug">
+            <div class="dark-group {% if form.tarifa_aplicada.errors %}error{% endif %}">
                 <label class="dark-label" for="{{ form.tarifa_aplicada.id_for_label }}">🏷️ Tarifa Aplicada {% if form.tarifa_aplicada.field.required %}(*){% endif %}</label>
-                {{ form.tarifa_aplicada }} {# Esto debería renderizar el Select2 #}
+                {{ form.tarifa_aplicada }}
                 {% for error in form.tarifa_aplicada.errors %}<ul class="error-messages"><li>{{ error|escape }}</li></ul>{% endfor %}
                 {% if form.tarifa_aplicada.help_text %}<small class="form-text text-muted">{{ form.tarifa_aplicada.help_text|escape }}</small>{% endif %}
             </div>
             {% endif %}
-            
         </div>
       </fieldset>
 
@@ -170,7 +167,7 @@
       <fieldset class="dark-group" data-section="condiciones-financieras">
         <legend class="dark-label">💰 Condiciones Financieras y Vigencia</legend>
         <div class="dark-grid">
-            {% if form.forma_pago %}
+            {% if 'forma_pago' in form.fields %}
             <div class="dark-group {% if form.forma_pago.errors %}error{% endif %}">
                 <label class="dark-label" for="{{ form.forma_pago.id_for_label }}">💳 Forma de Pago {% if form.forma_pago.field.required %}(*){% endif %}</label>
                 {{ form.forma_pago }}
@@ -179,7 +176,7 @@
             </div>
             {% endif %}
 
-            {% if form.periodo_vigencia_meses %}
+            {% if 'periodo_vigencia_meses' in form.fields %}
             <div class="dark-group {% if form.periodo_vigencia_meses.errors %}error{% endif %}">
                 <label class="dark-label" for="{{ form.periodo_vigencia_meses.id_for_label }}">⏳ Duración (Meses)</label>
                 {{ form.periodo_vigencia_meses }}
@@ -188,7 +185,18 @@
             </div>
             {% endif %}
 
-            {% if form.fecha_inicio_vigencia %}
+            {# ***** INICIO CORRECCIÓN PARA FECHA DE EMISIÓN ***** #}
+            {% if not form.instance.pk and 'fecha_emision' in form.fields %} {# Solo en modo CREACIÓN #}
+            <div class="dark-group {% if form.fecha_emision.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.fecha_emision.id_for_label }}">📅 Fecha de Emisión {% if form.fecha_emision.field.required %}(*){% endif %}</label>
+                {{ form.fecha_emision }} {# Renderiza el campo del formulario #}
+                {% for error in form.fecha_emision.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
+                {% if form.fecha_emision.help_text %}<small class="form-text text-muted">{{ form.fecha_emision.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+            {# ***** FIN CORRECCIÓN PARA FECHA DE EMISIÓN ***** #}
+
+            {% if 'fecha_inicio_vigencia' in form.fields %}
             <div class="dark-group {% if form.fecha_inicio_vigencia.errors %}error{% endif %}">
                 <label class="dark-label" for="{{ form.fecha_inicio_vigencia.id_for_label }}">➡️ Inicio Vigencia {% if form.fecha_inicio_vigencia.field.required %}(*){% endif %}</label>
                 {{ form.fecha_inicio_vigencia }}
@@ -197,7 +205,7 @@
             </div>
             {% endif %}
 
-            {% if form.fecha_fin_vigencia %}
+            {% if 'fecha_fin_vigencia' in form.fields %}
             <div class="dark-group {% if form.fecha_fin_vigencia.errors %}error{% endif %}">
                 <label class="dark-label" for="{{ form.fecha_fin_vigencia.id_for_label }}">⏹️ Fin Vigencia</label>
                 {{ form.fecha_fin_vigencia }}
@@ -206,7 +214,7 @@
             </div>
             {% endif %}
             
-            {% if form.estatus %}
+            {% if 'estatus' in form.fields %}
             <div class="dark-group {% if form.estatus.errors %}error{% endif %}">
                 <label class="dark-label" for="{{ form.estatus.id_for_label }}">🚦 Estatus Vigencia</label>
                 {{ form.estatus }}
@@ -215,7 +223,7 @@
             </div>
             {% endif %}
 
-            {% if form.estado_contrato %}
+            {% if 'estado_contrato' in form.fields %}
             <div class="dark-group {% if form.estado_contrato.errors %}error{% endif %}">
                 <label class="dark-label" for="{{ form.estado_contrato.id_for_label }}">📊 Estado Admin.</label>
                 {{ form.estado_contrato }}
@@ -233,11 +241,10 @@
         </div>
       </fieldset>
 
-      {% if form.afiliados_colectivos %}
+      {% if 'afiliados_colectivos' in form.fields %} {# Movido aquí para mejor flujo visual #}
       <fieldset class="dark-group" data-section="afiliados-asociados">
            <legend class="dark-label">🏢 Empresas Afiliadas Asociadas {% if form.afiliados_colectivos.field.required %}(*){% endif %}</legend>
            <div class="dark-group {% if form.afiliados_colectivos.errors %}error{% endif %}">
-               {# No se necesita label explícita si el widget Select2Multiple lo maneja bien o el fieldset ya tiene legend #}
                {{ form.afiliados_colectivos }}
                {% for error in form.afiliados_colectivos.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
                {% if form.afiliados_colectivos.help_text %}<small class="form-text text-muted">{{ form.afiliados_colectivos.help_text|escape }}</small>{% endif %}
@@ -248,7 +255,7 @@
       <fieldset class="dark-group" data-section="otros-detalles">
         <legend class="dark-label">ℹ️ Otros Detalles</legend>
         <div class="dark-grid">
-            {% if form.criterio_busqueda %}
+            {% if 'criterio_busqueda' in form.fields %}
             <div class="dark-group {% if form.criterio_busqueda.errors %}error{% endif %}">
                 <label class="dark-label" for="{{ form.criterio_busqueda.id_for_label }}">🔍 Criterio Búsqueda</label>
                 {{ form.criterio_busqueda }}
@@ -257,16 +264,16 @@
             </div>
             {% endif %}
 
-            {% if form.codigo_validacion %}
-            <div class="dark-group {% if form.codigo_validacion.errors %}error{% endif %}">
+            {% if 'codigo_validacion' in form.fields %} {# Este campo no está en tu form.Meta.fields #}
+            {# Si quieres mostrarlo (readonly), debes añadirlo al form y luego aquí #}
+            {# <div class="dark-group {% if form.codigo_validacion.errors %}error{% endif %}">
                 <label class="dark-label" for="{{ form.codigo_validacion.id_for_label }}">🔑 Cód. Validación</label>
                 {{ form.codigo_validacion }}
-                {% for error in form.codigo_validacion.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
-                {% if form.codigo_validacion.help_text %}<small class="form-text text-muted">{{ form.codigo_validacion.help_text|escape }}</small>{% endif %}
-            </div>
+                ...
+            </div> #}
             {% endif %}
 
-            {% if form.consultar_afiliados_activos %}
+            {% if 'consultar_afiliados_activos' in form.fields %}
             <div class="dark-group form-field-inline {% if form.consultar_afiliados_activos.errors %}error{% endif %}">
                 <label class="dark-label" for="{{ form.consultar_afiliados_activos.id_for_label }}">❓ Consultar Af. Activos</label>
                  <label class="switch">
@@ -280,9 +287,9 @@
         </div>
       </fieldset>
 
-      {% for field in form.hidden_fields %}
-          {{ field }}
-      {% endfor %}
+       {% for field in form.hidden_fields %}
+            {{ field }}
+       {% endfor %}
 
       <div class="form-actions">
         <button type="submit" class="btn-success">{% if form.instance.pk %}💾 Actualizar Contrato{% else %}➕ Crear Contrato{% endif %}</button>
@@ -291,4 +298,29 @@
     </form>
   </section>
 </div>
+{% comment %} 
+<!-- <style>
+  .readonly-group { margin-bottom: 0.8rem; }
+  .dark-group-plaintext {
+    display: block; width: 100%; padding: 0.375rem 0.1rem;
+    margin-bottom: 0; line-height: 1.5; color: #bdc3c7;
+    background-color: transparent; border: none; border-bottom: 1px solid #444;
+    box-sizing: border-box; font-size: 0.9em;
+  }
+  .dark-group.readonly-group small { display: block; margin-top: 0.25rem; font-size: 0.8em; }
+  .switch { position: relative; display: inline-block; width: 50px; height: 24px; vertical-align: middle; margin-left: 10px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; transition: .4s; border-radius: 24px; }
+  .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+  input:checked + .slider { background-color: #4CAF50; }
+  input:checked + .slider:before { transform: translateX(26px); }
+  .dark-group.error input, .dark-group.error select, .dark-group.error textarea { border-color: #e74c3c; }
+  .error-messages { list-style: none; padding-left: 0; margin-top: 0.25rem; }
+  .error-messages li { color: #e74c3c; font-size: 0.85em; }
+  .error-summary { margin-bottom: 1.5rem; }
+  .error-summary h4 { color: #e74c3c; margin-bottom: 0.5rem; font-size: 1.1em; }
+  .error-summary ul { padding-left: 20px; margin-bottom: 0; }
+  .error-summary li { color: #f1a097; }
+</style> -->
+{% endcomment %}
 {% endblock content %}
