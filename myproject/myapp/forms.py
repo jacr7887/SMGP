@@ -683,7 +683,10 @@ class ContratoIndividualForm(AwareDateInputMixinVE, BaseModelForm):
     periodo_vigencia_meses = forms.IntegerField(
         min_value=1, widget=forms.NumberInput(attrs={'min': '1'}), required=False)
     tipo_identificacion_contratante = forms.ChoiceField(
-        choices=CommonChoices.TIPO_IDENTIFICACION, widget=Select2Widget())
+        choices=CommonChoices.TIPO_IDENTIFICACION,
+        widget=Select2Widget(),
+        label="Tipo Identificación Contratante"
+    )
     contratante_cedula = forms.CharField(max_length=20)
     contratante_nombre = forms.CharField(max_length=200)
     direccion_contratante = forms.CharField(
@@ -1206,6 +1209,14 @@ class TarifaForm(AwareDateInputMixinVE, BaseModelForm):
             'monto_anual': forms.NumberInput(attrs={'step': '0.01'}),
             'comision_intermediario': forms.NumberInput(attrs={'step': '0.01', 'min': '0', 'max': '100'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Formatear el valor inicial para los campos de fecha CharField
+        if self.instance and self.instance.pk:
+            if 'fecha_aplicacion' in self.fields and isinstance(self.instance.fecha_aplicacion, date):
+                self.initial['fecha_aplicacion'] = self.instance.fecha_aplicacion.strftime(
+                    '%d/%m/%Y')
 
     def clean_monto_anual(self):
         monto = self.cleaned_data.get('monto_anual')

@@ -1,6 +1,7 @@
 # models.py
 # Needed for dynamic model fetching if used in Meta or methods
-from .validators import validate_past_date, validate_telefono_venezuela  # Tus validadores
+# Tus validadores
+from .validators import validate_past_date, validate_telefono_venezuela, validate_pasaporte
 # Donde defines NIVEL_ACCESO, TIPO_USUARIO, DEPARTAMENTO
 from .commons import CommonChoices, RAMO_ABREVIATURAS, RANGO_ETARIO_ABREVIATURAS
 import logging  # Para logging
@@ -1259,8 +1260,8 @@ class ContratoIndividual(ContratoBase):
     activo = models.BooleanField(default=True, verbose_name="Estado activo",
                                  help_text="Indica si este registro de contrato individual está activo en el sistema.")
     tipo_identificacion_contratante = models.CharField(
-        max_length=1,
-        choices=CommonChoices.TIPO_CEDULA,
+        max_length=20,
+        choices=CommonChoices.TIPO_IDENTIFICACION,
         verbose_name="Tipo de Identificación del Contratante",
 
         help_text="Tipo de documento (Cédula o RIF) de la persona o entidad que paga el contrato."
@@ -1396,28 +1397,140 @@ class ContratoIndividual(ContratoBase):
 
     def clean(self):
         super().clean()
-        tipo_id = self.tipo_identificacion_contratante
-        cedula = self.contratante_cedula
-        if cedula:  # Solo validar si hay cédula
-            if tipo_id in ['J', 'G']:
+        error_messages = {}
+
+        tipo_id_contratante_valor = self.tipo_identificacion_contratante
+        numero_documento_contratante = self.contratante_cedula
+
+        if tipo_id_contratante_valor and not numero_documento_contratante:
+            error_messages.setdefault('contratante_cedula', []).append(
+                "El número de documento es obligatorio si se selecciona un tipo de identificación."
+            )
+        elif numero_documento_contratante:
+            if tipo_id_contratante_valor == 'CEDULA':
                 try:
-                    validate_rif(cedula)
+                    validate_cedula(numero_documento_contratante)
                 except ValidationError as e:
-                    raise ValidationError(
-                        {'contratante_cedula': f"RIF Contratante inválido: {e}"})
-            elif tipo_id in ['V', 'E']:
+                    error_messages.setdefault('contratante_cedula', []).extend(
+                        e.messages if hasattr(e, 'messages') else [str(e)]
+                    )
+            elif tipo_id_contratante_valor == 'RIF':
                 try:
-                    validate_cedula(cedula)
+                    validate_rif(numero_documento_contratante)
                 except ValidationError as e:
-                    raise ValidationError(
-                        {'contratante_cedula': f"Cédula Contratante inválida: {e}"})
-            else:  # Si tipo_id es inválido o None
-                raise ValidationError(
-                    {'tipo_identificacion_contratante': "Tipo de identificación inválido."})
-        elif not cedula:
-            # Considerar si la cédula del contratante es obligatoria
-            # O raise ValidationError({'contratante_cedula': "Este campo es obligatorio."})
-            pass
+                    error_messages.setdefault('contratante_cedula', []).extend(
+                        e.messages if hasattr(e, 'messages') else [str(e)]
+                    )
+            elif tipo_id_contratante_valor == 'PASAPORTE':
+                try:
+                    validate_pasaporte(numero_documento_contratante)
+                except ValidationError as e:
+                    error_messages.setdefault('contratante_cedula', []).extend(
+                        e.messages if hasattr(e, 'messages') else [str(e)]
+                    )
+        elif not numero_documento_contratante and not self._meta.get_field('contratante_cedula').blank:
+            error_messages.setdefault('contratante_cedula', []).append(
+                "Este campo es obligatorio.")
+
+        # --- Validación de fechas del contrato ---
+        # Los campos de fecha del modelo ya son objetos date o datetime (aware si USE_TZ=True)
+        fecha_emision_obj = self.fecha_emision
+        fecha_inicio_vigencia_obj = self.fecha_inicio_vigencia
+        fecha_fin_vigencia_obj = self.fecha_fin_vigencia
+
+        # Obtener solo la parte de la fecha para comparaciones si son datetime
+        fecha_emision_date = None
+        if isinstance(fecha_emision_obj, datetime):
+            fecha_emision_date = django_timezone.localtime(fecha_emision_obj).date(
+            ) if django_timezone.is_aware(fecha_emision_obj) else fecha_emision_obj.date()
+        elif isinstance(fecha_emision_obj, date):
+            fecha_emision_date = fecha_emision_obj
+
+        fecha_inicio_vigencia_date = None
+        if isinstance(fecha_inicio_vigencia_obj, datetime):
+            fecha_inicio_vigencia_date = django_timezone.localtime(fecha_inicio_vigencia_obj).date(
+            ) if django_timezone.is_aware(fecha_inicio_vigencia_obj) else fecha_inicio_vigencia_obj.date()
+        elif isinstance(fecha_inicio_vigencia_obj, date):
+            fecha_inicio_vigencia_date = fecha_inicio_vigencia_obj
+
+        fecha_fin_vigencia_date = None
+        if isinstance(fecha_fin_vigencia_obj, datetime):
+            fecha_fin_vigencia_date = django_timezone.localtime(fecha_fin_vigencia_obj).date(
+            ) if django_timezone.is_aware(fecha_fin_vigencia_obj) else fecha_fin_vigencia_obj.date()
+        elif isinstance(fecha_fin_vigencia_obj, date):
+            fecha_fin_vigencia_date = fecha_fin_vigencia_obj
+
+        if fecha_emision_date and fecha_inicio_vigencia_date and fecha_emision_date > fecha_inicio_vigencia_date:
+            error_messages.setdefault('fecha_emision', []).append(
+                "La fecha de emisión no puede ser posterior a la fecha de inicio de vigencia."
+            )
+
+        if fecha_inicio_vigencia_date and fecha_fin_vigencia_date:
+            if fecha_fin_vigencia_date < fecha_inicio_vigencia_date:
+                error_messages.setdefault('fecha_fin_vigencia', []).append(
+                    "La fecha de fin de vigencia no puede ser anterior a la fecha de inicio."
+                )
+            if self.periodo_vigencia_meses is not None:
+                try:
+                    # Asegurarse que periodo_vigencia_meses es un entero
+                    periodo_meses_int = int(self.periodo_vigencia_meses)
+                    fin_calculado_desde_periodo = fecha_inicio_vigencia_date + \
+                        relativedelta(months=+periodo_meses_int) - \
+                        timedelta(days=1)
+                    if fin_calculado_desde_periodo != fecha_fin_vigencia_date:
+                        error_messages.setdefault('fecha_fin_vigencia', []).append(
+                            f"La fecha de fin ({fecha_fin_vigencia_date.strftime('%d/%m/%Y')}) no coincide con la duración de {periodo_meses_int} meses "
+                            f"(que resultaría en {fin_calculado_desde_periodo.strftime('%d/%m/%Y')})."
+                        )
+                except (TypeError, ValueError):
+                    error_messages.setdefault('periodo_vigencia_meses', []).append(
+                        "La duración en meses debe ser un número entero válido.")
+
+        # --- Validaciones para fechas de recibo ---
+        fecha_inicio_recibo_obj = self.fecha_inicio_vigencia_recibo
+        fecha_fin_recibo_obj = self.fecha_fin_vigencia_recibo
+
+        fecha_inicio_recibo_date = None
+        if isinstance(fecha_inicio_recibo_obj, datetime):
+            fecha_inicio_recibo_date = django_timezone.localtime(fecha_inicio_recibo_obj).date(
+            ) if django_timezone.is_aware(fecha_inicio_recibo_obj) else fecha_inicio_recibo_obj.date()
+        elif isinstance(fecha_inicio_recibo_obj, date):
+            fecha_inicio_recibo_date = fecha_inicio_recibo_obj
+
+        fecha_fin_recibo_date = None
+        if isinstance(fecha_fin_recibo_obj, datetime):
+            fecha_fin_recibo_date = django_timezone.localtime(fecha_fin_recibo_obj).date(
+            ) if django_timezone.is_aware(fecha_fin_recibo_obj) else fecha_fin_recibo_obj.date()
+        elif isinstance(fecha_fin_recibo_obj, date):
+            fecha_fin_recibo_date = fecha_fin_recibo_obj
+
+        if fecha_inicio_recibo_date and fecha_inicio_vigencia_date and fecha_inicio_recibo_date < fecha_inicio_vigencia_date:
+            error_messages.setdefault('fecha_inicio_vigencia_recibo', []).append(
+                "El inicio de vigencia del recibo no puede ser anterior al inicio de vigencia del contrato."
+            )
+
+        fecha_final_efectiva_contrato = fecha_fin_vigencia_date
+        if not fecha_final_efectiva_contrato and fecha_inicio_vigencia_date and self.periodo_vigencia_meses:
+            try:
+                periodo_meses_int = int(self.periodo_vigencia_meses)
+                fecha_final_efectiva_contrato = fecha_inicio_vigencia_date + \
+                    relativedelta(months=+periodo_meses_int) - \
+                    timedelta(days=1)
+            except (TypeError, ValueError):
+                pass  # Error ya manejado para periodo_vigencia_meses
+
+        if fecha_fin_recibo_date and fecha_final_efectiva_contrato and fecha_fin_recibo_date > fecha_final_efectiva_contrato:
+            error_messages.setdefault('fecha_fin_vigencia_recibo', []).append(
+                "El fin de vigencia del recibo no puede ser posterior al fin de vigencia del contrato."
+            )
+
+        if fecha_inicio_recibo_date and fecha_fin_recibo_date and fecha_fin_recibo_date < fecha_inicio_recibo_date:
+            error_messages.setdefault('fecha_fin_vigencia_recibo', []).append(
+                "La fecha de fin de vigencia del recibo no puede ser anterior a su fecha de inicio."
+            )
+
+        if error_messages:
+            raise ValidationError(error_messages)
 
     def _generar_recibo_inicial_contrato(self):
         # print(f"    CI (PK:{self.pk or 'Nuevo'}) GENERANDO RECIBO INICIAL...")

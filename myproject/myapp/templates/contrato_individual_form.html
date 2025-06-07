@@ -223,6 +223,16 @@
             </div>
             {% endif %}
 
+            {% if not form.instance.pk and 'fecha_emision' in form.fields %}
+            <div class="dark-group {% if form.fecha_emision.errors %}error{% endif %}">
+                <label class="dark-label" for="{{ form.fecha_emision.id_for_label }}">📅 Fecha de Emisión (*)</label>
+                {{ form.fecha_emision }} {# Esto usará el widget CharField con placeholder DD/MM/AAAA #}
+                {% if form.fecha_emision.errors %}<ul class="error-messages">{% for e in form.fecha_emision.errors %}<li>{{e|escape}}</li>{% endfor %}</ul>{% endif %}
+                {% if form.fecha_emision.help_text %}<small class="form-text text-muted">{{ form.fecha_emision.help_text|escape }}</small>{% endif %}
+            </div>
+            {% endif %}
+
+
             {% if 'fecha_inicio_vigencia' in form.fields %}
                  <div class="dark-group {% if form.fecha_inicio_vigencia.errors %}error{% endif %}">
                      <label class="dark-label" for="{{ form.fecha_inicio_vigencia.id_for_label }}">➡️ Inicio Vigencia Contrato (*)</label>
