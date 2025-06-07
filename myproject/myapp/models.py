@@ -2796,6 +2796,14 @@ class Factura(ModeloBase):  # Asegúrate que herede de ModeloBase si lo necesita
             prefetch_args.append(Prefetch('pagos', queryset=pago_qs))
         return cls.objects.select_related('contrato_individual', 'contrato_colectivo', 'intermediario').prefetch_related(*prefetch_args)
 
+    @property
+    def ramo_contrato(self):
+        if self.contrato_individual and self.contrato_individual.ramo:
+            return self.contrato_individual.get_ramo_display()  # Devuelve el display name
+        elif self.contrato_colectivo and self.contrato_colectivo.ramo:
+            return self.contrato_colectivo.get_ramo_display()  # Devuelve el display name
+        return None
+
     class Meta:
         verbose_name = "Factura"
         verbose_name_plural = "Facturas"
@@ -2949,14 +2957,22 @@ class AuditoriaSistema(models.Model):
 class ReclamacionManager(models.Manager):
     def con_relaciones_completas(self):
         return self.select_related(
-            'contrato_individual__afiliado',  # Optimizar carga anidada
-            'contrato_colectivo__intermediario',  # Optimizar carga anidada
+            'contrato_individual__afiliado',
+            'contrato_colectivo__intermediario',
             'usuario_asignado'
         ).prefetch_related('pagos')
 
 
 class Reclamacion(ModeloBase):
-    objects = ReclamacionManager()
+    numero_reclamacion = models.CharField(
+        max_length=50,
+        unique=True,    # Importante: True desde el inicio ahora
+        verbose_name="Número de Reclamación",
+        db_index=True,
+        blank=True,
+        editable=False,
+        help_text="Identificador único de la reclamación (Auto-generado)."
+    )
     activo = models.BooleanField(
         default=True,
         verbose_name="¿Reclamación activa?",
@@ -2969,7 +2985,6 @@ class Reclamacion(ModeloBase):
         default='MEDICA',
         verbose_name=("Tipo de Reclamación"),
         db_index=True,
-
         help_text="Naturaleza de la reclamación (ej. Médica, Dental, Administrativa)."
     )
     diagnostico_principal = models.CharField(
@@ -2985,11 +3000,10 @@ class Reclamacion(ModeloBase):
         max_length=50,
         choices=CommonChoices.ESTADO_RECLAMACION,
         default='ABIERTA',
-        blank=False,
-        null=False,
+        blank=False,  # Asumo que estado siempre debe tener un valor
+        null=False,  # Asumo que estado siempre debe tener un valor
         verbose_name=("Estado de la Reclamación"),
         db_index=True,
-
         help_text="Estado actual del proceso de la reclamación (ej. Abierta, Aprobada, Pagada)."
     )
     descripcion_reclamo = models.TextField(
@@ -3002,7 +3016,7 @@ class Reclamacion(ModeloBase):
         max_digits=15,
         decimal_places=2,
         verbose_name="Monto Reclamado",
-        validators=[MinValueValidator(0.01)],  # Asegura que sea positivo
+        validators=[MinValueValidator(Decimal('0.01'))],
         help_text="Monto solicitado por el cliente en la reclamación. Debe ser mayor a 0."
     )
     contrato_individual = models.ForeignKey(
@@ -3012,7 +3026,6 @@ class Reclamacion(ModeloBase):
         blank=True,
         verbose_name=("Contrato Individual"),
         db_index=True,
-
         help_text="Contrato individual bajo el cual se realiza la reclamación (si aplica)."
     )
     contrato_colectivo = models.ForeignKey(
@@ -3022,7 +3035,6 @@ class Reclamacion(ModeloBase):
         blank=True,
         verbose_name=("Contrato Colectivo"),
         db_index=True,
-
         help_text="Contrato colectivo bajo el cual se realiza la reclamación (si aplica)."
     )
     fecha_reclamo = models.DateField(
@@ -3038,7 +3050,7 @@ class Reclamacion(ModeloBase):
         help_text="Fecha en que la reclamación fue resuelta o cerrada definitivamente."
     )
     usuario_asignado = models.ForeignKey(
-        Usuario,
+        'Usuario',  # O settings.AUTH_USER_MODEL
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -3049,21 +3061,18 @@ class Reclamacion(ModeloBase):
     documentos_adjuntos = models.FileField(
         upload_to='reclamos/',
         validators=[
-            # OJO: difiere de otros forms (doc, docx)
             FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'png']),
-            validate_file_size
+            validate_file_size  # Asegúrate que validate_file_size esté definida
         ],
         verbose_name="Documentos Adjuntos",
         blank=True,
-        # <-- MODIFICADO
-        help_text="Archivos PDF, JPG, PNG que soportan la reclamación. Tamaño máx: 10MB.",
-        null=True
+        null=True,
+        help_text="Archivos PDF, JPG, PNG que soportan la reclamación. Tamaño máx: 10MB."
     )
     observaciones_internas = models.TextField(
         verbose_name=("Observaciones Internas"),
         blank=True,
         null=True,
-
         help_text="Notas o comentarios internos del personal sobre la reclamación (no visibles al cliente)."
     )
     observaciones_cliente = models.TextField(
@@ -3073,47 +3082,94 @@ class Reclamacion(ModeloBase):
         help_text="Comentarios o respuestas proporcionadas al cliente sobre el estado o resolución de la reclamación."
     )
 
-    objects = SoftDeleteManager()
-    all_objects = models.Manager()
+    objects = ReclamacionManager()  # Tu manager personalizado
+    all_objects = models.Manager()  # O SoftDeleteManager si lo usas para Reclamacion
+
+    def _generar_numero_reclamacion(self):
+        fecha_actual_str = django_timezone.now().strftime("%y%m%d")
+        tipo_contrato_str = "UNK"
+        id_contrato_ref_simple = "NA"
+        contrato_obj = self.contrato_individual or self.contrato_colectivo
+        if contrato_obj:
+            tipo_contrato_str = "CI" if self.contrato_individual else "CC"
+            # Usar el PK del contrato si ya existe, de lo contrario un placeholder
+            # Es importante que contrato_obj.pk exista si el contrato ya fue guardado.
+            # Si el contrato es nuevo y aún no tiene PK, esto podría dar "NEW".
+            id_contrato_ref_simple = str(contrato_obj.pk if contrato_obj and hasattr(
+                contrato_obj, 'pk') and contrato_obj.pk else "NEW")[:5]
+
+        # Añadir el PK de la propia reclamación (si ya existe) para mayor unicidad,
+        # o un UUID si es una instancia nueva sin PK.
+        # Sin embargo, _generar_numero_reclamacion se llama ANTES de que el PK se asigne en el primer save.
+        # Por lo tanto, nos basaremos en UUID para la parte variable si es nuevo.
+
+        # Un poco más largo para mayor unicidad
+        uuid_part = uuid.uuid4().hex[:8].upper()
+
+        # Formato: RECL-YYMMDD-CI/CC-IDCONTRATO-UUID
+        codigo_generado = f"RECL-{fecha_actual_str}-{tipo_contrato_str}-{id_contrato_ref_simple}-{uuid_part}"
+        # Asegurar que no exceda max_length
+        return codigo_generado[:self._meta.get_field('numero_reclamacion').max_length]
+
+    def save(self, *args, **kwargs):
+        is_new = self._state.adding
+        if is_new and not self.numero_reclamacion:
+            self.numero_reclamacion = self._generar_numero_reclamacion()
+            # Bucle para asegurar unicidad en caso de colisión (extremadamente improbable con UUID)
+            while type(self).objects.filter(numero_reclamacion=self.numero_reclamacion).exists():
+                logger.warning(
+                    f"Colisión detectada para numero_reclamacion: {self.numero_reclamacion}. Regenerando...")
+                self.numero_reclamacion = self._generar_numero_reclamacion()
+
+        # Tu lógica de validación de estado
+        is_updating = not self._state.adding
+        if is_updating and self.pk:
+            try:
+                original = type(self).objects.only('estado').get(pk=self.pk)
+                if original.estado != self.estado:
+                    # Asumo que validate_estado_reclamacion existe y está importada
+                    validate_estado_reclamacion(original.estado, self.estado)
+            except type(self).DoesNotExist:
+                logger.warning(
+                    f"Reclamacion con PK {self.pk} no encontrada durante save (update).")
+            except NameError:  # Si validate_estado_reclamacion no está definida
+                logger.error(
+                    "La función validate_estado_reclamacion no está definida o importada.")
+            except ValidationError as e:
+                raise ValidationError(
+                    f"Transición de estado inválida: {e.message if hasattr(e, 'message') else str(e)}")
+
+        super().save(*args, **kwargs)
 
     def get_estado_display_valor(self, valor_estado=None):
-        """Devuelve el display de un valor de estado específico."""
         estado_a_buscar = valor_estado if valor_estado is not None else self.estado
-        # Asegurarse que CommonChoices.ESTADO_RECLAMACION sea un diccionario o se convierta
         estado_map = dict(CommonChoices.ESTADO_RECLAMACION)
-        # Devuelve el display o la clave si no se encuentra
         return estado_map.get(estado_a_buscar, estado_a_buscar)
 
     def get_contrato_asociado_display(self):
-        """Devuelve una cadena identificando el contrato asociado."""
         if self.contrato_individual:
-            # Usar __str__ del contrato si existe, o el número/pk
             return f"CI: {self.contrato_individual.numero_contrato or f'ID {self.contrato_individual.pk}'}"
         elif self.contrato_colectivo:
             return f"CC: {self.contrato_colectivo.numero_contrato or f'ID {self.contrato_colectivo.pk}'}"
         return "Sin Contrato"
 
-    # --- MÉTODO CLEAN CORREGIDO ---
     def clean(self):
         super().clean()
+        # ... (tu lógica de clean existente) ...
         error_dict = {}
         contrato = self.contrato_individual or self.contrato_colectivo
 
         if not contrato:
-            # Usar add_error es más directo que error_dict para errores simples
             raise ValidationError(
                 {"contrato_individual": "Debe seleccionar un contrato individual o colectivo."})
         elif self.contrato_individual and self.contrato_colectivo:
             raise ValidationError(
                 {"contrato_individual": "No puede seleccionar ambos tipos de contrato."})
 
-        # Si hay contrato, validar montos y fechas
         if contrato and self.monto_reclamado is not None:
-            # Validar vs Suma Asegurada
             if hasattr(contrato, 'suma_asegurada') and contrato.suma_asegurada is not None:
                 try:
-                    monto_reclamado_dec = Decimal(
-                        self.monto_reclamado)  # Conversión segura
+                    monto_reclamado_dec = Decimal(self.monto_reclamado)
                     suma_asegurada_dec = Decimal(contrato.suma_asegurada)
                     if monto_reclamado_dec > suma_asegurada_dec:
                         error_dict.setdefault('monto_reclamado', []).append(
@@ -3127,14 +3183,13 @@ class Reclamacion(ModeloBase):
                         ValidationError("Monto/Suma asegurada inválidos."))
             else:
                 logger.warning(
-                    f"Contrato {contrato.pk} sin suma asegurada para validar Reclamación {self.pk}.")
+                    f"Contrato {contrato.pk if contrato and contrato.pk else 'Nuevo'} sin suma asegurada para validar Reclamación {self.pk if self.pk else 'Nueva'}.")
 
-        # Validar fechas (como estaba)
         if self.fecha_reclamo:
             if contrato and hasattr(contrato, 'fecha_inicio_vigencia') and contrato.fecha_inicio_vigencia and self.fecha_reclamo < contrato.fecha_inicio_vigencia:
                 error_dict.setdefault('fecha_reclamo', []).append(
                     'Fecha reclamación anterior a inicio vigencia.')
-        else:  # fecha_reclamo es obligatoria
+        else:
             error_dict.setdefault('fecha_reclamo', []).append(
                 'Fecha de reclamación es obligatoria.')
 
@@ -3148,28 +3203,26 @@ class Reclamacion(ModeloBase):
 
         if error_dict:
             raise ValidationError(error_dict)
-    # --- FIN MÉTODO CLEAN ---
 
-    def save(self, *args, **kwargs):
-        is_updating = not self._state.adding
-        original_estado = None
-        if is_updating:
-            try:
-                original = Reclamacion.objects.get(pk=self.pk)
-                original_estado = original.estado
-                if original_estado != self.estado:
-                    validate_estado_reclamacion(original_estado, self.estado)
-            except Reclamacion.DoesNotExist:
-                pass
-            except ValidationError as e:
-                raise ValidationError(
-                    f"Transición de estado inválida: {e.message}")
-        super().save(*args, **kwargs)
+    def __str__(self):
+        identificador_contrato = "Sin Contrato Asociado"
+        if self.contrato_individual:
+            numero_ci = self.contrato_individual.numero_contrato or f"ID {self.contrato_individual.pk}"
+            identificador_contrato = f"CI:{numero_ci}"
+        elif self.contrato_colectivo:
+            numero_cc = self.contrato_colectivo.numero_contrato or f"ID {self.contrato_colectivo.pk}"
+            identificador_contrato = f"CC:{numero_cc}"
+
+        # Mostrar ID si el número aún no está (no debería pasar con la lógica de save)
+        num_reclamacion_display = self.numero_reclamacion or f"ID:{self.pk}"
+        return f"Reclamo {num_reclamacion_display} ({identificador_contrato}) - {self.get_estado_display()}"
 
     class Meta:
         verbose_name = ("Reclamación")
         verbose_name_plural = ("Reclamaciones")
         indexes = [
+            # Índice para el nuevo campo
+            models.Index(fields=['numero_reclamacion']),
             models.Index(fields=['tipo_reclamacion', 'estado']),
             models.Index(fields=['fecha_reclamo', 'fecha_cierre_reclamo']),
             models.Index(fields=['contrato_individual']),
@@ -3177,22 +3230,8 @@ class Reclamacion(ModeloBase):
             models.Index(fields=['usuario_asignado']),
             models.Index(fields=['monto_reclamado']),
             models.Index(fields=['activo']),
-        ]  # Faltaba heredar de ModeloBase.Meta.indexes si ModeloBase los tiene
+        ]
         ordering = ['-fecha_reclamo']
-
-    def __str__(self):
-        identificador = "N/A"  # Inicializar
-        if self.contrato_individual:
-            # Usar el número de contrato si existe, si no el PK
-            numero_ci = self.contrato_individual.numero_contrato or f"ID {self.contrato_individual.pk}"
-            identificador = f"CI:{numero_ci}"
-        elif self.contrato_colectivo:
-            # Usar el número de contrato si existe, si no el PK
-            numero_cc = self.contrato_colectivo.numero_contrato or f"ID {self.contrato_colectivo.pk}"
-            identificador = f"CC:{numero_cc}"
-        # Devuelve usando la variable identificador calculada
-        return f"Reclamo #{self.pk} ({identificador}) - {self.get_estado_display()}"
-
 
 # ------------------------------
 # Pago (Modelo Completo Corregido)

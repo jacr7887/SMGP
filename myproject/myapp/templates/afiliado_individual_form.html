@@ -346,20 +346,6 @@
             {% endif %}
         </div>
 
-        {# Campo codigo_validacion #}
-        <div class="dark-group {% if form.codigo_validacion.errors %}error{% endif %}">
-            <label class="dark-label" for="{{ form.codigo_validacion.id_for_label }}">🔑 Código Validación</label> {# Icono consistente #}
-            {{ form.codigo_validacion }}
-            {% if form.codigo_validacion.errors %}
-                <ul class="error-messages" role="alert">
-                    {% for error in form.codigo_validacion.errors %}<li>{{ error|escape }}</li>{% endfor %}
-                </ul>
-            {% endif %}
-            {% if form.codigo_validacion.help_text %}
-                <small class="form-text text-muted" id="{{ form.codigo_validacion.id_for_label }}-help">{{ form.codigo_validacion.help_text|escape }}</small>
-            {% endif %}
-        </div>
-
         {# Campo intermediario (ForeignKey) #}
         <div class="dark-group {% if form.intermediario.errors %}error{% endif %}">
              <label class="dark-label" for="{{ form.intermediario.id_for_label }}">🤝 Intermediario Asociado</label> {# Icono consistente #}

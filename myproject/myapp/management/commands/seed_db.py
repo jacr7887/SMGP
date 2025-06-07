@@ -1338,7 +1338,11 @@ class Command(BaseCommand):
                                 f"Error GENERAL creando Reclamacion (Iter {i_rec+1}): {e_r_gen}", exc_info=True)
                 # --- 11. Pagos ---
                 model_name = 'Pago'
+                # Asumo que stats es un diccionario que llevas
                 stats_m = stats[model_name]
+
+                # Obtener IDs de facturas y reclamaciones creadas o existentes
+                # (Esta lógica ya la tenías y parece correcta para obtener los PKs)
                 current_factura_pks_for_pago = list(
                     set(factura_ids_created + factura_ids_db))
                 current_reclamacion_pks_for_pago = list(
@@ -1349,124 +1353,184 @@ class Command(BaseCommand):
                         f"Skipping {model_name}: No Facturas or Reclamaciones disponibles para Pagos."))
                 else:
                     pagos_creados_count = 0
-                    max_attempts_find_target_pago = stats_m['requested'] * 5
+                    # Aumentar un poco los intentos si es necesario, pero tu lógica de break es buena
+                    max_attempts_find_target_pago = stats_m.get(
+                        'requested', 0) * 5 + 10
+
+                    # Lista para bulk_create si decides usarlo (opcional, por ahora usamos .save())
+                    # pagos_a_crear_lista = []
+
                     for attempt_pago in range(max_attempts_find_target_pago):
-                        if pagos_creados_count >= stats_m['requested']:
+                        if pagos_creados_count >= stats_m.get('requested', 0):
                             break
+
                         target_obj_pago = None
                         target_factura_id_pago = None
                         target_reclamacion_id_pago = None
                         pendiente_pago = Decimal('0.00')
-                        fecha_ref_pago_val = date.today()  # DateField
+                        fecha_ref_pago_val = date.today()
                         target_found_pago = False
+
                         try:
+                            # Lógica para seleccionar si buscar factura o reclamación primero
                             search_factura_first_pago = random.choice([True, False]) if (
                                 current_factura_pks_for_pago and current_reclamacion_pks_for_pago) else bool(current_factura_pks_for_pago)
 
                             if search_factura_first_pago and current_factura_pks_for_pago:
                                 target_obj_pago = Factura.objects.filter(
-                                    monto_pendiente__gt=Factura.TOLERANCE, activo=True, pk__in=current_factura_pks_for_pago).order_by('?').first()
+                                    monto_pendiente__gt=Factura.TOLERANCE, activo=True, pk__in=current_factura_pks_for_pago
+                                ).order_by('?').first()
                                 if target_obj_pago:
                                     target_factura_id_pago = target_obj_pago.pk
                                     pendiente_pago = target_obj_pago.monto_pendiente
                                     fecha_ref_pago_val = target_obj_pago.fecha_creacion.date() if isinstance(
-                                        # DateField
-                                        target_obj_pago.fecha_creacion, datetime) else target_obj_pago.fecha_creacion or date.today()
+                                        target_obj_pago.fecha_creacion, datetime
+                                    ) else (target_obj_pago.fecha_creacion or date.today())
                                     target_found_pago = True
 
                             if not target_found_pago and current_reclamacion_pks_for_pago:
-                                target_obj_pago = Reclamacion.objects.annotate(total_pagado_activo=Coalesce(Sum('pagos__monto_pago', filter=Q(pagos__activo=True)), Decimal('0.00'), output_field=DecimalField())) \
-                                    .filter(estado='APROBADA', activo=True, monto_reclamado__gt=F('total_pagado_activo') + Pago.TOLERANCE, pk__in=current_reclamacion_pks_for_pago).order_by('?').first()
+                                # Anotación para calcular total pagado a la reclamación
+                                reclamaciones_pendientes = Reclamacion.objects.annotate(
+                                    total_pagado_activo=Coalesce(
+                                        Sum('pagos__monto_pago', filter=Q(
+                                            pagos__activo=True)),
+                                        Decimal('0.00'),
+                                        output_field=DecimalField()
+                                    )
+                                ).filter(
+                                    estado='APROBADA',
+                                    activo=True,
+                                    monto_reclamado__gt=F(
+                                        'total_pagado_activo') + Pago.TOLERANCE,
+                                    pk__in=current_reclamacion_pks_for_pago
+                                )
+                                target_obj_pago = reclamaciones_pendientes.order_by(
+                                    '?').first()
                                 if target_obj_pago:
                                     target_reclamacion_id_pago = target_obj_pago.pk
                                     pendiente_pago = max(Decimal('0.00'), (target_obj_pago.monto_reclamado or Decimal(
                                         '0.00')) - target_obj_pago.total_pagado_activo)
-                                    fecha_ref_pago_val = target_obj_pago.fecha_reclamo or date.today()  # DateField
+                                    fecha_ref_pago_val = target_obj_pago.fecha_reclamo or date.today()
                                     target_found_pago = True
 
-                            if not target_found_pago:
-                                if not target_factura_id_pago and current_factura_pks_for_pago:
-                                    target_obj_pago = Factura.objects.filter(
-                                        monto_pendiente__gt=Factura.TOLERANCE, activo=True, pk__in=current_factura_pks_for_pago).order_by('?').first()
-                                    if target_obj_pago:
-                                        target_factura_id_pago = target_obj_pago.pk
-                                        pendiente_pago = target_obj_pago.monto_pendiente
-                                        fecha_ref_pago_val = target_obj_pago.fecha_creacion.date() if isinstance(
-                                            # DateField
-                                            target_obj_pago.fecha_creacion, datetime) else target_obj_pago.fecha_creacion or date.today()
-                                        target_found_pago = True
+                            # Segundo intento para factura si el primero fue para reclamación y no encontró, o viceversa
+                            if not target_found_pago and not search_factura_first_pago and current_factura_pks_for_pago:
+                                target_obj_pago = Factura.objects.filter(
+                                    monto_pendiente__gt=Factura.TOLERANCE, activo=True, pk__in=current_factura_pks_for_pago
+                                ).order_by('?').first()
+                                if target_obj_pago:
+                                    target_factura_id_pago = target_obj_pago.pk
+                                    pendiente_pago = target_obj_pago.monto_pendiente
+                                    fecha_ref_pago_val = target_obj_pago.fecha_creacion.date() if isinstance(
+                                        target_obj_pago.fecha_creacion, datetime
+                                    ) else (target_obj_pago.fecha_creacion or date.today())
+                                    target_found_pago = True
 
                             if not target_found_pago or not target_obj_pago:
-                                if attempt_pago > stats_m['requested'] * 2 and pagos_creados_count < stats_m['requested']:
+                                # Lógica de logging para cuando no se encuentran más objetivos
+                                if attempt_pago > stats_m.get('requested', 0) * 2 and pagos_creados_count < stats_m.get('requested', 0):
                                     self.stdout.write(self.style.NOTICE(
                                         f"  Pago: No más objetivos después de {pagos_creados_count} creados (intento {attempt_pago + 1}/{max_attempts_find_target_pago})."))
-                                if attempt_pago >= max_attempts_find_target_pago - 1 and pagos_creados_count < stats_m['requested']:
+                                if attempt_pago >= max_attempts_find_target_pago - 1 and pagos_creados_count < stats_m.get('requested', 0):
                                     self.stdout.write(self.style.WARNING(
-                                        f"  Pago: Agotados intentos para encontrar objetivos para Pagos. Creados: {pagos_creados_count}/{stats_m['requested']}."))
-                                    break
-                                continue
+                                        f"  Pago: Agotados intentos para encontrar objetivos para Pagos. Creados: {pagos_creados_count}/{stats_m.get('requested', 0)}."))
+                                break  # Salir del bucle de intentos si no hay más objetivos
 
+                            # Si el pendiente es muy bajo, buscar otro objetivo
                             if pendiente_pago <= (Pago.TOLERANCE if target_reclamacion_id_pago else Factura.TOLERANCE):
                                 continue
 
-                            is_partial_pago = fake.boolean(
-                                chance_of_getting_true=pago_parcial_chance)
+                            # Determinar monto del pago (parcial o total)
+                            pago_parcial_chance = 0.3  # Ejemplo: 30% de chance de pago parcial
+                            is_partial_pago = random.random() < pago_parcial_chance
+
                             monto_pag_val = (pendiente_pago * Decimal(random.uniform(0.1, 0.8))).quantize(
                                 Decimal("0.01"), ROUND_HALF_UP) if is_partial_pago else pendiente_pago
                             monto_pag_val = max(Decimal('0.01'), min(
                                 monto_pag_val, pendiente_pago))
 
+                            # Determinar fecha_pago
+                            # Asegurar que start_date no sea hoy para evitar error con fake
                             start_date_pay = min(
-                                fecha_ref_pago_val, date.today())
+                                fecha_ref_pago_val, date.today() - timezone.timedelta(days=1))
+                            end_date_pay = date.today()
+                            if start_date_pay > end_date_pay:  # Si fecha_ref_pago_val es futura
+                                start_date_pay = end_date_pay - \
+                                    timezone.timedelta(days=1)
+                                # Limitar a un año atrás
+                                if start_date_pay < (date.today() - timezone.timedelta(days=365)):
+                                    start_date_pay = date.today() - timezone.timedelta(days=365)
+
                             try:
                                 fecha_pag_val = fake.date_between_dates(
-                                    date_start=start_date_pay, date_end=date.today())  # DateField
-                            except ValueError:
-                                fecha_pag_val = date.today()
+                                    date_start=start_date_pay, date_end=end_date_pay)
+                            except ValueError:  # Fallback si las fechas son problemáticas para faker
+                                fecha_pag_val = end_date_pay
 
-                            aplica_igtf_para_este_pago = fake.boolean(
-                                chance_of_getting_true=igtf_chance)
+                            # === ASIGNACIÓN DE fecha_notificacion_pago ===
+                            # Opción 1: Igual a fecha_pago (simple para datos de prueba)
+                            fecha_notificacion_val_seeder = fecha_pag_val
 
-                            pago_instance = Pago(
-                                factura_id=target_factura_id_pago,
-                                reclamacion_id=target_reclamacion_id_pago,
-                                forma_pago=random.choice(
-                                    [c[0] for c in CommonChoices.FORMA_PAGO_RECLAMACION]),
-                                fecha_pago=fecha_pag_val,
-                                monto_pago=monto_pag_val,
-                                aplica_igtf_pago=aplica_igtf_para_este_pago,  # <--- AÑADIDO AQUÍ
-                                referencia_pago=fake.bothify(
-                                    text='Ref-#####-???'),
-                                activo=True,
-                                primer_nombre=f"Pago Ref.",
-                                primer_apellido=f"{target_obj_pago.pk if target_obj_pago else 'N/A'}-{fecha_pag_val.strftime('%d%m%y')}"
-                            )
-                            logger.info(
-                                f"--- SEEDER: PREPARANDO PARA GUARDAR Pago para target {target_obj_pago.pk if target_obj_pago else 'N/A'} (IGTF: {aplica_igtf_para_este_pago}) ---")
-                            pago_instance.save()
-                            logger.info(
-                                f"--- SEEDER: Pago PK {pago_instance.pk} GUARDADO ---")
+                            # Opción 2: Fecha actual del seeder
+                            # fecha_notificacion_val_seeder = timezone.now().date()
 
-                            stats_m['created'] += 1
+                            igtf_chance = 0.1  # Ejemplo: 10% de chance de aplicar IGTF
+                            aplica_igtf_para_este_pago = random.random() < igtf_chance
+
+                            # Crear la instancia de Pago
+                            pago_instance_data = {
+                                'factura_id': target_factura_id_pago,
+                                'reclamacion_id': target_reclamacion_id_pago,
+                                'forma_pago': random.choice([c[0] for c in CommonChoices.FORMA_PAGO_RECLAMACION]),
+                                'fecha_pago': fecha_pag_val,
+                                'monto_pago': monto_pag_val,
+                                'aplica_igtf_pago': aplica_igtf_para_este_pago,
+                                'referencia_pago': fake.bothify(text='Ref-#####-???'),
+                                'fecha_notificacion_pago': fecha_notificacion_val_seeder,  # <--- CORRECCIÓN AQUÍ
+                                'activo': True,
+                                'primer_nombre': f"Pago Ref.",  # Para ModeloBase
+                                # Para ModeloBase
+                                'primer_apellido': f"{target_obj_pago.pk if target_obj_pago else 'N/A'}-{fecha_pag_val.strftime('%d%m%y')}"
+                            }
+
+                            # Si quieres añadir observaciones aleatorias:
+                            if random.random() < 0.2:  # 20% de chance de tener observaciones
+                                pago_instance_data['observaciones_pago'] = fake.sentence(
+                                    nb_words=random.randint(5, 15))
+
+                            pago_instance = Pago(**pago_instance_data)
+
+                            # logger.info(f"--- SEEDER: PREPARANDO PARA GUARDAR Pago para target {target_obj_pago.pk if target_obj_pago else 'N/A'} (IGTF: {aplica_igtf_para_este_pago}) ---")
+                            pago_instance.save()  # Esto llamará al save() del modelo Pago
+                            # logger.info(f"--- SEEDER: Pago PK {pago_instance.pk} GUARDADO ---")
+
+                            stats_m['created'] = stats_m.get('created', 0) + 1
+                            # Asumo que pago_ids_created es una lista
                             pago_ids_created.append(pago_instance.pk)
                             pagos_creados_count += 1
+
                         except ObjectDoesNotExist:
-                            stats_m['failed'] += 1
-                            stats_m['errors']['DoesNotExist_Pago_Target'] += 1
-                            continue
+                            stats_m['failed'] = stats_m.get('failed', 0) + 1
+                            stats_m['errors']['DoesNotExist_Pago_Target'] = stats_m['errors'].get(
+                                'DoesNotExist_Pago_Target', 0) + 1
+                            # No es necesario 'continue' aquí si el error se maneja y el bucle sigue
                         except (IntegrityError, InvalidOperation, ValidationError) as e_p:
-                            stats_m['failed'] += 1
-                            stats_m['errors'][e_p.__class__.__name__] += 1
+                            stats_m['failed'] = stats_m.get('failed', 0) + 1
+                            stats_m['errors'][e_p.__class__.__name__] = stats_m['errors'].get(
+                                e_p.__class__.__name__, 0) + 1
+                            # exc_info=False para no llenar tanto el log
                             logger.error(
-                                f"Error creando Pago: {e_p}", exc_info=True)
-                        except Exception as e_p:
-                            stats_m['failed'] += 1
-                            stats_m['errors'][e_p.__class__.__name__] += 1
+                                f"Error creando Pago: {e_p}", exc_info=False)
+                        except Exception as e_p:  # Captura general para otros errores inesperados
+                            stats_m['failed'] = stats_m.get('failed', 0) + 1
+                            stats_m['errors'][e_p.__class__.__name__] = stats_m['errors'].get(
+                                e_p.__class__.__name__, 0) + 1
                             logger.error(
-                                f"Error creando Pago: {e_p}", exc_info=True)
-                    if pagos_creados_count < stats_m['requested']:
+                                f"Error inesperado creando Pago: {e_p}", exc_info=True)
+
+                    if pagos_creados_count < stats_m.get('requested', 0):
                         self.stdout.write(self.style.WARNING(
-                            f"  Pago: Solo se crearon {pagos_creados_count} de {stats_m['requested']}."))
+                            f"  Pago: Solo se crearon {pagos_creados_count} de {stats_m.get('requested', 0)} solicitados."))
 
                 # --- 12. Notificaciones ---
                 # (Sin cambios, fecha_creacion es DateTimeField con auto_now_add=True, que usa timezone.now())

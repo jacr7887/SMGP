@@ -54,9 +54,10 @@
 
             {# --- Cabeceras para campos calculados (MANTENIDAS pero ajustadas) --- #}
             <th class="sort-header text-end {% if current_sort == 'monto_total' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='monto_total' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💰 Prima Total {% if current_sort == 'monto_total' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header text-end {% if current_sort == 'importe_recibo_contrato' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='importe_recibo_contrato' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💲 Cuota {% if current_sort == 'importe_recibo_contrato' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
+            <th class="sort-header text-end {% if current_sort == 'monto_cuota_estimada' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='monto_cuota_estimada' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💲 Cuota {% if current_sort == 'monto_cuota_estimada' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
+
             <th class="sort-header {% if current_sort == 'forma_pago' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='forma_pago' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💳 F. Pago {% if current_sort == 'forma_pago' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header text-end {% if current_sort == 'cantidad_cuotas' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='cantidad_cuotas' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🔢 Cuotas {% if current_sort == 'cantidad_cuotas' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
+            <th class="sort-header text-end {% if current_sort == 'cantidad_cuotas_estimadas' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='cantidad_cuotas_estimadas' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🔢 Cuotas {% if current_sort == 'cantidad_cuotas_estimadas' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             {# --- FIN Cabeceras calculadas --- #}
 
             <th class="sort-header text-end {% if current_sort == 'pagos_realizados' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='pagos_realizados' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">✅ Pagos R. {% if current_sort == 'pagos_realizados' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
@@ -89,9 +90,9 @@
 
             {# --- Celdas campos calculados (MANTENIDAS) --- #}
             <td class="text-end" role="cell">${{ contrato.monto_total|floatformat:2|intcomma|default:"0.00" }}</td>
-            <td class="text-end" role="cell">${{ contrato.importe_recibo_contrato|floatformat:2|intcomma|default:"-" }}</td>
+            <td class="text-end" role="cell">${{ contrato.monto_cuota_estimada|floatformat:2|intcomma|default:"-" }}</td>
             <td role="cell">{{ contrato.get_forma_pago_display|escape }}</td>
-            <td class="text-end" role="cell">{{ contrato.cantidad_cuotas|default:"-" }}</td>
+            <td class="text-end" role="cell">{{ contrato.cantidad_cuotas_estimadas|default:"-" }}</td> 
             {# --- FIN Celdas calculadas --- #}
 
             <td class="text-end" role="cell">{{ contrato.pagos_realizados|default:"0" }}</td>

@@ -8,7 +8,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from datetime import date, datetime, timedelta
 from datetime import date as py_date
 from dateutil.relativedelta import relativedelta
-from django.db.models import Count, Case, When, Q, IntegerField, Sum, Avg, Subquery, OuterRef, F, ExpressionWrapper, Value, DecimalField
+from django.db.models import Count, Case, When, Q, IntegerField, Sum, Avg, Subquery, OuterRef, F, ExpressionWrapper, Value, DecimalField, Func
 from django.db.models.functions import ExtractYear, TruncMonth  # TruncMonth añadido
 from plotly.offline import plot
 import plotly.express as px
@@ -3842,7 +3842,7 @@ class FacturaListView(BaseListView):
     filterset_class = FacturaFilter
     context_object_name = 'object_list'
     permission_required = 'myapp.view_factura'
-    search_fields = [
+    search_fields = [  # Asegúrate que estos estén completos según tu necesidad
         'estatus_factura', 'numero_recibo', 'relacion_ingreso', 'estatus_emision', 'observaciones',
         'contrato_individual__numero_contrato', 'contrato_individual__ramo',
         'contrato_individual__afiliado__primer_nombre', 'contrato_individual__afiliado__primer_apellido',
@@ -3853,17 +3853,183 @@ class FacturaListView(BaseListView):
     ordering_fields = [
         'id', 'activo', 'estatus_factura', 'vigencia_recibo_desde', 'vigencia_recibo_hasta',
         'monto', 'monto_pendiente', 'numero_recibo', 'dias_periodo_cobro', 'estatus_emision',
-        'pagada', 'relacion_ingreso', 'recibos_pendientes_cache', 'aplica_igtf',
+        'pagada', 'relacion_ingreso',  # 'recibos_pendientes_cache' fue reemplazado
+        'aplica_igtf',
         'contrato_individual__numero_contrato', 'contrato_colectivo__razon_social',
         'intermediario__nombre_completo', 'intermediario__codigo',
         'contrato_individual__afiliado__primer_apellido', 'contrato_individual__afiliado__cedula',
-        'fecha_creacion', 'fecha_modificacion'
-        # 'ramo_ordenable', 'numero_recibo_numeric' # Necesitan anotación
+        'fecha_creacion', 'fecha_modificacion',
+        'ramo_anotado',
+        'numero_recibo_numeric',  # Si lo usas, asegúrate de anotarlo también
+        'live_installments_remaining'
     ]
     ordering = ['-fecha_creacion']
 
-    # get_queryset heredado (usa _apply_ordering y _validate_lookup_path)
-    # get_context_data heredado
+    def get_queryset(self):
+        sort_param_url = self.request.GET.get('sort')
+        order_param_url = self.request.GET.get('order', 'asc')
+
+        campos_anotados_en_esta_vista = [
+            'ramo_anotado', 'numero_recibo_numeric', 'live_installments_remaining']
+
+        queryset_base = None
+        if sort_param_url in campos_anotados_en_esta_vista:
+            original_get = self.request.GET
+            temp_get = self.request.GET.copy()
+            temp_get.pop('sort', None)
+            temp_get.pop('order', None)
+            self.request.GET = temp_get
+            try:
+                queryset_base = super().get_queryset()
+            finally:
+                self.request.GET = original_get
+        else:
+            queryset_base = super().get_queryset()
+
+        queryset_anotado = queryset_base.annotate(
+            ramo_anotado=Coalesce(
+                'contrato_individual__ramo',
+                'contrato_colectivo__ramo',
+                Value('-', output_field=CharField())
+            )
+        )
+
+        paid_receipts_ci_subquery = Factura.objects.filter(
+            contrato_individual_id=OuterRef('contrato_individual_id'),
+            estatus_factura='PAGADA',
+            activo=True
+        ).values('contrato_individual_id').annotate(count=Count('id')).values('count')
+
+        paid_receipts_cc_subquery = Factura.objects.filter(
+            contrato_colectivo_id=OuterRef('contrato_colectivo_id'),
+            estatus_factura='PAGADA',
+            activo=True
+        ).values('contrato_colectivo_id').annotate(count=Count('id')).values('count')
+
+        # Para la división, es más seguro castear a FloatField y luego a IntegerField si es necesario
+        # o usar funciones de base de datos para división entera si están disponibles y son necesarias.
+        # Aquí usamos división flotante y luego se tratará como entero.
+
+        # Lógica para calcular cuotas estimadas para ContratoIndividual
+        total_installments_ci_expr = Case(
+            When(contrato_individual__forma_pago='CONTADO', then=Value(1)),
+            When(Q(contrato_individual__periodo_vigencia_meses__isnull=False) &
+                 Q(contrato_individual__periodo_vigencia_meses__gt=0),
+                 then=Case(
+                When(contrato_individual__forma_pago='MENSUAL', then=F(
+                    'contrato_individual__periodo_vigencia_meses')),
+                When(contrato_individual__forma_pago='TRIMESTRAL', then=Cast(Cast(
+                    F('contrato_individual__periodo_vigencia_meses'), FloatField()) + 2.0, FloatField()) / 3.0),
+                When(contrato_individual__forma_pago='SEMESTRAL', then=Cast(Cast(
+                    F('contrato_individual__periodo_vigencia_meses'), FloatField()) + 5.0, FloatField()) / 6.0),
+                When(contrato_individual__forma_pago='ANUAL', then=Cast(Cast(
+                    F('contrato_individual__periodo_vigencia_meses'), FloatField()) + 11.0, FloatField()) / 12.0),
+                default=Value(0.0),
+                output_field=FloatField()  # Salida como Float para la división
+            )
+            ),
+            default=Value(0.0),
+            output_field=FloatField()
+        )
+
+        # Lógica para calcular cuotas estimadas para ContratoColectivo
+        total_installments_cc_expr = Case(
+            When(contrato_colectivo__forma_pago='CONTADO', then=Value(1)),
+            When(Q(contrato_colectivo__periodo_vigencia_meses__isnull=False) &
+                 Q(contrato_colectivo__periodo_vigencia_meses__gt=0),
+                 then=Case(
+                When(contrato_colectivo__forma_pago='MENSUAL', then=F(
+                    'contrato_colectivo__periodo_vigencia_meses')),
+                When(contrato_colectivo__forma_pago='TRIMESTRAL', then=Cast(Cast(
+                    F('contrato_colectivo__periodo_vigencia_meses'), FloatField()) + 2.0, FloatField()) / 3.0),
+                When(contrato_colectivo__forma_pago='SEMESTRAL', then=Cast(Cast(
+                    F('contrato_colectivo__periodo_vigencia_meses'), FloatField()) + 5.0, FloatField()) / 6.0),
+                When(contrato_colectivo__forma_pago='ANUAL', then=Cast(Cast(
+                    F('contrato_colectivo__periodo_vigencia_meses'), FloatField()) + 11.0, FloatField()) / 12.0),
+                default=Value(0.0),
+                output_field=FloatField()
+            )
+            ),
+            default=Value(0.0),
+            output_field=FloatField()
+        )
+
+        queryset_anotado = queryset_anotado.annotate(
+            total_installments_contract_float=Coalesce(  # Mantenemos como float para el cálculo intermedio
+                ExpressionWrapper(total_installments_ci_expr,
+                                  output_field=FloatField()),
+                ExpressionWrapper(total_installments_cc_expr,
+                                  output_field=FloatField()),
+                Value(0.0),
+                output_field=FloatField()
+            ),
+            paid_installments_contract=Coalesce(
+                Subquery(paid_receipts_ci_subquery,
+                         output_field=IntegerField()),
+                Subquery(paid_receipts_cc_subquery,
+                         output_field=IntegerField()),
+                Value(0),
+                output_field=IntegerField()
+            )
+        ).annotate(
+            # Convertir el total de installments a entero DESPUÉS de los cálculos de división
+            # CEIL para redondear hacia arriba
+            total_installments_contract=Cast(
+                Func(F('total_installments_contract_float'), function='CEIL'), IntegerField())
+        ).annotate(
+            # Calcular la diferencia
+            installments_diff=ExpressionWrapper(
+                F('total_installments_contract') -
+                F('paid_installments_contract'),
+                output_field=IntegerField()
+            )
+        ).annotate(
+            # Aplicar la lógica final para live_installments_remaining
+            live_installments_remaining=Case(
+                When(total_installments_contract=0, then=Value(0)),
+                # Comparar la expresión envuelta
+                When(installments_diff__lt=0, then=Value(0)),
+                default=F('installments_diff'),
+                output_field=IntegerField()
+            )
+        )
+
+        # Si también necesitas 'numero_recibo_numeric' para ordenar, anótalo aquí.
+        # Ejemplo (si es solo la parte numérica de 'numero_recibo'):
+        # from django.db.models.functions import Substr, Length, Cast
+        # if 'numero_recibo_numeric' in campos_anotados_en_esta_vista or sort_param_url == 'numero_recibo_numeric':
+        #     queryset_anotado = queryset_anotado.annotate(
+        #         # Asumiendo que numero_recibo es algo como "REC-123" y quieres ordenar por 123
+        #         # Esta es una suposición y necesitaría ajustarse a tu formato exacto.
+        #         # Si numero_recibo ya es numérico o tiene un prefijo fijo:
+        #         # numero_recibo_numeric_val=Cast(Substr('numero_recibo', 5), IntegerField()) # Ejemplo: si el prefijo es "REC-"
+        #         # O si es más complejo, podrías necesitar RegexExtract o similar si tu DB lo soporta
+        #         # Por ahora, un placeholder si no es el foco principal:
+        #         numero_recibo_numeric=Value(0, output_field=IntegerField())
+        #     )
+
+        if sort_param_url in campos_anotados_en_esta_vista:
+            prefix = "-" if order_param_url.lower() == "desc" else ""
+            queryset_final = queryset_anotado.order_by(
+                f"{prefix}{sort_param_url}")
+        else:
+            queryset_final = queryset_anotado
+
+        return queryset_final
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        sort_param_url = self.request.GET.get('sort')
+        order_param_url = self.request.GET.get('order', 'asc')
+
+        campos_anotados_en_esta_vista = [
+            'ramo_anotado', 'numero_recibo_numeric', 'live_installments_remaining']
+
+        if sort_param_url in campos_anotados_en_esta_vista:
+            context['current_sort'] = sort_param_url
+            context['current_order'] = order_param_url.lower()
+
+        return context
 
 
 class FacturaDetailView(BaseDetailView):

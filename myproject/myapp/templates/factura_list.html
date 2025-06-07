@@ -47,8 +47,8 @@
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='contrato_colectivo__razon_social' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">📑 Contrato Col. {% if current_sort == 'contrato_colectivo__razon_social' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='intermediario__nombre_completo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🤝 Intermediario {% if current_sort == 'intermediario__nombre_completo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             <th class="sort-header" role="columnheader">
-                <a href="?{% query_transform sort='ramo_ordenable' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
-                    🌿 Ramo {% if current_sort == 'ramo_ordenable' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                <a href="?{% query_transform sort='ramo_anotado' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    🌿 Ramo {% if current_sort == 'ramo_anotado' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
                 </a>
             </th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='vigencia_recibo_desde' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">▶️ Vig. Desde {% if current_sort == 'vigencia_recibo_desde' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
@@ -67,7 +67,7 @@
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='estatus_factura' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🚦 Estatus Fact. {% if current_sort == 'estatus_factura' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='estatus_emision' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">📦 Estatus Emisión {% if current_sort == 'estatus_emision' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='relacion_ingreso' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🔗 Rel. Ingreso {% if current_sort == 'relacion_ingreso' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='recibos_pendientes_cache' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🔢 Rec. Pend. {% if current_sort == 'recibos_pendientes_cache' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
+            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='live_installments_remaining' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🔢 Rec. Pend. {% if current_sort == 'live_installments_remaining' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             {# --- NUEVA Cabecera Observaciones (No ordenable) --- #}
             <th role="columnheader">📝 Obs.</th>
             {# --- FIN NUEVA Cabecera Observaciones --- #}
@@ -84,7 +84,7 @@
             <td role="cell">{% if factura.contrato_individual %}<a href="{% url 'myapp:contrato_individual_detail' factura.contrato_individual.pk %}">{{ factura.contrato_individual.numero_contrato }}</a>{% else %}-{% endif %}</td>
             <td role="cell">{% if factura.contrato_colectivo %}<a href="{% url 'myapp:contrato_colectivo_detail' factura.contrato_colectivo.pk %}">{{ factura.contrato_colectivo.numero_contrato }}</a>{% else %}-{% endif %}</td>
             <td role="cell" title="{{ factura.intermediario.nombre_completo|escape|default:'' }}">{% if factura.intermediario %}<a href="{% url 'myapp:intermediario_detail' factura.intermediario.pk %}">{{ factura.intermediario.nombre_completo|escape|truncatechars:15 }}</a>{% else %}-{% endif %}</td>
-            <td role="cell">{{ factura.ramo|escape|default:"-" }}</td>
+            <td role="cell">{{ factura.ramo_anotado|escape|default:"-" }}</td>            
             <td role="cell">{{ factura.vigencia_recibo_desde|date:"d/m/Y"|default:"-" }}</td>
             <td role="cell">{{ factura.vigencia_recibo_hasta|date:"d/m/Y"|default:"-" }}</td>
             <td role="cell">{{ factura.dias_periodo_cobro|default:"-" }}</td>
@@ -97,7 +97,7 @@
             <td role="cell"><span class="badge {% if factura.estatus_factura == 'PAGADA' %}badge-success{% elif factura.estatus_factura == 'VENCIDA' %}badge-danger{% else %}badge-warning{% endif %}">{{ factura.get_estatus_factura_display|escape }}</span></td>
             <td role="cell">{{ factura.get_estatus_emision_display|escape|default:"-" }}</td>
             <td role="cell" title="{{ factura.relacion_ingreso|escape }}">{{ factura.relacion_ingreso|escape|truncatechars:10|default:"-" }}</td>
-            <td role="cell">{{ factura.recibos_pendientes_cache|default:"0" }}</td>
+            <td role="cell">{{ factura.live_installments_remaining|default:"0" }}</td>
              {# --- NUEVA Celda Observaciones --- #}
             <td role="cell" title="{{ factura.observaciones|escape|default:'' }}">
                 {{ factura.observaciones|escape|truncatechars:20|default:"-" }}

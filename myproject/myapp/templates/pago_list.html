@@ -4,7 +4,7 @@
 {% load humanize %}
 
 {% block content %}
-<div class="container" role="main" aria-labelledby="main-heading"> {# Fluid para tabla potencialmente ancha #}
+<div class="container" role="main" aria-labelledby="main-heading">
   <section>
     <h1 id="main-heading">💳 Listado Completo de Pagos Registrados</h1>
 
@@ -16,12 +16,12 @@
       {% endif %}
     </div>
 
-    <form method="get" class="search-form mb-3" aria-label="Formulario de búsqueda de pagos">
+    <form method="get" class="search-form mb-3" action="." aria-label="Formulario de búsqueda de pagos">
       <input
         type="text"
         name="search"
         placeholder="🔍 Buscar por Referencia, Factura, Reclamación..."
-        value="{{ search_query|escape }}"
+        value="{{ search_query|escape|default:'' }}"
         aria-label="Campo de búsqueda global"
         class="search-input"
       />
@@ -36,24 +36,23 @@
         </caption>
         <thead role="rowgroup">
           <tr role="row">
-            {# --- Cabeceras Ordenables - TODOS LOS CAMPOS --- #}
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='id' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">#️⃣ ID Pago {% if current_sort == 'id' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='factura__numero_recibo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🧾 Factura {% if current_sort == 'factura__numero_recibo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='reclamacion__id' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">📢 Reclamación {% if current_sort == 'reclamacion__id' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
+            <th class="sort-header" role="columnheader">
+                <a href="?{% query_transform sort='reclamacion__numero_reclamacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    📢 Reclamación {% if current_sort == 'reclamacion__numero_reclamacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                </a>
+            </th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='fecha_pago' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">📅 Fecha Pago {% if current_sort == 'fecha_pago' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='monto_pago' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💰 Monto {% if current_sort == 'monto_pago' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='forma_pago' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💳 Forma Pago {% if current_sort == 'forma_pago' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='referencia_pago' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">#️⃣ Referencia {% if current_sort == 'referencia_pago' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='fecha_notificacion_pago' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🔔 F. Notificación {% if current_sort == 'fecha_notificacion_pago' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='observaciones_pago' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💬 Observaciones {% if current_sort == 'observaciones_pago' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-             {# Campo FileField - No ordenable directamente #}
             <th role="columnheader">📎 Docs. Soporte</th>
-            {# Campos ModeloBase #}
-             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='activo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💡 Activo {% if current_sort == 'activo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
+            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='activo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💡 Activo {% if current_sort == 'activo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='fecha_creacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">➕ F. Creación {% if current_sort == 'fecha_creacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='fecha_modificacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🔄 F. Modificación {% if current_sort == 'fecha_modificacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            {# Campos ModeloBase Nombre/Apellido omitidos para Pago #}
-
             <th role="columnheader">⚙️ Acciones</th>
           </tr>
         </thead>
@@ -61,18 +60,26 @@
           {% for pago in object_list %}
           <tr role="row">
             <td role="cell">{{ pago.pk }}</td>
-            <td role="cell">{% if pago.factura %}<a href="{% url 'myapp:factura_detail' pago.factura.pk %}">{{ pago.factura.numero_recibo }}</a>{% else %}-{% endif %}</td>
-            <td role="cell">{% if pago.reclamacion %}<a href="{% url 'myapp:reclamacion_detail' pago.reclamacion.pk %}">Reclamo #{{ pago.reclamacion.pk }}</a>{% else %}-{% endif %}</td>
-            <td role="cell">{{ pago.fecha_pago|date:"d/m/Y" }}</td>
-            <td role="cell">${{ pago.monto_pago|floatformat:2|intcomma }}</td>
-            <td role="cell">{{ pago.get_forma_pago_display|escape }}</td>
+            <td role="cell">{% if pago.factura %}<a href="{% url 'myapp:factura_detail' pago.factura.pk %}">{{ pago.factura.numero_recibo|default:"N/A" }}</a>{% else %}-{% endif %}</td>
+            <td role="cell">
+                {% if pago.reclamacion %}
+                    <a href="{% url 'myapp:reclamacion_detail' pago.reclamacion.pk %}">
+                        {{ pago.reclamacion.numero_reclamacion|default:pago.reclamacion.pk }}
+                    </a>
+                {% else %}
+                    -
+                {% endif %}
+            </td>
+            <td role="cell">{{ pago.fecha_pago|date:"d/m/Y"|default:"-" }}</td>
+            <td role="cell" style="text-align: right;">${{ pago.monto_pago|floatformat:2|intcomma|default:"0.00" }}</td>
+            <td role="cell">{{ pago.get_forma_pago_display|escape|default:"-" }}</td>
             <td role="cell">{{ pago.referencia_pago|escape|default:"-" }}</td>
             <td role="cell">{{ pago.fecha_notificacion_pago|date:"d/m/Y"|default:"-" }}</td>
             <td role="cell" title="{{ pago.observaciones_pago|escape|default:'' }}">{{ pago.observaciones_pago|escape|truncatechars:40|default:"-" }}</td>
             <td role="cell">{% if pago.documentos_soporte_pago %}<a href="{{ pago.documentos_soporte_pago.url }}" target="_blank">📎 Ver</a>{% else %}-{% endif %}</td>
-            <td role="cell">{% if pago.activo %}✅{% else %}🔴{% endif %}</td>
-            <td role="cell">{{ pago.fecha_creacion|date:"d/m/y H:i" }}</td>
-            <td role="cell">{{ pago.fecha_modificacion|date:"d/m/y H:i" }}</td>
+            <td role="cell">{% if pago.activo %}✅ Sí{% else %}🔴 No{% endif %}</td>
+            <td role="cell">{{ pago.fecha_creacion|date:"d/m/y H:i"|default:"-" }}</td>
+            <td role="cell">{{ pago.fecha_modificacion|date:"d/m/y H:i"|default:"-" }}</td>
 
             <td class="actions" role="cell">
               <div class="action-group">
@@ -90,8 +97,8 @@
           </tr>
           {% empty %}
           <tr role="row">
-            <td colspan="15" class="no-results" role="cell"> {# Ajustar colspan (14 datos + 1 acción) #}
-              📭 No se encontraron pagos que coincidan con la búsqueda.
+            <td colspan="15" class="no-results" role="cell">
+              📭 No se encontraron pagos que coincidan con la búsqueda{% if search_query %} para "{{ search_query|escape }}"{% endif %}.
             </td>
           </tr>
           {% endfor %}
@@ -102,13 +109,13 @@
     {% if is_paginated %}
     <nav aria-label="Navegación de páginas de pagos">
       <div class="django-pagination">
+        <span class="pagination-current">
+          Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+        </span>
         {% if page_obj.has_previous %}
           <a href="?{% query_transform page=1 %}" class="btn-pagination" aria-label="Primera página">« Primera</a>
           <a href="?{% query_transform page=page_obj.previous_page_number %}" class="btn-pagination" aria-label="Página anterior">‹ Anterior</a>
         {% endif %}
-        <span class="pagination-current">
-          Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
-        </span>
         {% if page_obj.has_next %}
           <a href="?{% query_transform page=page_obj.next_page_number %}" class="btn-pagination" aria-label="Siguiente página">Siguiente ›</a>
           <a href="?{% query_transform page=page_obj.paginator.num_pages %}" class="btn-pagination" aria-label="Última página">Última »</a>

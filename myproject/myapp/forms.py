@@ -569,6 +569,24 @@ class AfiliadoIndividualForm(AwareDateInputMixinVE, BaseModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        # Formatear fechas para la edición si la instancia existe
+        if self.instance and self.instance.pk:
+            # Para fecha_nacimiento
+            if 'fecha_nacimiento' in self.fields:  # Verificar si el campo está en el formulario
+                model_value_fn = getattr(
+                    self.instance, 'fecha_nacimiento', None)
+                if isinstance(model_value_fn, date):  # El modelo tiene DateField
+                    self.initial['fecha_nacimiento'] = model_value_fn.strftime(
+                        '%d/%m/%Y')
+
+            # Para fecha_ingreso
+            if 'fecha_ingreso' in self.fields:  # Verificar si el campo está en el formulario
+                model_value_fi = getattr(self.instance, 'fecha_ingreso', None)
+                if isinstance(model_value_fi, date):  # El modelo tiene DateField
+                    self.initial['fecha_ingreso'] = model_value_fi.strftime(
+                        '%d/%m/%Y')
+
         if 'intermediario' in self.fields:
             self.fields['intermediario'].empty_label = "--- Seleccione Intermediario ---"
 

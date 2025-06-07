@@ -16,12 +16,12 @@
       {% endif %}
     </div>
 
-    <form method="get" class="search-form mb-3" aria-label="Formulario de búsqueda de reclamaciones">
+    <form method="get" class="search-form mb-3" action="." aria-label="Formulario de búsqueda de reclamaciones">
       <input
         type="text"
         name="search"
         placeholder="🔍 Buscar..."
-        value="{{ search_query|escape }}"
+        value="{{ search_query|escape|default:'' }}"
         aria-label="Campo de búsqueda global"
         class="search-input"
       />
@@ -36,8 +36,12 @@
         </caption>
         <thead role="rowgroup">
           <tr role="row">
-            {# --- Cabeceras Ordenables - TODOS LOS CAMPOS --- #}
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='id' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">#️⃣ ID {% if current_sort == 'id' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
+            {# --- Cabecera N° Reclamación (Usa el campo numero_reclamacion) --- #}
+            <th class="sort-header" role="columnheader">
+                <a href="?{% query_transform sort='numero_reclamacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                    #️⃣ N° Reclam. {% if current_sort == 'numero_reclamacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
+                </a>
+            </th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='tipo_reclamacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🏷️ Tipo {% if current_sort == 'tipo_reclamacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='estado' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🚦 Estado {% if current_sort == 'estado' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='contrato_individual__numero_contrato' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">📄 Contrato Ind. {% if current_sort == 'contrato_individual__numero_contrato' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
@@ -48,57 +52,55 @@
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='descripcion_reclamo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">📝 Descripción {% if current_sort == 'descripcion_reclamo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='diagnostico_principal' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">ℹ️ Diagnóstico {% if current_sort == 'diagnostico_principal' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='usuario_asignado__username' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">👤 Usuario Asig. {% if current_sort == 'usuario_asignado__username' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-             <th role="columnheader">📎 Docs. Adjuntos</th>
+            <th role="columnheader">📎 Docs. Adjuntos</th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='observaciones_internas' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🤫 Obs. Internas {% if current_sort == 'observaciones_internas' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='observaciones_cliente' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🗣️ Obs. Cliente {% if current_sort == 'observaciones_cliente' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            {# --- Campos ModeloBase AÑADIDOS --- #}
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='fecha_creacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">➕ F. Creación {% if current_sort == 'fecha_creacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='fecha_modificacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🔄 F. Modificación {% if current_sort == 'fecha_modificacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
             <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='activo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💡 Activo {% if current_sort == 'activo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-
             <th role="columnheader">⚙️ Acciones</th>
           </tr>
         </thead>
         <tbody role="rowgroup">
           {% for reclamacion in object_list %}
           <tr role="row">
-            {# --- Celdas con TODOS los campos --- #}
-            <td role="cell">{{ reclamacion.pk }}</td>
-            <td role="cell">{{ reclamacion.get_tipo_reclamacion_display|escape }}</td>
-            <td role="cell"><span class="badge {% if reclamacion.estado == 'CERRADA' or reclamacion.estado == 'PAGADA' or reclamacion.estado == 'RECHAZADA' %}badge-danger{% elif reclamacion.estado == 'APROBADA' %}badge-success{% else %}badge-warning{% endif %}">{{ reclamacion.get_estado_display|escape }}</span></td>
-            <td role="cell">{% if reclamacion.contrato_individual %}<a href="{% url 'myapp:contrato_individual_detail' reclamacion.contrato_individual.pk %}">{{ reclamacion.contrato_individual.numero_contrato }}</a>{% else %}-{% endif %}</td>
-            <td role="cell">{% if reclamacion.contrato_colectivo %}<a href="{% url 'myapp:contrato_colectivo_detail' reclamacion.contrato_colectivo.pk %}">{{ reclamacion.contrato_colectivo.numero_contrato }}</a>{% else %}-{% endif %}</td>
-            <td role="cell">{{ reclamacion.fecha_reclamo|date:"d/m/Y" }}</td>
+            {# --- Celda N° Reclamación (Usa el campo numero_reclamacion) --- #}
+            <td role="cell">{{ reclamacion.numero_reclamacion|default:"PENDIENTE" }}</td>
+            <td role="cell">{{ reclamacion.get_tipo_reclamacion_display|escape|default:"-" }}</td>
+            <td role="cell"><span class="badge {% if reclamacion.estado == 'CERRADA' or reclamacion.estado == 'PAGADA' or reclamacion.estado == 'RECHAZADA' %}badge-danger{% elif reclamacion.estado == 'APROBADA' %}badge-success{% else %}badge-warning{% endif %}">{{ reclamacion.get_estado_display|escape|default:"-" }}</span></td>
+            <td role="cell">{% if reclamacion.contrato_individual %}<a href="{% url 'myapp:contrato_individual_detail' reclamacion.contrato_individual.pk %}">{{ reclamacion.contrato_individual.numero_contrato|default:"N/A" }}</a>{% else %}-{% endif %}</td>
+            <td role="cell">{% if reclamacion.contrato_colectivo %}<a href="{% url 'myapp:contrato_colectivo_detail' reclamacion.contrato_colectivo.pk %}">{{ reclamacion.contrato_colectivo.numero_contrato|default:"N/A" }}</a>{% else %}-{% endif %}</td>
+            <td role="cell">{{ reclamacion.fecha_reclamo|date:"d/m/Y"|default:"-" }}</td>
             <td role="cell">{{ reclamacion.fecha_cierre_reclamo|date:"d/m/Y"|default:"-" }}</td>
-            <td role="cell">${{ reclamacion.monto_reclamado|floatformat:2|intcomma }}</td>
-            <td role="cell" title="{{ reclamacion.get_diagnostico_principal_display|escape|default:'' }}">{{ reclamacion.get_diagnostico_principal_display|escape|truncatechars:50|default:"-" }}</td>            <td role="cell">{{ reclamacion.usuario_asignado.get_full_name|escape|default:"-" }}</td>
-            <td role="cell" title="{{ reclamacion.diagnostico_principal|escape|default:'' }}">{{ reclamacion.diagnostico_principal|escape|truncatechars:50|default:"-" }}</td>
+            <td role="cell" style="text-align: right;">${{ reclamacion.monto_reclamado|floatformat:2|intcomma|default:"0.00" }}</td>
+            <td role="cell" title="{{ reclamacion.descripcion_reclamo|escape|default:'' }}">{{ reclamacion.descripcion_reclamo|escape|truncatechars:50|default:"-" }}</td>
+            <td role="cell" title="{{ reclamacion.get_diagnostico_principal_display|escape|default:'' }}">{{ reclamacion.get_diagnostico_principal_display|escape|truncatechars:50|default:"-" }}</td>
+            <td role="cell">{{ reclamacion.usuario_asignado.get_full_name|escape|default:"-" }}</td>
             <td role="cell">{% if reclamacion.documentos_adjuntos %}<a href="{{ reclamacion.documentos_adjuntos.url }}" target="_blank">📎 Ver</a>{% else %}-{% endif %}</td>
             <td role="cell" title="{{ reclamacion.observaciones_internas|escape|default:'' }}">{{ reclamacion.observaciones_internas|escape|truncatechars:40|default:"-" }}</td>
             <td role="cell" title="{{ reclamacion.observaciones_cliente|escape|default:'' }}">{{ reclamacion.observaciones_cliente|escape|truncatechars:40|default:"-" }}</td>
-            {# Campos ModeloBase AÑADIDOS #}
-            <td role="cell">{{ reclamacion.fecha_creacion|date:"d/m/y H:i" }}</td>
-            <td role="cell">{{ reclamacion.fecha_modificacion|date:"d/m/y H:i" }}</td>
-            <td role="cell">{% if reclamacion.activo %}✅{% else %}🔴{% endif %}</td>
+            <td role="cell">{{ reclamacion.fecha_creacion|date:"d/m/y H:i"|default:"-" }}</td>
+            <td role="cell">{{ reclamacion.fecha_modificacion|date:"d/m/y H:i"|default:"-" }}</td>
+            <td role="cell">{% if reclamacion.activo %}✅ Sí{% else %}🔴 No{% endif %}</td>
 
             <td class="actions" role="cell">
               <div class="action-group">
                  {% if perms.myapp.view_reclamacion %}
-                  <a href="{% url 'myapp:reclamacion_detail' reclamacion.pk %}" class="action-icon" title="Ver Detalles" aria-label="Ver detalles de la reclamación {{ reclamacion.pk }}">👁️</a>
+                  <a href="{% url 'myapp:reclamacion_detail' reclamacion.pk %}" class="action-icon" title="Ver Detalles" aria-label="Ver detalles de la reclamación {{ reclamacion.numero_reclamacion|default:reclamacion.pk }}">👁️</a>
                 {% endif %}
                 {% if perms.myapp.change_reclamacion %}
-                  <a href="{% url 'myapp:reclamacion_update' reclamacion.pk %}" class="action-icon" title="Editar" aria-label="Editar reclamación {{ reclamacion.pk }}">✏️</a>
+                  <a href="{% url 'myapp:reclamacion_update' reclamacion.pk %}" class="action-icon" title="Editar" aria-label="Editar reclamación {{ reclamacion.numero_reclamacion|default:reclamacion.pk }}">✏️</a>
                 {% endif %}
                 {% if perms.myapp.delete_reclamacion %}
-                  <a href="{% url 'myapp:reclamacion_delete' reclamacion.pk %}" class="action-icon delete-link" title="Eliminar" aria-label="Eliminar reclamación {{ reclamacion.pk }}">❌</a>
+                  <a href="{% url 'myapp:reclamacion_delete' reclamacion.pk %}" class="action-icon delete-link" title="Eliminar" aria-label="Eliminar reclamación {{ reclamacion.numero_reclamacion|default:reclamacion.pk }}">❌</a>
                 {% endif %}
               </div>
             </td>
           </tr>
           {% empty %}
           <tr role="row">
-            <td colspan="22" class="no-results" role="cell"> {# Ajustar colspan (21 datos + 1 acción) #}
-              📭 No se encontraron reclamaciones que coincidan con la búsqueda.
+            <td colspan="18" class="no-results" role="cell">
+              📭 No se encontraron reclamaciones que coincidan con la búsqueda{% if search_query %} para "{{ search_query|escape }}"{% endif %}.
             </td>
           </tr>
           {% endfor %}
@@ -109,13 +111,13 @@
     {% if is_paginated %}
     <nav aria-label="Navegación de páginas de reclamaciones">
       <div class="django-pagination">
+        <span class="pagination-current">
+          Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+        </span>
         {% if page_obj.has_previous %}
           <a href="?{% query_transform page=1 %}" class="btn-pagination" aria-label="Primera página">« Primera</a>
           <a href="?{% query_transform page=page_obj.previous_page_number %}" class="btn-pagination" aria-label="Página anterior">‹ Anterior</a>
         {% endif %}
-        <span class="pagination-current">
-          Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
-        </span>
         {% if page_obj.has_next %}
           <a href="?{% query_transform page=page_obj.next_page_number %}" class="btn-pagination" aria-label="Siguiente página">Siguiente ›</a>
           <a href="?{% query_transform page=page_obj.paginator.num_pages %}" class="btn-pagination" aria-label="Última página">Última »</a>
