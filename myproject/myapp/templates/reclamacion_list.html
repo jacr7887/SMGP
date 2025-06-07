@@ -36,7 +36,6 @@
         </caption>
         <thead role="rowgroup">
           <tr role="row">
-            {# --- Cabecera N° Reclamación (Usa el campo numero_reclamacion) --- #}
             <th class="sort-header" role="columnheader">
                 <a href="?{% query_transform sort='numero_reclamacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
                     #️⃣ N° Reclam. {% if current_sort == 'numero_reclamacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
@@ -64,10 +63,25 @@
         <tbody role="rowgroup">
           {% for reclamacion in object_list %}
           <tr role="row">
-            {# --- Celda N° Reclamación (Usa el campo numero_reclamacion) --- #}
             <td role="cell">{{ reclamacion.numero_reclamacion|default:"PENDIENTE" }}</td>
             <td role="cell">{{ reclamacion.get_tipo_reclamacion_display|escape|default:"-" }}</td>
-            <td role="cell"><span class="badge {% if reclamacion.estado == 'CERRADA' or reclamacion.estado == 'PAGADA' or reclamacion.estado == 'RECHAZADA' %}badge-danger{% elif reclamacion.estado == 'APROBADA' %}badge-success{% else %}badge-warning{% endif %}">{{ reclamacion.get_estado_display|escape|default:"-" }}</span></td>
+            <td role="cell">
+                <span class="badge 
+                    {% if reclamacion.estado == 'APROBADA' or reclamacion.estado == 'PAGADA' %}
+                        badge-success
+                    {% elif reclamacion.estado == 'CERRADA' or reclamacion.estado == 'RECHAZADA' %}
+                        badge-danger
+                    {% elif reclamacion.estado == 'ABIERTA' or reclamacion.estado == 'EN_PROCESO' or reclamacion.estado == 'PENDIENTE_DOCS' or reclamacion.estado == 'EN_ANALISIS' or reclamacion.estado == 'ESCALADA' or reclamacion.estado == 'EN_ARBITRAJE' or reclamacion.estado == 'INVESTIGACION' %}
+                        badge-warning
+                    {% elif reclamacion.estado == 'SUSPENDIDA' %}
+                        badge-info 
+                    {% else %}
+                        badge-secondary
+                    {% endif %}
+                ">
+                    {{ reclamacion.get_estado_display|escape|default:"-" }}
+                </span>
+            </td>
             <td role="cell">{% if reclamacion.contrato_individual %}<a href="{% url 'myapp:contrato_individual_detail' reclamacion.contrato_individual.pk %}">{{ reclamacion.contrato_individual.numero_contrato|default:"N/A" }}</a>{% else %}-{% endif %}</td>
             <td role="cell">{% if reclamacion.contrato_colectivo %}<a href="{% url 'myapp:contrato_colectivo_detail' reclamacion.contrato_colectivo.pk %}">{{ reclamacion.contrato_colectivo.numero_contrato|default:"N/A" }}</a>{% else %}-{% endif %}</td>
             <td role="cell">{{ reclamacion.fecha_reclamo|date:"d/m/Y"|default:"-" }}</td>
