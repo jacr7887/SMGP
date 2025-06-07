@@ -1283,7 +1283,7 @@ class AfiliadoColectivoCreateView(BaseCreateView):
     def form_valid(self, form):
         self.object = form.save(commit=False)
         self.object.activo = True  # O basado en alguna lógica
-        self.object.save()
+        return super().form_valid(form)
 
     # form_valid heredado
 
