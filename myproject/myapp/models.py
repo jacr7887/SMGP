@@ -13,7 +13,7 @@ from django.contrib.contenttypes.models import ContentType
 from decimal import Decimal, ROUND_HALF_UP
 from django.core.exceptions import ValidationError
 from django.db.models.functions import Coalesce
-from django.db.models import Sum, Q, DecimalField
+from django.db.models import Sum, Q, DecimalField, Value
 from django.db.models import Sum
 from django.db import models, transaction
 from django.core.validators import MinValueValidator
@@ -594,7 +594,7 @@ class ContratoBase(ModeloBase):
         verbose_name="Fecha de Emisión del Contrato",
         db_index=True,
         editable=True,
-        default=timezone.now,  # <--- AÑADIR ESTO
+        default=timezone.now,
         help_text="Fecha y hora en que se emitió oficialmente el contrato."
     )
     fecha_inicio_vigencia = models.DateField(
@@ -1531,6 +1531,50 @@ class ContratoIndividual(ContratoBase):
 
         if error_messages:
             raise ValidationError(error_messages)
+
+    @property
+    def monto_comision_intermediario_estimada(self):
+        """
+        Suma los montos de todas las comisiones (DIRECTA y OVERRIDE si aplica al intermediario del contrato)
+        que están PENDIENTES o PAGADAS para este contrato individual.
+        """
+        # Necesitamos el modelo RegistroComision. Si está en el mismo archivo, no hay problema.
+        # Si está en otro, asegúrate de la importación.
+        # from .models import RegistroComision # Descomentar si es necesario y no causa circularidad
+
+        # Comisiones directas para el intermediario de este contrato
+        comisiones_directas = RegistroComision.objects.filter(
+            contrato_individual=self,
+            intermediario=self.intermediario,  # El intermediario principal del contrato
+            tipo_comision='DIRECTA',
+            estatus_pago_comision__in=['PENDIENTE', 'PAGADA']
+        ).aggregate(total=Coalesce(Sum('monto_comision'), Value(Decimal('0.00')), output_field=DecimalField()))['total']
+
+        # Comisiones de override donde este contrato fue la venta original
+        # y el beneficiario del override es el padre del intermediario de este contrato.
+        # Esto es un poco más complejo si el intermediario del contrato no tiene padre,
+        # o si el override se paga a alguien más arriba en la jerarquía.
+        # Por simplicidad, si solo te interesa la comisión directa generada por este contrato
+        # para su intermediario principal, puedes omitir la parte de override aquí
+        # o ajustarla a tu estructura de comisiones.
+
+        # Ejemplo simplificado: solo comisiones directas para el intermediario del contrato
+        # Si quieres incluir overrides donde este contrato es la fuente y el intermediario
+        # del contrato es el VENDEDOR, y su PADRE recibe el override, la lógica sería:
+        # comisiones_override_para_padre = RegistroComision.objects.filter(
+        #     contrato_individual=self,
+        #     intermediario_vendedor=self.intermediario, # Este intermediario hizo la venta
+        #     intermediario=self.intermediario.intermediario_relacionado, # El padre recibe
+        #     tipo_comision='OVERRIDE',
+        #     estatus_pago_comision__in=['PENDIENTE', 'PAGADA']
+        # ).aggregate(total=Coalesce(Sum('monto_comision'), Value(Decimal('0.00')), output_field=DecimalField()))['total']
+        # total_comisiones = comisiones_directas + comisiones_override_para_padre
+
+        # Por ahora, nos enfocaremos en la comisión directa generada por este contrato
+        # para el intermediario asignado a este contrato.
+        # Si el campo "Comisión Intermediario (Estimada)" en tu detalle se refiere
+        # solo a la comisión directa del intermediario principal del contrato:
+        return comisiones_directas.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
     def _generar_recibo_inicial_contrato(self):
         # print(f"    CI (PK:{self.pk or 'Nuevo'}) GENERANDO RECIBO INICIAL...")

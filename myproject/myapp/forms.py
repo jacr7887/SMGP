@@ -915,12 +915,36 @@ class ContratoColectivoForm(AwareDateInputMixinVE, BaseModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if not self.instance or not self.instance.pk:
+
+        if self.instance and self.instance.pk:  # Modo Edición
+            for field_name in self.aware_date_fields:
+                if field_name in self.fields:
+                    model_value = getattr(self.instance, field_name, None)
+                    if isinstance(model_value, datetime):
+                        date_to_format = django_timezone.localtime(model_value).date(
+                        ) if django_timezone.is_aware(model_value) else model_value.date()
+                        self.initial[field_name] = date_to_format.strftime(
+                            '%d/%m/%Y')
+                    elif isinstance(model_value, date):
+                        self.initial[field_name] = model_value.strftime(
+                            '%d/%m/%Y')
+
+            # Específicamente para fecha_emision en modo edición:
+            # Si ya tiene un valor, no debería ser editable ni requerido en el POST
+            # (a menos que tu lógica de negocio permita cambiarla, lo cual es raro para fecha de emisión)
+            if 'fecha_emision' in self.fields and self.instance.fecha_emision:
+                self.fields['fecha_emision'].required = False
+                self.fields['fecha_emision'].widget.attrs['readonly'] = True
+                # Añadir una clase para que se vea como readonly si es necesario
+                self.fields['fecha_emision'].widget.attrs['class'] += ' form-control-plaintext dark-input-plaintext'
+                self.fields['fecha_emision'].help_text = "La fecha de emisión original no se puede modificar."
+
+        else:  # Modo Creación
             self.initial.setdefault('estatus', 'VIGENTE')
             self.initial.setdefault('activo', True)
-        if 'tarifa_aplicada' in self.fields:
-            logger.debug(
-                f"ContratoColectivoForm.__init__ FINAL: Queryset tarifa_aplicada. Count: {self.fields['tarifa_aplicada'].queryset.count()}")
+            if 'fecha_emision' in self.fields:
+                # Asegurar que sea requerido en creación
+                self.fields['fecha_emision'].required = True
 
     def clean(self):  # Adaptado para fechas aware
         cleaned_data = super().clean()
@@ -1302,6 +1326,17 @@ class FacturaForm(AwareDateInputMixinVE, BaseModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        # Formatear fechas para la edición
+        if self.instance and self.instance.pk:
+            if 'vigencia_recibo_desde' in self.fields and isinstance(self.instance.vigencia_recibo_desde, date):
+                self.initial['vigencia_recibo_desde'] = self.instance.vigencia_recibo_desde.strftime(
+                    '%d/%m/%Y')
+
+            if 'vigencia_recibo_hasta' in self.fields and isinstance(self.instance.vigencia_recibo_hasta, date):
+                self.initial['vigencia_recibo_hasta'] = self.instance.vigencia_recibo_hasta.strftime(
+                    '%d/%m/%Y')
+
         if 'observaciones' in self.fields:
             self.fields['observaciones'].widget.attrs.setdefault(
                 'placeholder', 'Añadir notas...')

@@ -1417,31 +1417,18 @@ class ContratoIndividualDetailView(BaseDetailView):
         # O ContratoIndividual.objects.all() si solo activos
         queryset = ContratoIndividual.all_objects.all()
 
-        return queryset.select_related(
+        return super().get_queryset().select_related(
             'afiliado',
             'intermediario',
             'tarifa_aplicada'
         ).prefetch_related(
-            Prefetch('reclamacion_set',
-                     queryset=Reclamacion.objects.select_related(
-                         'usuario_asignado')
-                     .prefetch_related(
-                         Prefetch('pagos',
-                                  queryset=Pago.objects.filter(
-                                      activo=True).order_by('-fecha_pago'),
-                                  # Atributo claro para pagos de reclamación
-                                  to_attr='pagos_activos_de_reclamacion')
-                     ).only('pk', 'monto_reclamado', 'estado', 'fecha_reclamo', 'tipo_reclamacion', 'usuario_asignado_id', 'contrato_individual_id'),
-                     to_attr='reclamaciones_con_pagos'),
-            Prefetch('factura_set',
-                     queryset=Factura.objects.select_related('intermediario')
-                                     .prefetch_related(
-                                         Prefetch('pagos',
-                                                  queryset=Pago.objects.filter(
-                                                      activo=True).only('pk', 'monto_pago'),
-                                                  to_attr='pagos_activos_de_factura')  # Atributo claro para pagos de factura
-                     ).only('pk', 'monto', 'monto_pendiente', 'pagada', 'vigencia_recibo_desde', 'vigencia_recibo_hasta', 'numero_recibo', 'intermediario_id', 'contrato_individual_id'))
-        )
+            Prefetch('reclamacion_set', queryset=Reclamacion.objects.select_related('usuario_asignado').prefetch_related(
+                Prefetch('pagos', queryset=Pago.objects.filter(activo=True).order_by('-fecha_pago'), to_attr='pagos_activos_de_reclamacion'))
+                .only('pk', 'monto_reclamado', 'estado', 'fecha_reclamo', 'tipo_reclamacion', 'usuario_asignado_id', 'contrato_individual_id'),
+                to_attr='reclamaciones_con_pagos'),
+            Prefetch('factura_set', queryset=Factura.objects.select_related('intermediario').prefetch_related(
+                Prefetch('pagos', queryset=Pago.objects.filter(activo=True).only('pk', 'monto_pago'), to_attr='pagos_activos_de_factura')))
+        )  # No es necesario añadir prefetch para RegistroComision si solo usas la propiedad agregada
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

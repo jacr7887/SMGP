@@ -247,23 +247,7 @@
                  </div>
              </fieldset>
             <fieldset class="mb-4">
-                            <legend>🛡️ Consumo de Cobertura</legend>
-                            <div class="dark-grid">
-                                <div class="dark-group"><span class="dark-label">💰 Suma Asegurada Total:</span><span class="h5">${{ contrato.suma_asegurada|default:"0.00"|floatformat:2|intcomma }}</span></div>
-                                <div class="dark-group"><span class="dark-label">📉 Monto Total Pagado por Reclamaciones:</span><span class="h5 text-warning">${{ contrato.monto_total_pagado_reclamaciones|default:"0.00"|floatformat:2|intcomma }}</span></div>
-                                <div class="dark-group"><span class="dark-label">✅ Saldo Disponible Cobertura:</span><span class="h5 text-success">${{ contrato.saldo_disponible_cobertura|default:"0.00"|floatformat:2|intcomma }}</span></div>
-                                <div class="dark-group">
-                                    <span class="dark-label">📊 Porcentaje Consumido:</span>
-                                    <div class="progress" style="height: 20px; background-color: var(--glass-bg);">
-                                        <div class="progress-bar {% if contrato.porcentaje_cobertura_consumido > 80 %}bg-danger{% elif contrato.porcentaje_cobertura_consumido > 50 %}bg-warning{% else %}bg-success{% endif %}"
-                                            role="progressbar" style="width: {{ contrato.porcentaje_cobertura_consumido|floatformat:0 }}%;"
-                                            aria-valuenow="{{ contrato.porcentaje_cobertura_consumido|floatformat:1 }}" aria-valuemin="0" aria-valuemax="100">
-                                            {{ contrato.porcentaje_cobertura_consumido|floatformat:1 }}%
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </fieldset>
+
             <h4 class="mt-3">🆘 Reclamaciones Asociadas ({{ total_reclamaciones }})</h4>
             {% if reclamaciones_asociadas %}
                <div class="table-container">
