@@ -3715,9 +3715,23 @@ class UsuarioListView(BaseListView):
     context_object_name = 'object_list'
     filterset_class = UsuarioFilter
     permission_required = 'myapp.view_usuario'
-    search_fields = ['email', 'primer_nombre', 'primer_apellido',
-                     'tipo_usuario', 'departamento', 'intermediario__nombre_completo']
-    ordering = ['-date_joined']  # Ejemplo de orden por defecto
+    search_fields = [
+        'email', 'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido',  # Nombres
+        'username',  # Username
+        'tipo_usuario', 'departamento', 'nivel_acceso',  # Roles y estructura
+        'intermediario__nombre_completo', 'intermediario__codigo',  # Intermediario
+        'telefono'  # Añadido
+    ]
+    ordering_fields = [
+        'primer_apellido', 'primer_nombre', 'email', 'username',
+        'tipo_usuario', 'nivel_acceso', 'departamento',
+        'intermediario__nombre_completo',
+        'is_active', 'is_staff', 'is_superuser',  # Estados de Django User
+        'activo',  # Tu campo activo personalizado
+        'date_joined', 'last_login',  # Fechas de Django User
+        'fecha_creacion', 'fecha_modificacion'  # Fechas de ModeloBase
+    ]
+    ordering = ['-date_joined']
 
     def get_queryset(self):
         # El queryset base (todos o activos)
@@ -3726,23 +3740,6 @@ class UsuarioListView(BaseListView):
         else:
             base_qs = Usuario.objects.all()  # Otros ven solo activos (por defecto del manager)
 
-        # Aplicar filtrado/búsqueda de BaseListView
-        # Para que BaseListView.get_queryset() funcione, necesita un queryset inicial.
-        # Se lo pasamos temporalmente y luego aplicamos nuestra lógica de nivel.
-        # Esto es un poco enrevesado, idealmente BaseListView permitiría pasar el qs base.
-
-        # Solución más limpia: Llama a super() con el qs base correcto para el usuario.
-        # Necesitaríamos que BaseListView acepte un queryset inicial o lo obtenga de self.model
-        # y luego nosotros filtramos por nivel.
-
-        # Vamos a asumir que super().get_queryset() usa self.model.objects.all() o similar
-        # y luego nosotros aplicamos el filtro de nivel.
-
-        # Primero, obtener el queryset de la clase base (que aplica filtros, búsqueda, ordenación)
-        # Esto se aplicará sobre Usuario.objects.all() (o lo que defina BaseListView)
-        # queryset = super().get_queryset() # Esto podría estar mal si BaseListView ya usa el manager por defecto
-
-        # Corrección: aplicar filtros/búsqueda DESPUÉS de seleccionar el queryset base
         if self.request.user.is_superuser:
             initial_queryset = Usuario.all_objects.all()
         else:
@@ -3921,28 +3918,65 @@ class UsuarioUpdateView(BaseUpdateView):  # O tu clase base
 
 
 @method_decorator(csrf_protect, name='dispatch')
+# Asegúrate que herede de tu BaseDeleteView correcta
 class UsuarioDeleteView(BaseDeleteView):
     model = Usuario
-    # Para hard delete o confirmación de soft
     template_name = 'usuario_confirm_delete.html'
     permission_required = 'myapp.delete_usuario'
     success_url = reverse_lazy('myapp:usuario_list')
+    # context_object_name = 'object' # Django DeleteView usa 'object' por defecto
 
-    def can_delete(self, obj_to_delete):  # Método auxiliar
+    # Mantenemos tu método can_delete, pero lo ajustaremos para que devuelva también un mensaje
+    def can_delete(self, obj_to_delete):
+        """
+        Verifica si el usuario puede ser eliminado.
+        Devuelve: (True, "") si se puede eliminar.
+                  (False, "Mensaje de error") si no se puede eliminar.
+        """
         if obj_to_delete == self.request.user:
-            messages.error(
-                self.request, "Acción denegada: No puedes eliminar tu propia cuenta.")
-            return False
+            return False, "Acción denegada: No puedes eliminar tu propia cuenta."
+
         if not self.request.user.is_superuser:
-            if obj_to_delete.nivel_acceso >= self.request.user.nivel_acceso:
-                messages.error(
-                    self.request, "Acción denegada: No puedes eliminar usuarios con nivel de acceso igual o superior al tuyo.")
-                return False
             if obj_to_delete.is_superuser:
-                messages.error(
-                    self.request, "Acción denegada: No puedes eliminar a un superusuario.")
-                return False
-        return True
+                return False, "Acción denegada: No tienes permiso para eliminar a un superusuario."
+            if obj_to_delete.nivel_acceso >= self.request.user.nivel_acceso:
+                return False, "Acción denegada: No puedes eliminar usuarios con nivel de acceso igual o superior al tuyo."
+
+        # Aquí puedes añadir más chequeos, por ejemplo, si el usuario tiene objetos críticos asociados
+        # Ejemplo:
+        # if hasattr(obj_to_delete, 'contratos_asignados_como_intermediario') and obj_to_delete.contratos_asignados_como_intermediario.exists():
+        #     return False, "Este usuario es un intermediario con contratos activos y no puede ser eliminado directamente."
+
+        return True, ""  # Puede ser eliminado, no hay mensaje de bloqueo específico
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)  # self.object ya está aquí
+
+        # Llamamos a can_delete para obtener el flag y el mensaje
+        can_delete_flag, reason_message = self.can_delete(self.object)
+
+        context['usuario_puede_ser_eliminado'] = can_delete_flag
+        context['mensaje_bloqueo_eliminacion'] = reason_message
+        context['page_title'] = f"Confirmar Eliminación de Usuario: {self.object.get_full_name() or self.object.username}"
+        return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()  # Obtener el objeto a eliminar
+
+        can_delete_flag, reason_message = self.can_delete(self.object)
+
+        if not can_delete_flag:
+            messages.error(
+                request, reason_message or "Este usuario no puede ser eliminado.")
+            # Redirigir de vuelta al detalle del usuario o a la lista
+            try:
+                return redirect(reverse('myapp:usuario_detail', kwargs={'pk': self.object.pk}))
+            except NoReverseMatch:  # Fallback si la URL de detalle no existe o falla
+                return redirect(self.get_success_url())
+
+        # Si puede ser eliminado, proceder con la lógica de BaseDeleteView
+        # (que incluye la auditoría y la notificación si las tienes ahí)
+        return super().post(request, *args, **kwargs)
 
 
 # ==========================

@@ -1,48 +1,79 @@
 {% extends "home.html" %}
-{% load static %}
+{% load static humanize %}
+{% load querystring_tags %} {# Si usas query_transform para los enlaces de volver #}
 
 {% block content %}
-<div class="container" role="main" aria-labelledby="main-heading">
+<div class="dark-container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 id="main-heading">❌ Confirmar Eliminación de Usuario</h1>
+    <h1 id="main-heading">🗑️ Confirmar Eliminación de Usuario #{{ object.pk }}</h1> {# Título ajustado #}
 
-    <div class="dark-grid" role="region" aria-labelledby="delete-caption">
-      <div class="dark-group">
-        <p class="delete-message">
-          ¿Estás seguro de que deseas eliminar al usuario <strong>{{ usuario.get_full_name }}</strong>?
-        </p>
-        <p class="warning-message">
-          ⚠️ Esta acción es irreversible y eliminará todos los datos asociados al usuario.
-        </p>
-      </div>
-
-      <div class="dark-group">
-        <h2 class="dark-label">Detalles del Usuario:</h2>
-        <ul class="detail-list">
-          <li><strong>👤 Nombre Completo:</strong> {{ usuario.get_full_name }}</li>
-          <li><strong>📧 Correo:</strong> {{ usuario.email }}</li>
-          <li><strong>🔑 Tipo de Usuario:</strong> {{ usuario.get_tipo_usuario_display }}</li>
-          <li><strong>🏢 Departamento:</strong> {{ usuario.get_departamento_display }}</li>
-          <li><strong>☎️ Teléfono:</strong> {{ usuario.telefono }}</li>
-          <li><strong>🏠 Dirección:</strong> {{ usuario.direccion }}</li>
-          <li><strong>🔒 Nivel de Acceso:</strong> {{ usuario.get_nivel_acceso_display }}</li>
-          <li><strong>✅ Estado de la Cuenta:</strong> {{ usuario.is_active|yesno:"Activo,Inactivo" }}</li>
-        </ul>
-      </div>
+    <div class="header-actions">
+        <a href="{% url 'myapp:usuario_detail' object.pk %}" class="nav_link" aria-label="Cancelar y volver al detalle del usuario">
+            ⬅️ Cancelar y Volver al Detalle
+        </a>
+         <a href="{% url 'myapp:usuario_list' %}" class="nav_link" aria-label="Volver al listado de usuarios">
+            ⬅️ Volver al Listado
+        </a>
     </div>
 
-    <form method="post" id="delete-form" class="compact-form" aria-labelledby="delete-form-heading">
-      {% csrf_token %}
-      <div class="button-group">
-        <button type="submit" id="confirm-delete-button" class="nav_link danger" aria-label="Confirmar eliminación del usuario">
-          ❌ Confirmar Eliminación
-        </button>
-        <a href="{% url 'myapp:usuario_list' %}" class="nav_link" aria-label="Cancelar y volver al listado de usuarios">
-          🛑 Cancelar
-        </a>
-      </div>
-    </form>
+    <div class="delete-confirmation mt-3" data-section="confirmacion-eliminacion">
+        <h2 class="dark-label">⚠️ Confirmación de Eliminación</h2>
+        <p>Estás a punto de eliminar permanentemente el siguiente registro de usuario. Verifica los datos:</p>
+
+        {# --- Resumen de Datos Clave del Usuario --- #}
+        <div class="detail-summary mb-3">
+            <div class="detail-section"> 
+                <h3 class="section-title visually-hidden">Datos Principales del Usuario</h3>
+                <div class="dark-group"><span class="dark-label">#️⃣ ID:</span><span class="data-value">{{ object.pk }}</span></div>
+                <div class="dark-group"><span class="dark-label">👤 Nombre Completo:</span><span class="data-value">{{ object.get_full_name|default:"No disponible" }}</span></div>
+                <div class="dark-group"><span class="dark-label">📧 Correo:</span><span class="data-value">{{ object.email|default:"No disponible" }}</span></div>
+                <div class="dark-group"><span class="dark-label">🔑 Tipo de Usuario:</span><span class="data-value">{{ object.get_tipo_usuario_display|default:"No disponible" }}</span></div>
+                <div class="dark-group"><span class="dark-label">🏢 Departamento:</span><span class="data-value">{{ object.get_departamento_display|default:"No disponible" }}</span></div>
+                <div class="dark-group"><span class="dark-label">☎️ Teléfono:</span><span class="data-value">{{ object.telefono|default:"No disponible" }}</span></div>
+                {# <div class="dark-group"><span class="dark-label">🏠 Dirección:</span><span class="data-value">{{ object.direccion|truncatechars:50|default:"No disponible" }}</span></div> #}
+                <div class="dark-group"><span class="dark-label">🔒 Nivel de Acceso:</span><span class="data-value">{{ object.get_nivel_acceso_display|default:"No disponible" }}</span></div>
+                <div class="dark-group"><span class="dark-label">💡 Estado Cuenta (Personalizado):</span><span class="badge {% if object.activo %}badge-success{% else %}badge-danger{% endif %}">{{ object.activo|yesno:"Activa,Inactiva" }}</span></div>
+                <div class="dark-group"><span class="dark-label">✅ Estado Django (is_active):</span><span class="badge {% if object.is_active %}badge-success{% else %}badge-danger{% endif %}">{{ object.is_active|yesno:"Activa,Inactiva" }}</span></div>
+            </div>
+        </div>
+        {# --- Fin Resumen de Datos --- #}
+
+        {# --- Lógica de Advertencia Mejorada --- #}
+        {# Asume que la vista pasa 'usuario_puede_ser_eliminado' (booleano) y 'mensaje_bloqueo_eliminacion' (string) al contexto #}
+        {% if not usuario_puede_ser_eliminado %} {# Si la vista determina que NO se puede eliminar #}
+            <div class="alert alert-danger mt-4" role="alert">
+                <p><strong>¡Acción Bloqueada!</strong> Este usuario **no puede ser eliminado**.</p>
+                {% if mensaje_bloqueo_eliminacion %}
+                    <p>{{ mensaje_bloqueo_eliminacion }}</p>
+                {% else %}
+                    <p>Puede tener registros asociados importantes o es un usuario protegido.</p>
+                {% endif %}
+            </div>
+        {% else %}
+            <div class="alert alert-warning mt-4" role="alert">
+                <p><strong>¡Atención!</strong> Esta acción no se puede deshacer.</p>
+                <p>Si eliminas este usuario, todos sus datos y asociaciones podrían perderse o quedar huérfanos.</p>
+                <p>¿Estás completamente seguro de que deseas eliminar a <strong>{{ object.get_full_name|default:object.username }}</strong>?</p>
+            </div>
+        {% endif %}
+        {# --- FIN Lógica de Advertencia --- #}
+
+        {# --- Formulario de Confirmación --- #}
+        <form method="post" class="delete-form mt-3" aria-label="Formulario de confirmación de eliminación">
+            {% csrf_token %}
+            <div class="form-actions">
+                <button type="submit" class="btn-warning" {% if not usuario_puede_ser_eliminado %}disabled title="{{ mensaje_bloqueo_eliminacion|default:'No se puede eliminar este usuario.' }}"{% endif %} aria-label="Confirmar la eliminación permanente de este usuario">
+                    🗑️ {% if not usuario_puede_ser_eliminado %}Eliminar (Bloqueado){% else %}Eliminar Definitivamente{% endif %}
+                </button>
+                
+                <a href="{% url 'myapp:usuario_detail' object.pk %}" class="btn-success" aria-label="Cancelar y volver al detalle del usuario">
+                    🚫 No, cancelar
+                </a>
+            </div>
+        </form>
+        {# --- Fin Formulario --- #}
+
+    </div> {# Fin delete-confirmation #}
   </section>
 </div>
-
-{% endblock %}
+{% endblock content %}
