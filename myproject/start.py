@@ -1,21 +1,21 @@
 # MPC/myproject/start.py
-from waitress import serve
-from django.db import connection, ProgrammingError, OperationalError
-from django.core.wsgi import get_wsgi_application
-from django.core.management import call_command
+from django.utils import timezone
 from django.conf import settings
+from django.core.management import call_command
+from django.core.wsgi import get_wsgi_application
+from django.db import connection, ProgrammingError, OperationalError
+from waitress import serve
 import os
 import sys
 import django  # Importar django primero
-from pathlib import Path  # No es estrictamente necesario aquí pero es buena práctica
+from pathlib import Path  # Buena práctica, aunque no se use directamente aquí
+from datetime import timedelta  # Para la licencia de prueba
 
 # --- Configuración Inicial y Django Setup ---
 # 1. Establecer DJANGO_SETTINGS_MODULE (crucial ANTES de django.setup())
-#    El runtime hook (pyi_runtimehook.py) también intenta establecerlo, pero es bueno tenerlo aquí.
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'myproject.settings')
 
 # 2. Llamar a django.setup() para cargar settings y configurar Django.
-#    Esto debe hacerse antes de importar modelos o llamar management commands.
 try:
     print("--- start.py: Iniciando django.setup() ---")
     django.setup()
@@ -23,11 +23,8 @@ try:
 except ImportError as exc:
     print(
         f"ErrorCRITICO_ImportDjango: No se pudo importar o configurar Django: {exc}")
-    print("Por favor, asegúrate de que Django está correctamente instalado y empaquetado.")
-    # En un entorno empaquetado, input() podría no funcionar si no hay consola.
-    # Considera loguear a un archivo si esto es un problema.
+    # ... (manejo de error como lo tenías, escribiendo a archivo si es frozen) ...
     if getattr(sys, 'frozen', False):
-        # Podrías escribir este error a un archivo conocido si no hay consola
         with open("critical_error_start.txt", "w") as f_error:
             f_error.write(f"ErrorCRITICO_ImportDjango: {exc}\n")
             import traceback
@@ -50,14 +47,71 @@ except Exception as e:
     sys.exit(1)
 
 # --- Imports después de django.setup() ---
-# Solo ahora podemos importar cosas que dependen de Django configurado
+# Asegúrate que la ruta de importación sea correcta para tu modelo LicenseInfo
+# y otros modelos que puedas necesitar aquí.
+try:
+    from myapp.models import LicenseInfo, ContratoIndividual, ContratoColectivo
+except ImportError:
+    print("ErrorCRITICO_ModelImport: No se pudieron importar modelos de 'myapp'. Verifica INSTALLED_APPS y la estructura del proyecto.")
+    # ... (manejo de error similar al anterior) ...
+    sys.exit(1)
+
+
+# --- Función para asegurar licencia de prueba ---
+def ensure_trial_license():
+    """
+    Asegura que exista un registro de licencia de prueba en la base de datos.
+    Lo crea si no existe, o lo actualiza/renueva si es una de prueba.
+    """
+    print("--- start.py: Asegurando licencia de prueba... ---")
+    try:
+        singleton_id = getattr(LicenseInfo, 'SINGLETON_ID', 1)
+        default_key = 'TRIAL-LICENSE-KEY-FOR-EXE'  # Clave específica
+        default_expiry_days = getattr(
+            settings, 'TRIAL_LICENSE_DAYS', 30)  # Ej: 30 días de prueba
+
+        license_obj, created = LicenseInfo.objects.get_or_create(
+            pk=singleton_id,
+            defaults={
+                'license_key': default_key,
+                'expiry_date': timezone.now().date() + timedelta(days=default_expiry_days)
+            }
+        )
+        if created:
+            print(
+                f"--- start.py: Licencia de prueba CREADA (ID: {license_obj.pk}). Expira: {license_obj.expiry_date} ---")
+        else:
+            is_trial_key = default_key in license_obj.license_key.upper()  # Más flexible
+            is_expired = license_obj.expiry_date < timezone.now().date()
+
+            if is_trial_key and is_expired:
+                new_expiry = timezone.now().date() + timedelta(days=default_expiry_days)
+                license_obj.expiry_date = new_expiry
+                license_obj.license_key = default_key  # Asegurar que sea la clave de prueba
+                license_obj.save()
+                print(
+                    f"--- start.py: Licencia de prueba (ID: {license_obj.pk}) RENOVADA. Expira: {license_obj.expiry_date} ---")
+            elif is_trial_key:
+                print(
+                    f"--- start.py: Licencia de prueba (ID: {license_obj.pk}) existente encontrada y válida. Expira: {license_obj.expiry_date} ---")
+            else:
+                print(
+                    f"--- start.py: Licencia de producción (ID: {license_obj.pk}) existente encontrada. Expira: {license_obj.expiry_date} ---")
+
+    except ProgrammingError as pe_license:
+        print(
+            f"--- start.py: ProgrammingError asegurando licencia (Tabla 'LicenseInfo' podría no existir aún, verifica migraciones): {pe_license} ---")
+    except Exception as e_license:
+        print(
+            f"--- start.py: ERROR asegurando licencia de prueba: {type(e_license).__name__} - {e_license} ---")
+        import traceback
+        traceback.print_exc()
+
 
 # --- Función para configurar la base de datos al inicio ---
-
-
 def setup_database():
     """
-    Aplica migraciones, asegura el superusuario y opcionalmente siembra la base de datos.
+    Aplica migraciones, asegura licencia, superusuario y opcionalmente siembra la base de datos.
     """
     print("--- start.py: Iniciando configuración de base de datos ---")
 
@@ -66,57 +120,95 @@ def setup_database():
         print("--- start.py: Aplicando migraciones... ---")
         call_command('migrate', interactive=False, verbosity=1)
         print("--- start.py: Migraciones aplicadas (o ya estaban al día). ---")
-    except (OperationalError, ProgrammingError) as db_error:  # Errores comunes si la BD no está lista
+    except (OperationalError, ProgrammingError) as db_error:
         print(
             f"--- start.py: ERROR CRÍTICO de BD aplicando migraciones: {type(db_error).__name__} - {db_error} ---")
         print("--- start.py: Verifica la conexión a la base de datos y que el servidor de BD esté corriendo. ---")
-        # Podrías decidir salir si las migraciones son críticas para el arranque.
-        # input("Presiona Enter para intentar continuar o cierra la aplicación...")
-        return False  # Indicar fallo
+        return False
     except Exception as e:
         print(
             f"--- start.py: ADVERTENCIA - Error inesperado aplicando migraciones: {type(e).__name__} - {e} ---")
-        # Continuar podría ser posible, pero con riesgo.
+        # Considerar si continuar es seguro
 
-    # 2. Asegurar Superusuario
+    # 2. Asegurar Licencia de Prueba (DESPUÉS de migraciones)
+    ensure_trial_license()
+
+    # 3. Asegurar Superusuario
     print("--- start.py: Asegurando superusuario... ---")
     try:
-        # El comando 'ensure_superuser' debe ser robusto y manejar variables de entorno faltantes.
-        # DJANGO_SUPERUSER_* env vars deben estar disponibles desde el .env o sistema.
+        # Asume que este comando existe y es robusto
         call_command('ensure_superuser')
         print("--- start.py: Intento de asegurar superusuario completado. ---")
     except Exception as e:
         print(
             f"--- start.py: ADVERTENCIA - Error asegurando superusuario: {type(e).__name__} - {e} ---")
 
-    # 3. Sembrar Base de Datos (Opcional, basado en conteo de datos existentes)
+    # 4. Sembrar Base de Datos (Opcional)
     print("--- start.py: Verificando si se necesita sembrar datos... ---")
     try:
-        # Importar modelos aquí, después de migraciones y setup.
-        from myapp.models import ContratoIndividual, ContratoColectivo  # Ajusta a tus modelos
-
         num_contratos = 0
-        # Intentar contar. Si las tablas no existen (a pesar de migrate), ProgrammingError ocurrirá.
         try:
-            num_contratos_ind = ContratoIndividual.objects.count()
-            num_contratos_col = ContratoColectivo.objects.count()
+            # Asegurarse que las tablas existen antes de contar
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT to_regclass('myapp_contratoindividual');")
+                table_exists_ci = cursor.fetchone()[0]
+                cursor.execute(
+                    "SELECT to_regclass('myapp_contratocolectivo');")
+                table_exists_cc = cursor.fetchone()[0]
+
+            if table_exists_ci:
+                num_contratos_ind = ContratoIndividual.objects.count()
+            else:
+                num_contratos_ind = 0
+                print(
+                    "--- start.py: Tabla ContratoIndividual no encontrada para conteo. ---")
+
+            if table_exists_cc:
+                num_contratos_col = ContratoColectivo.objects.count()
+            else:
+                num_contratos_col = 0
+                print(
+                    "--- start.py: Tabla ContratoColectivo no encontrada para conteo. ---")
+
             num_contratos = num_contratos_ind + num_contratos_col
             print(
                 f"--- start.py: Contratos Individuales: {num_contratos_ind}, Colectivos: {num_contratos_col}. Total: {num_contratos} ---")
-        except ProgrammingError:  # Si las tablas aún no existen
-            print("--- start.py: Tablas de contratos no encontradas. Asumiendo 0 para seed. (Migraciones podrían haber fallado o es la primera vez y no se crearon). ---")
-            # Si las migraciones fallaron críticamente arriba, esto podría no ser necesario.
+
+        # Si las tablas aún no existen a pesar de la verificación anterior (raro)
+        except ProgrammingError:
+            print("--- start.py: Tablas de contratos no encontradas (ProgrammingError). Asumiendo 0 para seed. ---")
 
         umbral_contratos_para_seed = getattr(
-            settings, 'UMBRAL_CONTRATOS_PARA_SEED', 5)  # Configurable en settings.py
-        if num_contratos < umbral_contratos_para_seed:
-            print(
-                f"--- start.py: Sembrando base de datos (contratos: {num_contratos} < {umbral_contratos_para_seed})... ---")
-            # Ajusta los argumentos de seed_db según necesites
-            # Es buena idea hacer estos parámetros configurables también, quizás vía settings o .env
-            call_command('seed_db', users=30, intermediarios=15, afiliados_ind=30, afiliados_col=15,
-                         tarifas=30, contratos_ind=24, contratos_col=12, facturas=60,
-                         reclamaciones=30, pagos=45, igtf_chance=50, pago_parcial_chance=60)  # Ejemplo
+            settings, 'UMBRAL_CONTRATOS_PARA_SEED', 5)
+        # Nueva opción para forzar
+        force_seed = getattr(settings, 'FORCE_SEED_ON_START', False)
+
+        if force_seed or num_contratos < umbral_contratos_para_seed:
+            if force_seed:
+                print(
+                    "--- start.py: FORZANDO sembrado de base de datos (FORCE_SEED_ON_START=True)... ---")
+            else:
+                print(
+                    f"--- start.py: Sembrando base de datos (contratos: {num_contratos} < {umbral_contratos_para_seed})... ---")
+
+            # AUMENTAR NÚMEROS PARA DATOS MÁS "IMPRESIONANTES"
+            call_command('seed_db',
+                         users=50,              # Más usuarios
+                         intermediarios=25,     # Más intermediarios
+                         afiliados_ind=200,     # Muchos más afiliados individuales
+                         afiliados_col=50,      # Más empresas
+                         tarifas=100,           # Más variedad de tarifas
+                         contratos_ind=150,     # Muchos más contratos individuales
+                         contratos_col=70,      # Más contratos colectivos
+                         # Muchas facturas (varias por contrato)
+                         facturas=1000,
+                         reclamaciones=300,     # Un buen número de reclamaciones
+                         # Muchos pagos (varios por factura/reclamación)
+                         pagos=1200,
+                         igtf_chance=30,        # Chance de IGTF
+                         pago_parcial_chance=40  # Chance de pago parcial
+                         )
             print("--- start.py: Sembrado de base de datos completado. ---")
         else:
             print(
@@ -124,10 +216,12 @@ def setup_database():
 
     except ProgrammingError as pe:
         print(
-            f"--- start.py: ProgrammingError durante el conteo/sembrado de datos (Tablas podrían no existir aún): {pe} ---")
+            f"--- start.py: ProgrammingError durante el conteo/sembrado (Tablas podrían no existir): {pe} ---")
     except Exception as e:
         print(
             f"--- start.py: ERROR durante el sembrado de datos: {type(e).__name__} - {e} ---")
+        import traceback
+        traceback.print_exc()
 
     print("--- start.py: Configuración inicial de base de datos finalizada. ---")
     return True
@@ -135,23 +229,22 @@ def setup_database():
 
 # --- Punto de Entrada Principal ---
 if __name__ == '__main__':
-    # El CWD ya debería ser la carpeta del .exe (o _MEIPASS para onefile) gracias al runtime hook.
-    print(
-        f"--- start.py: __main__ - CWD actual (debería ser la carpeta del exe o _MEIPASS): {os.getcwd()} ---")
+    print(f"--- start.py: __main__ - CWD actual: {os.getcwd()} ---")
     print(
         f"--- start.py: __main__ - DJANGO_SETTINGS_MODULE: {os.environ.get('DJANGO_SETTINGS_MODULE')} ---")
     print(
         f"--- start.py: __main__ - SMGP_APP_EXECUTABLE_DIR: {os.environ.get('SMGP_APP_EXECUTABLE_DIR')} ---")
 
-    # Ejecutar configuración de la base de datos
     print("--- start.py: Llamando a setup_database()... ---")
     if not setup_database():
         print("--- start.py: Falló la configuración crítica de la base de datos. La aplicación podría no funcionar correctamente. ---")
-        # Podrías decidir salir aquí si es un fallo crítico.
-        # input("Presiona Enter para salir...")
-        # sys.exit(1)
+        if getattr(sys, 'frozen', False):
+            with open("critical_error_db_setup.txt", "w") as f_error:
+                f_error.write("Falló setup_database()\n")
+        else:
+            input("Presiona Enter para salir...")
+        sys.exit(1)
 
-    # 3. Obtener la aplicación WSGI (después de setup y db_setup)
     print("--- start.py: Obteniendo aplicación WSGI... ---")
     try:
         application = get_wsgi_application()
@@ -159,55 +252,28 @@ if __name__ == '__main__':
     except Exception as e_wsgi:
         print(
             f"ErrorCRITICO_WSGI: No se pudo obtener la aplicación WSGI: {type(e_wsgi).__name__} - {e_wsgi}")
-        import traceback
-        traceback.print_exc()
-        if getattr(sys, 'frozen', False):
-            with open("critical_error_wsgi.txt", "w") as f_error:
-                f_error.write(
-                    f"ErrorCRITICO_WSGI: {type(e_wsgi).__name__} - {e_wsgi}\n")
-                traceback.print_exc(file=f_error)
-        else:
-            input("Presiona Enter para salir...")
         sys.exit(1)
 
-    # Configuración del servidor Waitress
-    # Leer host y puerto desde settings.py o .env para mayor flexibilidad
-    # Por ejemplo, en settings.py: SERVER_HOST = env('SERVER_HOST', default='0.0.0.0')
-    #                               SERVER_PORT = env.int('SERVER_PORT', default=8000)
     host = getattr(settings, 'SERVER_HOST', '0.0.0.0')
-    port = getattr(settings, 'SERVER_PORT', 8000)
-    num_threads = getattr(settings, 'WAITRESS_THREADS', 8)  # Configurable
+    port = int(getattr(settings, 'SERVER_PORT', 8000))  # Asegurar que sea int
+    # Asegurar que sea int
+    num_threads = int(getattr(settings, 'WAITRESS_THREADS', 8))
 
-    django_debug_mode = settings.DEBUG  # settings ya está cargado
+    django_debug_mode = settings.DEBUG
     print(
         f"--- start.py: DEBUG mode (desde settings.py): {django_debug_mode} ---")
-
     print(
         f"--- start.py: Iniciando servidor Waitress en http://{host}:{port} con {num_threads} hilos ---")
-    print("--- start.py: Waitress no usa autoreload por defecto (comportamiento similar a manage.py runserver --noreload). ---")
-    print("--- start.py: Para detener el servidor, cierra esta ventana o presiona Ctrl+C si la consola lo permite. ---")
+    print("--- start.py: Waitress no usa autoreload por defecto.")
+    print("--- start.py: Para detener el servidor, cierra esta ventana o presiona Ctrl+C.")
 
     try:
         serve(application, host=host, port=port, threads=num_threads)
-    except OSError as e_os:  # Común si el puerto ya está en uso
+    except OSError as e_os:
         print(
             f"ErrorCRITICO_Waitress_OSError: No se pudo iniciar el servidor Waitress (¿Puerto {port} en uso?): {e_os}")
-        if getattr(sys, 'frozen', False):
-            with open("critical_error_waitress.txt", "w") as f_error:
-                f_error.write(f"ErrorCRITICO_Waitress_OSError: {e_os}\n")
-        else:
-            input("Presiona Enter para salir...")
         sys.exit(1)
     except Exception as e_serve:
         print(
             f"ErrorCRITICO_Waitress: No se pudo iniciar el servidor Waitress: {type(e_serve).__name__} - {e_serve}")
-        import traceback
-        traceback.print_exc()
-        if getattr(sys, 'frozen', False):
-            with open("critical_error_waitress.txt", "w") as f_error:
-                f_error.write(
-                    f"ErrorCRITICO_Waitress: {type(e_serve).__name__} - {e_serve}\n")
-                traceback.print_exc(file=f_error)
-        else:
-            input("Presiona Enter para salir...")
         sys.exit(1)

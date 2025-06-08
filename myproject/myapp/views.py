@@ -897,11 +897,26 @@ class AuditoriaSistemaListView(BaseListView):
     context_object_name = 'auditorias'
     permission_required = 'myapp.view_auditoriasistema'
     paginate_by = ITEMS_PER_PAGE
-    search_fields = ['usuario__username',
-                     'tabla_afectada', 'tipo_accion', 'detalle_accion', 'direccion_ip']
-    ordering_fields = ['tiempo_inicio', 'tipo_accion', 'activo',
-                       'resultado_accion', 'usuario__username', 'tabla_afectada']
-    ordering = ['-tiempo_inicio']  # Orden por defecto
+    search_fields = [
+        'usuario__username', 'usuario__email',  # Añadido email del usuario
+        'tabla_afectada',
+        'tipo_accion',
+        'detalle_accion',
+        'direccion_ip',
+        'agente_usuario',  # Añadido
+        'resultado_accion'  # Añadido
+    ]
+    ordering_fields = [
+        'tiempo_inicio',
+        'tipo_accion',
+        # 'activo', # AuditoriaSistema no parece tener 'activo'
+        'resultado_accion',
+        'usuario__username',
+        'tabla_afectada',
+        'registro_id_afectado',  # Añadido
+        'direccion_ip'  # Añadido
+    ]
+    ordering = ['-tiempo_inicio']
 
     # get_queryset es heredado de BaseListView (maneja filtro, búsqueda, orden)
 
@@ -1021,18 +1036,39 @@ class AfiliadoIndividualListView(BaseListView):
     permission_required = 'myapp.view_afiliadoindividual'
     search_fields = [
         'cedula', 'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido',
-        'nacionalidad', 'municipio', 'ciudad', 'zona_postal', 'codigo_validacion',
-        'telefono_habitacion', 'telefono_oficina', 'direccion_habitacion', 'direccion_oficina',
-        'estado', 'intermediario__nombre_completo', 'intermediario__codigo'
+        'email',  # Añadido
+        'tipo_identificacion',  # Añadido
+        'estado_civil',  # Añadido
+        'sexo',  # Añadido
+        'parentesco',  # Añadido
+        'nacionalidad',
+        'municipio',
+        'ciudad',
+        'zona_postal',
+        'codigo_validacion',
+        'telefono_habitacion', 'telefono_oficina',
+        'direccion_habitacion', 'direccion_oficina',
+        'estado',
+        'intermediario__nombre_completo', 'intermediario__codigo'
     ]
     ordering_fields = [
-        'primer_apellido', 'primer_nombre', 'cedula', 'tipo_identificacion', 'estado_civil',
-        'sexo', 'parentesco', 'fecha_nacimiento', 'nacionalidad', 'fecha_ingreso',
-        'intermediario__nombre_completo', 'activo', 'telefono_habitacion', 'telefono_oficina',
-        'direccion_habitacion', 'direccion_oficina', 'estado', 'municipio', 'ciudad',
-        'zona_postal', 'codigo_validacion', 'segundo_nombre', 'segundo_apellido',
+        'primer_apellido', 'primer_nombre', 'segundo_nombre', 'segundo_apellido',  # Nombres primero
+        'cedula',
+        'tipo_identificacion',
+        'estado_civil',
+        'sexo',
+        'parentesco',
+        'fecha_nacimiento',
+        'nacionalidad',
+        'fecha_ingreso',
+        'intermediario__nombre_completo',  # Intermediario
+        'activo',  # Boolean
+        'telefono_habitacion', 'telefono_oficina',  # Teléfonos
+        # 'direccion_habitacion', 'direccion_oficina', # Ordenar por TextField es poco común
+        'estado', 'municipio', 'ciudad', 'zona_postal',  # Ubicación
+        'codigo_validacion',
+        'email',  # Añadido
         'fecha_creacion', 'fecha_modificacion'
-        # 'cedula_numeric' # Necesitaría anotación si se usa
     ]
     ordering = ['primer_apellido', 'primer_nombre']
 
@@ -1193,19 +1229,28 @@ class AfiliadoColectivoListView(BaseListView):
     context_object_name = 'afiliados'
     permission_required = 'myapp.view_afiliadocolectivo'
     search_fields = [
-        'razon_social', 'rif', 'tipo_empresa', 'direccion_comercial', 'estado',
-        'municipio', 'ciudad', 'zona_postal', 'telefono_contacto', 'email_contacto',
+        'razon_social', 'rif',
+        'tipo_empresa',
+        'direccion_comercial',
+        'estado',
+        'municipio', 'ciudad', 'zona_postal',
+        'telefono_contacto', 'email_contacto',
         'intermediario__nombre_completo', 'intermediario__codigo'
     ]
     ordering_fields = [
-        'activo', 'razon_social', 'rif', 'tipo_empresa', 'direccion_comercial',
-        'estado', 'municipio', 'ciudad', 'zona_postal', 'telefono_contacto',
-        'email_contacto', 'intermediario__nombre_completo', 'fecha_creacion',
+        'activo',
+        'razon_social',
+        'rif',
+        'tipo_empresa',
+        # 'direccion_comercial', # TextField
+        'estado', 'municipio', 'ciudad', 'zona_postal',
+        'telefono_contacto',
+        'email_contacto',
+        'intermediario__nombre_completo',
+        'fecha_creacion',
         'fecha_modificacion'
-        # 'rif_numeric' # Necesitaría anotación
     ]
     ordering = ['razon_social']
-
     # get_queryset es heredado
 
     def get_context_data(self, **kwargs):
@@ -1356,31 +1401,40 @@ class ContratoIndividualListView(BaseListView):
     filterset_class = ContratoIndividualFilter
     context_object_name = 'contratos'
     permission_required = 'myapp.view_contratoindividual'
-    search_fields = [  # Mantener como estaba o ajustar según necesidad
+    search_fields = [
         'ramo', 'forma_pago', 'estatus', 'estado_contrato', 'numero_contrato',
-        'numero_poliza', 'certificado', 'intermediario__nombre_completo', 'intermediario__codigo',
+        'numero_poliza', 'certificado',
+        'intermediario__nombre_completo', 'intermediario__codigo',
         'afiliado__primer_nombre', 'afiliado__primer_apellido', 'afiliado__cedula',
-        'contratante_cedula', 'contratante_nombre', 'plan_contratado', 'criterio_busqueda',
-        'estatus_detalle', 'estatus_emision_recibo', 'suma_asegurada',
-        # 'monto_total' # Buscar por monto total histórico
+        'contratante_cedula', 'contratante_nombre',
+        'plan_contratado',
+        'criterio_busqueda',  # Si se usa
+        'estatus_detalle',  # Si se usa
+        'estatus_emision_recibo',
+        'tarifa_aplicada__codigo_tarifa'  # Añadido para buscar por código de tarifa
     ]
-    ordering_fields = [  # Añadir campos calculados y tarifa si se desea ordenar por ellos
+    ordering_fields = [
         'ramo', 'forma_pago', 'pagos_realizados', 'estatus', 'estado_contrato',
         'numero_contrato', 'numero_poliza', 'fecha_emision', 'fecha_inicio_vigencia',
-        'fecha_fin_vigencia', 'monto_total', 'suma_asegurada', 'certificado', 'intermediario__nombre_completo',
-        'afiliado__cedula', 'afiliado__primer_apellido', 'tipo_identificacion_contratante',
-        'contratante_cedula', 'contratante_nombre', 'plan_contratado',
-        'comision_recibo',  # Este campo parece que ya no existe o no aplica, REVISAR/QUITAR
+        'fecha_fin_vigencia', 'monto_total', 'suma_asegurada', 'certificado',
+        'intermediario__nombre_completo',
+        'afiliado__cedula', 'afiliado__primer_apellido',  # Afiliado
+        'tipo_identificacion_contratante', 'contratante_cedula', 'contratante_nombre',  # Contratante
+        'plan_contratado',
+        # 'comision_recibo', # Campo obsoleto
         'fecha_inicio_vigencia_recibo', 'fecha_fin_vigencia_recibo',
-        'dias_transcurridos_ingreso', 'estatus_detalle', 'estatus_emision_recibo',
-        'comision_anual', 'activo', 'fecha_creacion', 'fecha_modificacion',
-        # --- AÑADIDOS ---
-        'cantidad_cuotas', 'importe_recibo_contrato', 'importe_anual_contrato',
-        'tarifa_aplicada__id', 'tarifa_aplicada__monto_anual',
-        # --- FIN AÑADIDOS ---
+        'dias_transcurridos_ingreso',
+        # 'estatus_detalle', # TextField
+        'estatus_emision_recibo',
+        'comision_anual',
+        'activo', 'fecha_creacion', 'fecha_modificacion',
+        'cantidad_cuotas_estimadas_anotado',
+        'monto_cuota_estimada_anotado',
+        'importe_anual_contrato_anotado',
+        'tarifa_aplicada__codigo_tarifa',  # Ordenar por código de tarifa
+        'tarifa_aplicada__monto_anual'  # Ordenar por monto de tarifa
     ]
     ordering = ['-fecha_emision']
-
     # get_queryset heredado
     # get_context_data heredado (las estadísticas deberían seguir funcionando)
 
@@ -1643,27 +1697,36 @@ class ContratoColectivoListView(BaseListView):
     filterset_class = ContratoColectivoFilter
     context_object_name = 'contratos'
     permission_required = 'myapp.view_contratocolectivo'
-    search_fields = [  # Revisar si son adecuados
-        'ramo', 'forma_pago', 'estatus', 'estado_contrato', 'suma_asegurada', 'numero_contrato', 'numero_poliza',
-        'certificado', 'intermediario__nombre_completo', 'intermediario__codigo', 'tipo_empresa',
-        'criterio_busqueda', 'razon_social', 'rif', 'direccion_comercial', 'zona_postal',
-        'numero_recibo', 'codigo_validacion', 'tarifa_aplicada'
-        # 'monto_total' # Buscar por monto histórico
+    search_fields = [
+        'ramo', 'forma_pago', 'estatus', 'estado_contrato', 'numero_contrato',
+        'numero_poliza', 'certificado',
+        'intermediario__nombre_completo', 'intermediario__codigo',
+        'tipo_empresa',
+        'criterio_busqueda',
+        'razon_social', 'rif',
+        'direccion_comercial',  # TextField
+        'zona_postal',
+        'numero_recibo',  # El del contrato, no el de la factura
+        'codigo_validacion',
+        'tarifa_aplicada__codigo_tarifa',  # Añadido
+        # Búsqueda en M2M (puede ser lento)
+        'afiliados_colectivos__razon_social'
     ]
-    ordering_fields = [  # Añadir campos calculados y tarifa
+    ordering_fields = [
         'ramo', 'forma_pago', 'pagos_realizados', 'estatus', 'estado_contrato', 'numero_contrato',
         'numero_poliza', 'fecha_emision', 'fecha_inicio_vigencia', 'fecha_fin_vigencia', 'suma_asegurada',
         'monto_total', 'certificado', 'intermediario__nombre_completo', 'activo', 'tipo_empresa',
-        'criterio_busqueda', 'razon_social', 'rif', 'cantidad_empleados', 'direccion_comercial',
+        'criterio_busqueda', 'razon_social', 'rif', 'cantidad_empleados',
+        'direccion_comercial',  # TextField
         'zona_postal', 'numero_recibo', 'codigo_validacion', 'fecha_creacion', 'fecha_modificacion',
-        # 'comision_recibo' # Quitar si ya no existe/aplica
-        # --- AÑADIDOS ---
-        'cantidad_cuotas', 'importe_recibo_contrato', 'importe_anual_contrato',
-        'tarifa_aplicada__id', 'tarifa_aplicada__monto_anual',
-        # --- FIN AÑADIDOS ---
+        # Campos de propiedades/anotaciones (si los implementas)
+        'cantidad_cuotas_estimadas_anotado',
+        'monto_cuota_estimada_anotado',
+        'importe_anual_contrato_anotado',
+        'tarifa_aplicada__codigo_tarifa',
+        'tarifa_aplicada__monto_anual'
     ]
     ordering = ['-fecha_emision']
-
     # get_queryset heredado
 
     def get_context_data(self, **kwargs):
@@ -1982,18 +2045,27 @@ class IntermediarioListView(BaseListView):
     context_object_name = 'intermediarios'
     permission_required = 'myapp.view_intermediario'
     search_fields = [
-        'codigo', 'nombre_completo', 'rif', 'direccion_fiscal', 'telefono_contacto',
-        'email_contacto', 'intermediario_relacionado__nombre_completo',
-        'usuarios__username', 'usuarios__email'
+        'codigo', 'nombre_completo', 'rif',
+        'primer_nombre', 'primer_apellido',  # Añadido de ModeloBase
+        'direccion_fiscal',  # TextField, considerar si es útil para búsqueda
+        'telefono_contacto',
+        'email_contacto',
+        # Añadido código del padre
+        'intermediario_relacionado__nombre_completo', 'intermediario_relacionado__codigo',
+        # Más campos de usuario
+        'usuarios__username', 'usuarios__email', 'usuarios__primer_nombre', 'usuarios__primer_apellido'
     ]
     ordering_fields = [
-        'activo', 'codigo', 'nombre_completo', 'rif', 'direccion_fiscal',
-        'telefono_contacto', 'email_contacto', 'intermediario_relacionado__nombre_completo',
-        'porcentaje_comision', 'fecha_creacion', 'fecha_modificacion'
-        # 'codigo_numeric', 'rif_numeric' # Necesitan anotación
+        'activo', 'codigo', 'nombre_completo',
+        'primer_apellido', 'primer_nombre',  # Añadido de ModeloBase
+        'rif',
+        'direccion_fiscal',  # TextField
+        'telefono_contacto', 'email_contacto',
+        'intermediario_relacionado__nombre_completo',
+        'porcentaje_comision', 'porcentaje_override',  # Añadido override
+        'fecha_creacion', 'fecha_modificacion'
     ]
     ordering = ['nombre_completo']
-
     # get_queryset heredado
 
     def get_context_data(self, **kwargs):
@@ -2147,21 +2219,33 @@ class ReclamacionListView(BaseListView):
     context_object_name = 'reclamaciones'
     permission_required = 'myapp.view_reclamacion'
     search_fields = [
+        'numero_reclamacion',  # Añadido
         'tipo_reclamacion', 'estado', 'descripcion_reclamo', 'observaciones_internas',
-        'observaciones_cliente', 'contrato_individual__numero_contrato',
+        'observaciones_cliente',
+        'contrato_individual__numero_contrato',
         'contrato_individual__afiliado__primer_nombre', 'contrato_individual__afiliado__primer_apellido',
-        'contrato_individual__afiliado__cedula', 'contrato_colectivo__numero_contrato',
-        'contrato_colectivo__razon_social', 'contrato_colectivo__rif', 'usuario_asignado__username',
-        'usuario_asignado__email', 'usuario_asignado__primer_nombre', 'usuario_asignado__primer_apellido'
+        'contrato_individual__afiliado__cedula',
+        'contrato_colectivo__numero_contrato',
+        'contrato_colectivo__razon_social', 'contrato_colectivo__rif',
+        'usuario_asignado__username', 'usuario_asignado__email',
+        'usuario_asignado__primer_nombre', 'usuario_asignado__primer_apellido',
+        'diagnostico_principal'  # Añadido
     ]
     ordering_fields = [
-        'id', 'activo', 'tipo_reclamacion', 'estado', 'descripcion_reclamo', 'monto_reclamado',
-        'fecha_reclamo', 'fecha_cierre_reclamo', 'contrato_individual__numero_contrato',
-        'contrato_colectivo__razon_social', 'usuario_asignado__username',
-        'contrato_individual__afiliado__primer_apellido', 'fecha_creacion', 'fecha_modificacion'
+        'id', 'activo',
+        'numero_reclamacion',  # Añadido
+        'tipo_reclamacion', 'estado',
+        # 'descripcion_reclamo', # TextField
+        'monto_reclamado',
+        'fecha_reclamo', 'fecha_cierre_reclamo',
+        'contrato_individual__numero_contrato',
+        'contrato_colectivo__razon_social',
+        'usuario_asignado__username',
+        'contrato_individual__afiliado__primer_apellido',
+        'diagnostico_principal',  # Añadido
+        'fecha_creacion', 'fecha_modificacion'
     ]
     ordering = ['-fecha_reclamo', '-fecha_creacion']
-
     # get_queryset heredado
 
     def get_context_data(self, **kwargs):
@@ -2436,16 +2520,32 @@ class PagoListView(BaseListView):
     context_object_name = 'pagos'
     permission_required = 'myapp.view_pago'
     search_fields = [
-        'referencia_pago', 'observaciones_pago', 'reclamacion__id', 'reclamacion__descripcion_reclamo',
-        'factura__numero_recibo', 'factura__contrato_individual__numero_contrato',
-        'factura__contrato_colectivo__numero_contrato'
-        # 'forma_pago' se maneja con anotación en get_queryset
+        'referencia_pago', 'observaciones_pago',
+        # Búsqueda por número de reclamación
+        'reclamacion__id', 'reclamacion__numero_reclamacion',
+        'reclamacion__descripcion_reclamo',
+        'factura__numero_recibo',
+        'factura__contrato_individual__numero_contrato',
+        'factura__contrato_colectivo__numero_contrato',
+        'forma_pago'  # Si quieres buscar por el código de forma_pago, si es por display, necesitas anotación
     ]
     ordering_fields = [
-        'activo', 'forma_pago', 'fecha_pago', 'monto_pago', 'referencia_pago',
-        'fecha_notificacion_pago', 'observaciones_pago', 'reclamacion__id',
-        'reclamacion__fecha_reclamo', 'factura__numero_recibo', 'factura__monto',
-        'factura__fecha_creacion', 'fecha_creacion', 'fecha_modificacion'
+        'id',  # ID del Pago
+        'activo',
+        'forma_pago',
+        'fecha_pago',
+        'monto_pago',
+        'referencia_pago',
+        'fecha_notificacion_pago',
+        # 'observaciones_pago', # TextField
+        'reclamacion__id',
+        'reclamacion__numero_reclamacion',  # Ya añadido
+        'reclamacion__fecha_reclamo',
+        'factura__numero_recibo',
+        'factura__monto',
+        'factura__fecha_creacion',
+        'fecha_creacion',  # Fecha creación del Pago
+        'fecha_modificacion'  # Fecha modificación del Pago
     ]
     ordering = ['-fecha_pago', '-fecha_creacion']
 
@@ -2978,10 +3078,23 @@ class TarifaListView(BaseListView):
     filterset_class = TarifaFilter
     context_object_name = 'tarifas'
     permission_required = 'myapp.view_tarifa'
-    search_fields = ['rango_etario', 'ramo', 'tipo_fraccionamiento']
+    search_fields = [
+        'codigo_tarifa',  # Añadido
+        'rango_etario',
+        'ramo',
+        'tipo_fraccionamiento',
+        'monto_anual'  # Añadido para buscar por monto
+    ]
     ordering_fields = [
-        'activo', 'rango_etario', 'ramo', 'fecha_aplicacion', 'monto_anual',
-        'tipo_fraccionamiento', 'comision_intermediario', 'fecha_creacion', 'fecha_modificacion'
+        'activo',
+        'codigo_tarifa',  # Añadido
+        'rango_etario',
+        'ramo',
+        'fecha_aplicacion',
+        'monto_anual',
+        'tipo_fraccionamiento',
+        'comision_intermediario',
+        'fecha_creacion', 'fecha_modificacion'
     ]
     ordering = ['ramo', 'rango_etario', '-fecha_aplicacion']
 
@@ -3842,26 +3955,28 @@ class FacturaListView(BaseListView):
     filterset_class = FacturaFilter
     context_object_name = 'object_list'
     permission_required = 'myapp.view_factura'
-    search_fields = [  # Asegúrate que estos estén completos según tu necesidad
+    search_fields = [
         'estatus_factura', 'numero_recibo', 'relacion_ingreso', 'estatus_emision', 'observaciones',
         'contrato_individual__numero_contrato', 'contrato_individual__ramo',
         'contrato_individual__afiliado__primer_nombre', 'contrato_individual__afiliado__primer_apellido',
-        'contrato_individual__afiliado__cedula', 'contrato_colectivo__numero_contrato',
-        'contrato_colectivo__razon_social', 'contrato_colectivo__ramo', 'contrato_colectivo__rif',
+        'contrato_individual__afiliado__cedula',
+        'contrato_colectivo__numero_contrato', 'contrato_colectivo__razon_social',
+        'contrato_colectivo__ramo', 'contrato_colectivo__rif',
         'intermediario__nombre_completo', 'intermediario__codigo'
     ]
     ordering_fields = [
         'id', 'activo', 'estatus_factura', 'vigencia_recibo_desde', 'vigencia_recibo_hasta',
         'monto', 'monto_pendiente', 'numero_recibo', 'dias_periodo_cobro', 'estatus_emision',
-        'pagada', 'relacion_ingreso',  # 'recibos_pendientes_cache' fue reemplazado
-        'aplica_igtf',
-        'contrato_individual__numero_contrato', 'contrato_colectivo__razon_social',
-        'intermediario__nombre_completo', 'intermediario__codigo',
-        'contrato_individual__afiliado__primer_apellido', 'contrato_individual__afiliado__cedula',
+        'pagada', 'relacion_ingreso', 'aplica_igtf',
+        'contrato_individual__numero_contrato',
+        'contrato_colectivo__razon_social',  # O numero_contrato si es más relevante
+        'intermediario__nombre_completo',  # O codigo
+        'contrato_individual__afiliado__primer_apellido',
+        # 'contrato_individual__afiliado__cedula', # Ordenar por cédula puede no ser ideal
         'fecha_creacion', 'fecha_modificacion',
         'ramo_anotado',
-        'numero_recibo_numeric',  # Si lo usas, asegúrate de anotarlo también
-        'live_installments_remaining'
+        'numero_recibo_numeric',  # Si lo implementas
+        'live_installments_remaining'  # Si lo implementas
     ]
     ordering = ['-fecha_creacion']
 
@@ -5393,7 +5508,7 @@ GRAFICAS_TITULOS = {
     "06": "Estado de Morosidad", "07": "Flujo de Pagos Mensuales", "08": "Estado de Reclamaciones",
     "09": "Distribución de Reclamaciones por Edad del Afiliado", "10": "Frecuencia de Tipos de Reclamación",
     "11": "Distribución del Tiempo de Resolución de Reclamaciones", "12": "Ahorro Estimado por Pago Anual",
-    "13": "Distribución por Edad y Ramo (Conteo)", "14": "Estado de Continuidad de Contratos del Último Mes Completo",
+    "13": "Distribución por Edad y Ramo (Conteo)", "14": "Concentración Suma Asegurada por Ramo y Edad",
     "15": "Edad vs Monto Asegurado (Individual)", "16": "Top 10 Intermediarios por Prima Emitida (Prima vs Siniestro vs Comisión)",
     "17": "Evolución de Montos Contratados", "18": "Ratio Siniestralidad Estimado por Rango de Edad",
     "19": "Estados de Contratos (Individuales)", "20": "Top 10 Contratos Individuales por Monto",

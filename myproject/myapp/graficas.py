@@ -925,66 +925,140 @@ def grafico_13():
 # ------------------------------
 
 
-def grafico_14():
+def grafico_14():  # Reemplazando el gráfico 14
     try:
         logger.debug(
-            "G14_nuevo - Iniciando Estado de Continuidad de Contratos (Último Mes)")
-        hoy = date.today()
-        primer_dia_mes_actual = hoy.replace(day=1)
-        ultimo_dia_mes_anterior = primer_dia_mes_actual - timedelta(days=1)
-        primer_dia_mes_anterior = ultimo_dia_mes_anterior.replace(day=1)
-        mes_anterior_label = primer_dia_mes_anterior.strftime("%B %Y")
+            "G14_Reemplazo - Iniciando Concentración Suma Asegurada por Ramo y Edad")
 
-        base_contratos_ind_qs = ContratoIndividual.objects.filter(
-            fecha_fin_vigencia__gte=primer_dia_mes_anterior, fecha_fin_vigencia__lte=ultimo_dia_mes_anterior)
-        total_podian_continuar_ind = base_contratos_ind_qs.count()
-        no_continuaron_ind = base_contratos_ind_qs.filter(
-            estatus='VENCIDO').count()
-        continuaron_ind = total_podian_continuar_ind - no_continuaron_ind
+        N_TOP_RAMOS = 5  # Mostrar los 5 ramos con mayor suma asegurada
+        hoy = django_timezone.now().date()
 
-        base_contratos_col_qs = ContratoColectivo.objects.filter(
-            fecha_fin_vigencia__gte=primer_dia_mes_anterior, fecha_fin_vigencia__lte=ultimo_dia_mes_anterior)
-        total_podian_continuar_col = base_contratos_col_qs.count()
-        no_continuaron_col = base_contratos_col_qs.filter(
-            estatus='VENCIDO').count()
-        continuaron_col = total_podian_continuar_col - no_continuaron_col
+        # 1. Identificar los Top N Ramos por Suma Asegurada Total (Contratos Individuales)
+        top_ramos_qs = (ContratoIndividual.objects
+                        .filter(
+                            activo=True,
+                            estatus='VIGENTE',  # O los estados que consideres "en riesgo"
+                            suma_asegurada__isnull=False,
+                            suma_asegurada__gt=Decimal('0.00')
+                        )
+                        .values('ramo')
+                        .annotate(total_suma_asegurada_ramo=Sum('suma_asegurada'))
+                        .order_by('-total_suma_asegurada_ramo')[:N_TOP_RAMOS]
+                        )
 
-        total_general_podian_continuar = total_podian_continuar_ind + \
-            total_podian_continuar_col
-        total_general_no_continuaron = no_continuaron_ind + no_continuaron_col
-        total_general_continuaron = continuaron_ind + continuaron_col
+        top_ramos_codigos = [item['ramo']
+                             for item in top_ramos_qs if item['ramo']]
 
-        if total_general_podian_continuar == 0:
+        if not top_ramos_codigos:
             fig_error = generar_figura_sin_datos(
-                f"No hubo contratos finalizando vigencia en {mes_anterior_label}")
+                "No hay ramos con suma asegurada significativa para analizar.")
             return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
 
-        labels_pie = ['Contratos que Continuaron',
-                      'Contratos que No Continuaron (Lapsos)']
-        values_pie = [total_general_continuaron, total_general_no_continuaron]
+        # 2. Para esos Top N Ramos, obtener Suma Asegurada por Rango Etario
+        # Definir rangos etarios (puedes ajustar estos)
+        # (min_edad_inclusive, max_edad_exclusive, label)
+        rangos_etarios_defs = [
+            (0, 18, '0-17 años'),
+            (18, 26, '18-25 años'),
+            (26, 36, '26-35 años'),
+            (36, 46, '36-45 años'),
+            (46, 56, '46-55 años'),
+            (56, 66, '56-65 años'),
+            (66, 120, '66+ años')  # 120 como límite superior grande
+        ]
 
-        fig = go.Figure(data=[go.Pie(
-            labels=labels_pie, values=values_pie, hole=0.3,
-            marker_colors=[COLOR_PALETTE.get(
-                'success'), COLOR_PALETTE.get('secondary')],
-            textinfo='percent+label+value', hoverinfo='label+value+percent', insidetextorientation='radial'
-        )])
+        when_edad_clauses = []
+        for min_e, max_e, label_e in rangos_etarios_defs:
+            when_edad_clauses.append(
+                When(edad__gte=min_e, edad__lt=max_e, then=Value(label_e)))
+
+        # Query para obtener los datos detallados
+        data_qs = (ContratoIndividual.objects
+                   .filter(
+                       activo=True,
+                       estatus='VIGENTE',
+                       ramo__in=top_ramos_codigos,
+                       afiliado__fecha_nacimiento__isnull=False,
+                       suma_asegurada__isnull=False,
+                       suma_asegurada__gt=Decimal('0.00')
+                   )
+                   .annotate(
+                       edad=ExtractYear(
+                           # Edad simple
+                           Value(hoy)) - ExtractYear('afiliado__fecha_nacimiento'),
+                       rango_etario_calc=Case(
+                           *when_edad_clauses, default=Value('Otros'), output_field=CharField())
+                   )
+                   # Excluir los que no caen en rangos definidos
+                   .exclude(rango_etario_calc='Otros')
+                   .values('ramo', 'rango_etario_calc')
+                   .annotate(suma_asegurada_segmento=Sum('suma_asegurada'))
+                   .order_by('ramo', 'rango_etario_calc')
+                   )
+
+        if not data_qs.exists():
+            fig_error = generar_figura_sin_datos(
+                "No hay datos suficientes de suma asegurada por ramo y edad.")
+            return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
+
+        df = pd.DataFrame(list(data_qs))
+
+        ramo_map = dict(CommonChoices.RAMO)
+        df['ramo_label'] = df['ramo'].map(ramo_map).fillna(df['ramo'])
+        df['suma_asegurada_segmento'] = pd.to_numeric(
+            df['suma_asegurada_segmento'], errors='coerce').fillna(0.0)
+
+        # Ordenar las categorías de rango etario para el gráfico
+        rango_order = [label for _, _, label in rangos_etarios_defs]
+        df['rango_etario_calc'] = pd.Categorical(
+            df['rango_etario_calc'], categories=rango_order, ordered=True)
+        df = df.sort_values(['ramo_label', 'rango_etario_calc'])
+
+        if df.empty or df['suma_asegurada_segmento'].sum() == 0:
+            fig_error = generar_figura_sin_datos(
+                "No hay sumas aseguradas válidas tras procesar.")
+            return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
+
+        # Gráfico de Barras Apiladas
+        fig = px.bar(df,
+                     x='ramo_label',
+                     y='suma_asegurada_segmento',
+                     color='rango_etario_calc',
+                     barmode='stack',  # O 'group' si prefieres barras agrupadas
+                     # Formato para mostrar valores en las barras (ej. 1.2M, 500k)
+                     text_auto='.2s',
+                     labels={'suma_asegurada_segmento': 'Suma Asegurada (USD)',
+                             'ramo_label': 'Ramo del Contrato',
+                             'rango_etario_calc': 'Rango Etario Afiliado'},
+                     color_discrete_sequence=px.colors.qualitative.Pastel)  # O cualquier otra paleta
+
+        fig.update_traces(
+            textposition='inside', hovertemplate="<b>%{x}</b><br>%{fullData.name}<br>Suma Asegurada: $%{y:,.0f}<extra></extra>")
+
         layout_actualizado = copy.deepcopy(BASE_LAYOUT)
-        layout_actualizado['title'] = {'text': f'Estado de Continuidad (Vencimiento en {mes_anterior_label})', 'x': 0.5, 'font': {
-            'size': 10}}  # Título más corto
-        layout_actualizado['showlegend'] = True
-        layout_actualizado['margin'] = {'t': 60, 'b': 40, 'l': 20, 'r': 20}
-        if 'xaxis' in layout_actualizado:
-            layout_actualizado['xaxis']['visible'] = False
-        if 'yaxis' in layout_actualizado:
-            layout_actualizado['yaxis']['visible'] = False
+        layout_actualizado['title'] = {
+            'text': f'Concentración Suma Asegurada por Ramo y Edad (Top {N_TOP_RAMOS} Ramos)',
+            'x': 0.5,
+            'font': {'size': 10}
+        }
+        layout_actualizado['xaxis']['title_text'] = 'Ramo del Contrato'
+        # Ordenar ramos por suma total
+        layout_actualizado['xaxis']['categoryorder'] = 'total descending'
+        layout_actualizado['yaxis']['title_text'] = 'Suma Asegurada Total (USD)'
+        layout_actualizado['yaxis']['tickprefix'] = '$'
+        layout_actualizado['legend']['title_text'] = 'Rango Etario'
+        layout_actualizado['height'] = 550  # Ajustar según necesidad
+        # Más espacio para etiquetas de ramo
+        layout_actualizado['margin']['b'] = 100
+
         fig.update_layout(**layout_actualizado)
         logger.info(
-            f"G14_nuevo - Gráfico de Continuidad de Contratos generado para {mes_anterior_label}")
+            f"G14_Reemplazo - Concentración Suma Asegurada por Ramo y Edad generado.")
         return plot(fig, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
+
     except Exception as e:
         logger.error(
-            f"Error G14_nuevo (Continuidad Contratos): {str(e)}", exc_info=True)
+            f"Error G14_Reemplazo (Suma Asegurada Ramo/Edad): {str(e)}", exc_info=True)
         fig_excepcion = generar_figura_sin_datos(
             f"Error al generar Gráfico 14 ({type(e).__name__})")
         return plot(fig_excepcion, output_type='div', config=GRAPH_CONFIG)
