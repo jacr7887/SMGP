@@ -1005,22 +1005,35 @@ class AuditoriaSistemaUpdateView(BaseUpdateView):
 @method_decorator(csrf_protect, name='dispatch')
 class AuditoriaSistemaDeleteView(BaseDeleteView):
     model = AuditoriaSistema
+    # O tu genérico 'confirm_delete.html'
     template_name = 'auditoria_sistema_confirm_delete.html'
-    context_object_name = 'auditoria'
+    context_object_name = 'auditoria'  # O 'object' si usas un template genérico
     permission_required = 'myapp.delete_auditoriasistema'
     success_url = reverse_lazy('myapp:auditoria_sistema_list')
 
-    # Añadir validación específica si es necesaria
-    def can_delete(self, obj):
-        if obj.tiempo_inicio and obj.tiempo_inicio > (timezone.now() - timedelta(days=30)):
-            messages.error(
-                self.request, ('Solo se pueden eliminar registros de auditoría con más de 30 días.'))
-            return False
-        return True
-    # La lógica de post/delete y la notificación están en BaseDeleteView
+    def can_delete(self, obj):  # Ahora devuelve (bool, str)
+        # Usar django_timezone para comparaciones de fecha/hora conscientes
+        if obj.tiempo_inicio and obj.tiempo_inicio > (django_timezone.now() - timedelta(days=30)):
+            return False, 'Solo se pueden eliminar registros de auditoría con más de 30 días de antigüedad.'
+        return True, ""
 
-    # Este método para notificar NO se llamará porque Auditoría no debería tener notificaciones
-    # def enviar_notificacion_eliminacion(self, obj_pk, obj_repr): pass
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        can_delete_flag, reason_message = self.can_delete(self.object)
+        context['puede_ser_eliminado'] = can_delete_flag
+        context['mensaje_bloqueo'] = reason_message
+        # Título ejemplo
+        context['page_title'] = f"Confirmar Eliminación de Auditoría: #{self.object.pk}"
+        return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        can_delete_flag, reason_message = self.can_delete(self.object)
+        if not can_delete_flag:
+            messages.error(request, reason_message)
+            # Redirigir a la lista ya que el detalle de auditoría podría no ser común
+            return redirect(self.success_url)
+        return super().post(request, *args, **kwargs)  # Llama a BaseDeleteView.post
 
 # ==========================
 # AfiliadoIndividual Vistas
@@ -1196,19 +1209,34 @@ class AfiliadoIndividualUpdateView(BaseUpdateView):
 @method_decorator(csrf_protect, name='dispatch')
 class AfiliadoIndividualDeleteView(BaseDeleteView):
     model = AfiliadoIndividual
-    template_name = 'afiliado_individual_confirm_delete.html'
-    context_object_name = 'afiliadoindividual'
+    template_name = 'afiliado_individual_confirm_delete.html'  # O tu genérico
+    context_object_name = 'afiliadoindividual'  # O 'object'
     success_url = reverse_lazy('myapp:afiliado_individual_list')
     permission_required = 'myapp.delete_afiliadoindividual'
 
-    # Añadir validación específica si es necesaria
-    def can_delete(self, obj):
-        if hasattr(obj, 'contratos') and obj.contratos.exists():
-            messages.error(
-                self.request, f"No se puede eliminar '{obj}': tiene contratos vinculados.")
-            return False
-        return True
-    # post/delete heredado de BaseDeleteView llamará a enviar_notificacion_eliminacion
+    def can_delete(self, obj):  # Devuelve (bool, str)
+        if hasattr(obj, 'contratos') and obj.contratos.exists():  # 'contratos' es el related_name
+            return False, f"No se puede eliminar '{obj.nombre_completo}': tiene contratos vinculados."
+        return True, ""
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        can_delete_flag, reason_message = self.can_delete(self.object)
+        context['puede_ser_eliminado'] = can_delete_flag
+        context['mensaje_bloqueo'] = reason_message
+        context['page_title'] = f"Confirmar Eliminación: {self.object.nombre_completo}"
+        return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        can_delete_flag, reason_message = self.can_delete(self.object)
+        if not can_delete_flag:
+            messages.error(request, reason_message)
+            try:
+                return redirect(reverse('myapp:afiliado_individual_detail', kwargs={'pk': self.object.pk}))
+            except NoReverseMatch:
+                return redirect(self.success_url)
+        return super().post(request, *args, **kwargs)
 
     def enviar_notificacion_eliminacion(self, obj_pk, obj_repr):
         mensaje = f"Se eliminó el Afiliado Individual: {obj_repr} (ID: {obj_pk})."
@@ -1367,21 +1395,35 @@ class AfiliadoColectivoUpdateView(BaseUpdateView):
 @method_decorator(csrf_protect, name='dispatch')
 class AfiliadoColectivoDeleteView(BaseDeleteView):
     model = AfiliadoColectivo
-    template_name = 'afiliado_colectivo_confirm_delete.html'
-    context_object_name = 'afiliado'
+    template_name = 'afiliado_colectivo_confirm_delete.html'  # O tu genérico
+    context_object_name = 'afiliado'  # O 'object'
     permission_required = 'myapp.delete_afiliadocolectivo'
     success_url = reverse_lazy('myapp:afiliado_colectivo_list')
 
-    # Añadir validación específica
-    def can_delete(self, obj):
-        # Usar related_name 'contratos_afiliados' definido en el modelo AfiliadoColectivo
+    def can_delete(self, obj):  # Devuelve (bool, str)
+        # Usar related_name 'contratos_afiliados'
         if hasattr(obj, 'contratos_afiliados') and obj.contratos_afiliados.exists():
-            messages.error(
-                self.request, f"No se puede eliminar '{obj}': tiene contratos asociados.")
-            return False
-        # Puedes añadir más validaciones aquí si es necesario
-        return True
-    # post/delete heredado
+            return False, f"No se puede eliminar '{obj.razon_social}': tiene contratos asociados."
+        return True, ""
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        can_delete_flag, reason_message = self.can_delete(self.object)
+        context['puede_ser_eliminado'] = can_delete_flag
+        context['mensaje_bloqueo'] = reason_message
+        context['page_title'] = f"Confirmar Eliminación: {self.object.razon_social}"
+        return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        can_delete_flag, reason_message = self.can_delete(self.object)
+        if not can_delete_flag:
+            messages.error(request, reason_message)
+            try:
+                return redirect(reverse('myapp:afiliado_colectivo_detail', kwargs={'pk': self.object.pk}))
+            except NoReverseMatch:
+                return redirect(self.success_url)
+        return super().post(request, *args, **kwargs)
 
     def enviar_notificacion_eliminacion(self, obj_pk, obj_repr):
         mensaje = f"Se eliminó Empresa/Colectivo: {obj_repr} (ID: {obj_pk})."
@@ -1666,19 +1708,43 @@ class ContratoIndividualUpdateView(BaseUpdateView):
 @method_decorator(csrf_protect, name='dispatch')
 class ContratoIndividualDeleteView(BaseDeleteView):
     model = ContratoIndividual
-    template_name = 'contrato_individual_confirm_delete.html'
+    template_name = 'contrato_individual_confirm_delete.html'  # O tu genérico
     success_url = reverse_lazy('myapp:contrato_individual_list')
     permission_required = 'myapp.delete_contratoindividual'
-    context_object_name = 'contratoindividual'
+    context_object_name = 'contratoindividual'  # O 'object'
 
-    # Añadir validación
-    def can_delete(self, obj):
-        if hasattr(obj, 'puede_eliminarse') and not obj.puede_eliminarse():
-            messages.error(
-                self.request, "No se puede eliminar: tiene facturas o reclamaciones asociadas.")
-            return False
-        return True
-    # post/delete heredado
+    def can_delete(self, obj):  # Devuelve (bool, str)
+        if hasattr(obj, 'puede_eliminarse') and callable(obj.puede_eliminarse):
+            if not obj.puede_eliminarse():  # Asumiendo que puede_eliminarse() devuelve True/False
+                return False, "No se puede eliminar este contrato: tiene facturas o reclamaciones asociadas."
+        # Fallback si puede_eliminarse no existe
+        elif hasattr(obj, 'factura_set') and obj.factura_set.exists():
+            return False, "No se puede eliminar este contrato: tiene facturas asociadas."
+        elif hasattr(obj, 'reclamacion_set') and obj.reclamacion_set.exists():  # Fallback
+            return False, "No se puede eliminar este contrato: tiene reclamaciones asociadas."
+        return True, ""
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        can_delete_flag, reason_message = self.can_delete(self.object)
+        context['puede_ser_eliminado'] = can_delete_flag
+        context['mensaje_bloqueo'] = reason_message
+        context['page_title'] = f"Confirmar Eliminación CI: {self.object.numero_contrato}"
+        return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        can_delete_flag, reason_message = self.can_delete(self.object)
+        if not can_delete_flag:
+            # Si el mensaje ya fue añadido por puede_eliminarse() (si usa messages.error), no añadir otro.
+            if not any(m.level == messages.ERROR for m in messages.get_messages(request)):
+                messages.error(
+                    request, reason_message or "Este contrato no puede ser eliminado.")
+            try:
+                return redirect(reverse('myapp:contrato_individual_detail', kwargs={'pk': self.object.pk}))
+            except NoReverseMatch:
+                return redirect(self.success_url)
+        return super().post(request, *args, **kwargs)
 
     def enviar_notificacion_eliminacion(self, obj_pk, obj_repr):
         mensaje = f"Se eliminó el Contrato Individual: {obj_repr} (ID: {obj_pk})."
@@ -2004,34 +2070,49 @@ class ContratoColectivoUpdateView(BaseUpdateView):
 @method_decorator(csrf_protect, name='dispatch')
 class ContratoColectivoDeleteView(BaseDeleteView):
     model = ContratoColectivo
-    template_name = 'contrato_colectivo_confirm_delete.html'
-    context_object_name = 'contrato'
+    template_name = 'contrato_colectivo_confirm_delete.html'  # O tu genérico
+    context_object_name = 'contrato'  # O 'object'
     permission_required = 'myapp.delete_contratocolectivo'
     success_url = reverse_lazy('myapp:contrato_colectivo_list')
 
-    # Añadir validación
-    def can_delete(self, obj):
-        related_errors = []
+    def can_delete(self, obj):  # Devuelve (bool, str)
+        related_errors_details = []
         if hasattr(obj, 'factura_set') and obj.factura_set.exists():
-            related_errors.append('facturas')
+            related_errors_details.append('facturas')
         if hasattr(obj, 'reclamacion_set') and obj.reclamacion_set.exists():
-            related_errors.append('reclamaciones')
+            related_errors_details.append('reclamaciones')
+        # Usar el related_name correcto para el M2M con AfiliadoColectivo
         if hasattr(obj, 'afiliados_colectivos') and obj.afiliados_colectivos.exists():
-            related_errors.append('afiliados colectivos')
+            related_errors_details.append('afiliados colectivos asignados')
 
-        if related_errors:
-            error_msg = f"No se puede eliminar '{obj}': tiene {', '.join(related_errors)} vinculados."
-            messages.error(self.request, error_msg)
-            return False
-        return True
-    # post/delete heredado
+        if related_errors_details:
+            return False, f"No se puede eliminar '{obj}': tiene {', '.join(related_errors_details)} vinculados."
+        return True, ""
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        can_delete_flag, reason_message = self.can_delete(self.object)
+        context['puede_ser_eliminado'] = can_delete_flag
+        context['mensaje_bloqueo'] = reason_message
+        context['page_title'] = f"Confirmar Eliminación CC: {self.object.numero_contrato}"
+        return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        can_delete_flag, reason_message = self.can_delete(self.object)
+        if not can_delete_flag:
+            messages.error(request, reason_message)
+            try:
+                return redirect(reverse('myapp:contrato_colectivo_detail', kwargs={'pk': self.object.pk}))
+            except NoReverseMatch:
+                return redirect(self.success_url)
+        return super().post(request, *args, **kwargs)
 
     def enviar_notificacion_eliminacion(self, obj_pk, obj_repr):
         mensaje = f"Se eliminó Contrato Colectivo: {obj_repr} (ID: {obj_pk})."
         admin_users = Usuario.objects.filter(is_superuser=True, is_active=True)
         if admin_users:
             crear_notificacion(list(admin_users), mensaje, tipo='warning')
-
 # ==========================
 # Intermediario Vistas
 # ==========================
@@ -2179,27 +2260,40 @@ class IntermediarioUpdateView(BaseUpdateView):
 @method_decorator(csrf_protect, name='dispatch')
 class IntermediarioDeleteView(BaseDeleteView):
     model = Intermediario
-    template_name = 'intermediario_confirm_delete.html'
-    context_object_name = 'intermediario'
+    template_name = 'intermediario_confirm_delete.html'  # O tu genérico
+    context_object_name = 'intermediario'  # O 'object'
     permission_required = 'myapp.delete_intermediario'
     success_url = reverse_lazy('myapp:intermediario_list')
 
-    # Añadir validación
-    def can_delete(self, obj):
+    def can_delete(self, obj):  # Devuelve (bool, str)
+        # 'contratos_colectivos' es el related_name
         if obj.contratoindividual_set.exists() or obj.contratos_colectivos.exists():
-            messages.error(
-                self.request, "No se puede eliminar: tiene contratos asociados.")
-            return False
+            return False, "No se puede eliminar: tiene contratos asociados."
         if hasattr(obj, 'sub_intermediarios') and obj.sub_intermediarios.exists():
-            messages.error(
-                self.request, "No se puede eliminar: tiene sub-intermediarios asociados.")
-            return False
-        # Comentar o eliminar si los usuarios no deben impedir borrar
-        # if hasattr(obj, 'usuarios') and obj.usuarios.exists():
-        #    messages.error(self.request, "No se puede eliminar: tiene usuarios asociados.")
-        #    return False
-        return True
-    # post/delete heredado
+            return False, "No se puede eliminar: tiene sub-intermediarios asociados."
+        # 'usuarios_asignados' es el related_name en Usuario
+        if hasattr(obj, 'usuarios_asignados') and obj.usuarios_asignados.exists():
+            return False, "No se puede eliminar: tiene usuarios del sistema asociados."
+        return True, ""
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        can_delete_flag, reason_message = self.can_delete(self.object)
+        context['puede_ser_eliminado'] = can_delete_flag
+        context['mensaje_bloqueo'] = reason_message
+        context['page_title'] = f"Confirmar Eliminación Intermediario: {self.object.nombre_completo}"
+        return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        can_delete_flag, reason_message = self.can_delete(self.object)
+        if not can_delete_flag:
+            messages.error(request, reason_message)
+            try:
+                return redirect(reverse('myapp:intermediario_detail', kwargs={'pk': self.object.pk}))
+            except NoReverseMatch:
+                return redirect(self.success_url)
+        return super().post(request, *args, **kwargs)
 
     def enviar_notificacion_eliminacion(self, obj_pk, obj_repr):
         mensaje = f"Se eliminó Intermediario: {obj_repr} (ID: {obj_pk})."
@@ -2207,10 +2301,11 @@ class IntermediarioDeleteView(BaseDeleteView):
         if admin_users:
             crear_notificacion(list(admin_users), mensaje, tipo='warning')
 
-
 # ==========================
 # Reclamacion Vistas
 # ==========================
+
+
 class ReclamacionListView(BaseListView):
     model = Reclamacion
     model_manager_name = 'objects'
@@ -2488,19 +2583,34 @@ class ReclamacionUpdateView(BaseUpdateView):
 @method_decorator(csrf_protect, name='dispatch')
 class ReclamacionDeleteView(BaseDeleteView):
     model = Reclamacion
-    template_name = 'reclamacion_confirm_delete.html'
-    context_object_name = 'reclamacion'
+    template_name = 'reclamacion_confirm_delete.html'  # O tu genérico
+    context_object_name = 'reclamacion'  # O 'object'
     permission_required = 'myapp.delete_reclamacion'
     success_url = reverse_lazy('myapp:reclamacion_list')
 
-    # Añadir validación
-    def can_delete(self, obj):
-        if hasattr(obj, 'pagos') and obj.pagos.exists():
-            messages.error(
-                self.request, "No se puede eliminar: tiene pagos asociados.")
-            return False
-        return True
-    # post/delete heredado
+    def can_delete(self, obj):  # Devuelve (bool, str)
+        if hasattr(obj, 'pagos') and obj.pagos.exists():  # 'pagos' es el related_name
+            return False, "No se puede eliminar esta reclamación: tiene pagos asociados."
+        return True, ""
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        can_delete_flag, reason_message = self.can_delete(self.object)
+        context['puede_ser_eliminado'] = can_delete_flag
+        context['mensaje_bloqueo'] = reason_message
+        context['page_title'] = f"Confirmar Eliminación Reclamo: {self.object.numero_reclamacion or self.object.pk}"
+        return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        can_delete_flag, reason_message = self.can_delete(self.object)
+        if not can_delete_flag:
+            messages.error(request, reason_message)
+            try:
+                return redirect(reverse('myapp:reclamacion_detail', kwargs={'pk': self.object.pk}))
+            except NoReverseMatch:
+                return redirect(self.success_url)
+        return super().post(request, *args, **kwargs)
 
     def enviar_notificacion_eliminacion(self, rec_pk, rec_repr):
         mensaje = f"Se eliminó la Reclamación: {rec_repr} (ID: {rec_pk})."
@@ -2508,10 +2618,11 @@ class ReclamacionDeleteView(BaseDeleteView):
         if admin_users:
             crear_notificacion(list(admin_users), mensaje, tipo='warning')
 
-
 # ==========================
 # Pago Vistas
 # ==========================
+
+
 class PagoListView(BaseListView):
     model = Pago
     model_manager_name = 'objects'
@@ -2991,74 +3102,71 @@ class PagoUpdateView(BaseUpdateView):
 class PagoDeleteView(BaseDeleteView):
     model = Pago
     template_name = 'pago_confirm_delete.html'
-    context_object_name = 'pago'
+    context_object_name = 'pago'  # O 'object'
     permission_required = 'myapp.delete_pago'
     success_url = reverse_lazy('myapp:pago_list')
 
-    # --- Sobrescribir post para llamar a Pago.delete() explícitamente ---
+    # Si no hay restricciones adicionales para borrar un Pago, no necesitas can_delete.
+    # El método post personalizado que tenías es para asegurar que Pago.delete() se llame
+    # si tiene lógica especial. Si BaseDeleteView.post() ya llama a self.object.delete(),
+    # y eso es suficiente, puedes eliminar este método post personalizado.
+
+    # Manteniendo tu post personalizado por si Pago.delete() tiene lógica importante:
     def post(self, request, *args, **kwargs):
+        object_pk_for_audit = None
+        object_repr_for_audit = "Objeto Pago Desconocido"
         try:
             self.object = self.get_object()
             object_pk_for_audit = self.object.pk
             object_repr_for_audit = str(self.object)
 
-            # Llamar al método delete personalizado del MODELO Pago
-            # Esto ejecutará la lógica de actualización de Factura/Reclamación
-            with transaction.atomic():  # Asegurar atomicidad en delete + actualizaciones
-                self.object.delete()
+            with transaction.atomic():
+                self.object.delete()  # Llama al delete del modelo Pago
 
-            # Si no hubo excepciones en Pago.delete():
             messages.success(
                 request, f"Pago '{object_repr_for_audit}' eliminado y saldos actualizados correctamente.")
-            self._create_audit_entry(request, 'ELIMINACION', 'EXITO',
-                                     f"Eliminación de Pago", object_pk_for_audit, object_repr_for_audit)
+            # Asumo que _create_audit_entry está en BaseDeleteView o es un helper accesible
+            if hasattr(self, '_create_audit_entry'):
+                self._create_audit_entry(
+                    request, 'ELIMINACION', 'EXITO', f"Eliminación de Pago", object_pk_for_audit, object_repr_for_audit)
 
-            # --- INICIO NOTIFICACIÓN (DELETE) ---
-            try:
-                if hasattr(self, 'enviar_notificacion_eliminacion'):
-                    self.enviar_notificacion_eliminacion(
-                        object_pk_for_audit, object_repr_for_audit)
-            except Exception as notif_error:
-                logger.error(
-                    f"Error al enviar notificación de eliminación para Pago {object_pk_for_audit}: {notif_error}", exc_info=True)
-                messages.warning(
-                    self.request, "El pago se eliminó, pero hubo un problema al enviar la notificación.")
-            # --- FIN NOTIFICACIÓN ---
+            if hasattr(self, 'enviar_notificacion_eliminacion'):
+                self.enviar_notificacion_eliminacion(
+                    object_pk_for_audit, object_repr_for_audit)
 
             return HttpResponseRedirect(self.get_success_url())
 
         except ProtectedError as e:
-            # ... (manejo de ProtectedError como en BaseDeleteView) ...
             logger.warning(
                 f"ProtectedError al eliminar Pago {object_pk_for_audit}: {e}")
             messages.error(
                 request, f"No se puede eliminar '{object_repr_for_audit}': tiene registros asociados protegidos.")
-            self._create_audit_entry(request, 'ELIMINACION', 'ERROR',
-                                     f"ProtectedError: {e}", object_pk_for_audit, object_repr_for_audit)
+            if hasattr(self, '_create_audit_entry'):
+                self._create_audit_entry(
+                    request, 'ELIMINACION', 'ERROR', f"ProtectedError: {e}", object_pk_for_audit, object_repr_for_audit)
             try:
-                return redirect('myapp:pago_detail', pk=object_pk_for_audit)
+                return redirect(reverse('myapp:pago_detail', kwargs={'pk': object_pk_for_audit}))
             except NoReverseMatch:
                 return redirect(self.get_success_url())
         except self.model.DoesNotExist:
-            # ... (manejo de DoesNotExist como en BaseDeleteView) ...
             logger.warning(
                 f"Intento de eliminar Pago inexistente (kwargs={kwargs}) por {request.user}.")
             messages.error(
                 request, "Error: El pago que intenta eliminar no existe.")
             return redirect(self.get_success_url())
-        except Exception as e:  # Captura errores de Pago.delete() o cualquier otro
-            # ... (manejo de Exception como en BaseDeleteView) ...
+        except Exception as e:
             current_pk = object_pk_for_audit if 'object_pk_for_audit' in locals(
             ) else self.kwargs.get('pk', 'N/A')
             logger.error(
                 f"Error inesperado al eliminar Pago PK={current_pk}: {e}", exc_info=True)
             messages.error(
                 request, f"Error inesperado al intentar eliminar el pago: {str(e)}")
-            self._create_audit_entry(
-                request, 'ELIMINACION', 'ERROR', f"Error inesperado: {str(e)[:200]}", current_pk)
+            if hasattr(self, '_create_audit_entry'):
+                self._create_audit_entry(
+                    request, 'ELIMINACION', 'ERROR', f"Error inesperado: {str(e)[:200]}", current_pk)
             try:
-                return redirect('myapp:pago_detail', pk=current_pk)
-            except:
+                return redirect(reverse('myapp:pago_detail', kwargs={'pk': current_pk}))
+            except:  # Captura más genérica para el redirect
                 return redirect(self.get_success_url())
 
     def enviar_notificacion_eliminacion(self, pago_pk, pago_repr):
@@ -3223,45 +3331,41 @@ class TarifaUpdateView(BaseUpdateView):
 
 
 @method_decorator(csrf_protect, name='dispatch')
-# Asegúrate que herede de tu BaseDeleteView
 class TarifaDeleteView(BaseDeleteView):
     model = Tarifa
-    template_name = 'tarifa_confirm_delete.html'  # Tu plantilla
-    context_object_name = 'object'  # Usar 'object' como en la plantilla
+    template_name = 'tarifa_confirm_delete.html'
+    context_object_name = 'object'
     permission_required = 'myapp.delete_tarifa'
     success_url = reverse_lazy('myapp:tarifa_list')
 
-    # --- NUEVO: Añadir contexto para saber si está en uso ---
+    def can_delete(self, obj):  # Renombrado para consistencia, devuelve (bool, str)
+        en_uso_individual = ContratoIndividual.objects.filter(
+            tarifa_aplicada=obj).exists()
+        en_uso_colectivo = ContratoColectivo.objects.filter(
+            tarifa_aplicada=obj).exists()
+        if en_uso_individual or en_uso_colectivo:
+            return False, "No se puede eliminar la Tarifa porque está asignada a uno o más contratos."
+        return True, ""
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        tarifa = self.object
-        # Verificar si algún contrato (de cualquier tipo) usa esta tarifa
-        en_uso_individual = ContratoIndividual.objects.filter(
-            tarifa_aplicada=tarifa).exists()
-        en_uso_colectivo = ContratoColectivo.objects.filter(
-            tarifa_aplicada=tarifa).exists()
-        context['tarifa_en_uso'] = en_uso_individual or en_uso_colectivo
-        if context['tarifa_en_uso']:
-            logger.warning(
-                f"Intento de borrar Tarifa {tarifa.pk} que está en uso.")
+        can_delete_flag, reason_message = self.can_delete(self.object)
+        context['puede_ser_eliminado'] = can_delete_flag
+        context['mensaje_bloqueo'] = reason_message
+        # El template de tarifa ya usa 'tarifa_en_uso', así que podemos mantenerlo o cambiarlo
+        context['tarifa_en_uso'] = not can_delete_flag
+        context['page_title'] = f"Confirmar Eliminación Tarifa: {self.object.codigo_tarifa}"
         return context
-    # --- FIN NUEVO ---
 
-    # --- Sobrescribir POST para prevenir borrado si está en uso ---
     def post(self, request, *args, **kwargs):
         self.object = self.get_object()
-        tarifa_en_uso = ContratoIndividual.objects.filter(tarifa_aplicada=self.object).exists() or \
-            ContratoColectivo.objects.filter(
-                tarifa_aplicada=self.object).exists()
-
-        if tarifa_en_uso:
-            messages.error(
-                request, f"No se puede eliminar la Tarifa '{self.object}' porque está asignada a uno o más contratos.")
-            # Redirigir de vuelta al detalle o a la lista
-            # O a la lista
-            return redirect('myapp:tarifa_detail', pk=self.object.pk)
-
-        # Si no está en uso, proceder con la lógica de borrado de BaseDeleteView
+        can_delete_flag, reason_message = self.can_delete(self.object)
+        if not can_delete_flag:
+            messages.error(request, reason_message)
+            try:
+                return redirect(reverse('myapp:tarifa_detail', kwargs={'pk': self.object.pk}))
+            except NoReverseMatch:
+                return redirect(self.success_url)
         return super().post(request, *args, **kwargs)
 
     def enviar_notificacion_eliminacion(self, obj_pk, obj_repr):
@@ -4185,49 +4289,85 @@ class FacturaDetailView(BaseDetailView):
     model = Factura
     model_manager_name = 'all_objects'
     template_name = 'factura_detail.html'
-    context_object_name = 'object'  # Usa 'object' o 'factura' consistentemente
+    context_object_name = 'object'
     permission_required = 'myapp.view_factura'
 
     def get_queryset(self):
         return super().get_queryset().select_related(
-            'contrato_individual__afiliado', 'contrato_colectivo', 'intermediario'
+            'contrato_individual__afiliado',
+            # Asegurar que el intermediario del CI esté
+            'contrato_individual__intermediario',
+            # Asegurar que el intermediario del CC esté
+            'contrato_colectivo__intermediario',
+            'intermediario'  # Intermediario directo de la factura
         ).prefetch_related(
             Prefetch('pagos', queryset=Pago.objects.order_by('-fecha_pago'))
         )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        factura = self.object  # Obtener objeto del contexto base
+        factura = self.object
         pagos_list = list(factura.pagos.all())
         total_pagado = sum(
             p.monto_pago for p in pagos_list if p.monto_pago) or Decimal('0.00')
-        contrato_asociado = factura.contrato_individual or factura.contrato_colectivo
 
-        # Calcular IVA y total CON IVA (antes de IGTF)
+        # --- LÓGICA PARA CONTRATO ASOCIADO E INTERMEDIARIO ---
+        contrato_asociado = factura.contrato_individual or factura.contrato_colectivo
+        contrato_asociado_display = "N/A"
+        contrato_asociado_url = None
+        # intermediario_final_obj se usará para el template
+        # Intermediario directo de la factura primero
+        intermediario_final_obj = factura.intermediario
+
+        if contrato_asociado:
+            # Usa el __str__ del modelo de contrato
+            contrato_asociado_display = str(contrato_asociado)
+            if not intermediario_final_obj:  # Si la factura no tiene uno directo, tomar el del contrato
+                intermediario_final_obj = contrato_asociado.intermediario
+
+            if isinstance(contrato_asociado, ContratoIndividual):
+                try:
+                    contrato_asociado_url = reverse('myapp:contrato_individual_detail', kwargs={
+                                                    'pk': contrato_asociado.pk})
+                except NoReverseMatch:
+                    logger.warning(
+                        f"URL 'contrato_individual_detail' no encontrada para PK {contrato_asociado.pk}")
+            elif isinstance(contrato_asociado, ContratoColectivo):
+                try:
+                    contrato_asociado_url = reverse('myapp:contrato_colectivo_detail', kwargs={
+                                                    'pk': contrato_asociado.pk})
+                except NoReverseMatch:
+                    logger.warning(
+                        f"URL 'contrato_colectivo_detail' no encontrada para PK {contrato_asociado.pk}")
+        # --- FIN LÓGICA CONTRATO E INTERMEDIARIO ---
+
         base_imponible = factura.monto or Decimal('0.00')
-        tasa_iva = Decimal('0.16')  # Podría venir de settings
+        tasa_iva = Decimal('0.16')
         monto_iva = (base_imponible *
                      tasa_iva).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         total_con_iva = base_imponible + monto_iva
-
-        # Calcular IGTF si aplica
         monto_igtf = Decimal('0.00')
-        tasa_igtf = Decimal('0.03')  # Podría venir de settings
+        tasa_igtf = Decimal('0.03')
         if factura.aplica_igtf:
             monto_igtf = (
                 total_con_iva * tasa_igtf).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-
-        total_a_pagar = total_con_iva + monto_igtf  # Total final
+        total_a_pagar = total_con_iva + monto_igtf
 
         context.update({
-            'factura': factura,  # Pasar explícitamente si context_object_name es 'object'
+            # 'factura': factura, # Ya está como 'object'
             'estatus_factura_display': factura.get_estatus_factura_display(),
             'estatus_emision_display': factura.get_estatus_emision_display(),
-            'contrato_asociado': contrato_asociado,
-            'intermediario_factura': factura.intermediario,
+
+            # El objeto en sí, por si lo necesitas
+            'contrato_asociado_obj': contrato_asociado,
+            'contrato_asociado_display': contrato_asociado_display,  # Para mostrar
+            'contrato_asociado_url': contrato_asociado_url,  # Para el enlace <a>
+
+            # Para el template (usa este nombre)
+            'intermediario_final_obj': intermediario_final_obj,
+
             'pagos_asociados': pagos_list,
             'total_pagado': total_pagado,
-            # Mostrar pendiente del modelo que se actualiza con pagos
             'monto_pendiente_factura': factura.monto_pendiente,
             'cantidad_pagos': len(pagos_list),
             'base_imponible': base_imponible,
@@ -4237,7 +4377,7 @@ class FacturaDetailView(BaseDetailView):
             'total_a_pagar': total_a_pagar,
             'tasa_iva_display': f"{tasa_iva:.0%}",
             'tasa_igtf_display': f"{tasa_igtf:.0%}",
-            'active_tab': 'facturas',  # O 'facturas_detail'
+            'active_tab': 'facturas',
         })
         return context
 
@@ -4335,19 +4475,34 @@ class FacturaUpdateView(BaseUpdateView):
 @method_decorator(csrf_protect, name='dispatch')
 class FacturaDeleteView(BaseDeleteView):
     model = Factura
-    template_name = 'factura_confirm_delete.html'
+    template_name = 'factura_confirm_delete.html'  # O tu genérico
     context_object_name = 'object'
     permission_required = 'myapp.delete_factura'
     success_url = reverse_lazy('myapp:factura_list')
 
-    # Añadir validación
-    def can_delete(self, obj):
-        if hasattr(obj, 'pagos') and obj.pagos.exists():
-            messages.error(
-                self.request, f"No se puede eliminar: la factura '{obj.numero_recibo}' tiene pagos asociados.")
-            return False
-        return True
-    # post/delete heredado
+    def can_delete(self, obj):  # Devuelve (bool, str)
+        if hasattr(obj, 'pagos') and obj.pagos.exists():  # 'pagos' es el related_name
+            return False, f"No se puede eliminar: la factura '{obj.numero_recibo}' tiene pagos asociados."
+        return True, ""
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        can_delete_flag, reason_message = self.can_delete(self.object)
+        context['puede_ser_eliminado'] = can_delete_flag
+        context['mensaje_bloqueo'] = reason_message
+        context['page_title'] = f"Confirmar Eliminación Factura: {self.object.numero_recibo}"
+        return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        can_delete_flag, reason_message = self.can_delete(self.object)
+        if not can_delete_flag:
+            messages.error(request, reason_message)
+            try:
+                return redirect(reverse('myapp:factura_detail', kwargs={'pk': self.object.pk}))
+            except NoReverseMatch:
+                return redirect(self.success_url)
+        return super().post(request, *args, **kwargs)
 
     def enviar_notificacion_eliminacion(self, obj_pk, obj_repr):
         mensaje = f"Se eliminó la Factura: {obj_repr} (ID: {obj_pk})."

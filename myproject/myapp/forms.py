@@ -664,67 +664,136 @@ class AfiliadoIndividualForm(AwareDateInputMixinVE, BaseModelForm):
 
 
 class ContratoIndividualForm(AwareDateInputMixinVE, BaseModelForm):
-    aware_date_fields = [
-        'fecha_emision',
-        'fecha_inicio_vigencia',
-        'fecha_fin_vigencia',
-        'fecha_inicio_vigencia_recibo',
-        'fecha_fin_vigencia_recibo'
+    aware_date_fields_config = [
+        {'name': 'fecha_emision', 'is_datetime': True,
+            'format': '%d/%m/%Y', 'placeholder': PLACEHOLDER_DATE_STRICT},
+        {'name': 'fecha_inicio_vigencia', 'is_datetime': False,
+            'format': '%d/%m/%Y', 'placeholder': PLACEHOLDER_DATE_STRICT},
+        {'name': 'fecha_fin_vigencia', 'is_datetime': False,
+            'format': '%d/%m/%Y', 'placeholder': PLACEHOLDER_DATE_STRICT},
+        {'name': 'fecha_inicio_vigencia_recibo', 'is_datetime': False,
+            'format': '%d/%m/%Y', 'placeholder': PLACEHOLDER_DATE_STRICT},
+        {'name': 'fecha_fin_vigencia_recibo', 'is_datetime': False,
+            'format': '%d/%m/%Y', 'placeholder': PLACEHOLDER_DATE_STRICT},
     ]
 
-    afiliado = forms.ModelChoiceField(queryset=AfiliadoIndividual.objects.filter(activo=True).order_by('primer_apellido', 'primer_nombre'),
-                                      required=True, widget=Select2Widget(attrs={'data-placeholder': 'Buscar Afiliado Titular...'}), label="Afiliado Individual Titular")
-    intermediario = forms.ModelChoiceField(queryset=Intermediario.objects.filter(activo=True).order_by(
-        'nombre_completo'), required=True, widget=Select2Widget(attrs={'data-placeholder': 'Buscar Intermediario...'}), label="Intermediario")
-    tarifa_aplicada = forms.ModelChoiceField(queryset=Tarifa.objects.filter(activo=True).order_by(
-        'ramo', '-fecha_aplicacion'), required=True, widget=Select2Widget(attrs={'data-placeholder': 'Seleccionar Tarifa Aplicable...'}), label="Tarifa Aplicada")
+    # --- Definición de Campos Explícita ---
+    afiliado = forms.ModelChoiceField(
+        queryset=AfiliadoIndividual.objects.filter(
+            activo=True).order_by('primer_apellido', 'primer_nombre'),
+        required=True,
+        widget=Select2Widget(
+            attrs={'data-placeholder': 'Buscar Afiliado Titular...', 'class': 'form-control'}),
+        label="Afiliado Individual Titular"
+    )
+    intermediario = forms.ModelChoiceField(
+        queryset=Intermediario.objects.filter(
+            activo=True).order_by('nombre_completo'),
+        required=True,
+        widget=Select2Widget(
+            attrs={'data-placeholder': 'Buscar Intermediario...', 'class': 'form-control'}),
+        label="Intermediario"
+    )
+    tarifa_aplicada = forms.ModelChoiceField(
+        queryset=Tarifa.objects.filter(activo=True).order_by(
+            'ramo', '-fecha_aplicacion'),
+        required=True,
+        widget=Select2Widget(attrs={
+                             'data-placeholder': 'Seleccionar Tarifa Aplicable...', 'class': 'form-control'}),
+        label="Tarifa Aplicada"
+    )
 
-    fecha_emision = forms.CharField(label="Fecha de Emisión", widget=forms.TextInput(
-        attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}), required=True)
-    fecha_inicio_vigencia = forms.CharField(label="Fecha Inicio Vigencia", widget=forms.TextInput(
-        attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}), required=True)
-    fecha_fin_vigencia = forms.CharField(label="Fecha Fin Vigencia", widget=forms.TextInput(
-        attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}), required=False)
-    fecha_inicio_vigencia_recibo = forms.CharField(label="Inicio Vigencia Recibo", widget=forms.TextInput(
-        attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}), required=False)
-    fecha_fin_vigencia_recibo = forms.CharField(label="Fin Vigencia Recibo", widget=forms.TextInput(
-        attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}), required=False)
+    fecha_emision = forms.CharField(
+        label="Fecha de Emisión",
+        widget=forms.TextInput(
+            attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}),
+        required=True
+    )
+    fecha_inicio_vigencia = forms.CharField(
+        label="Fecha Inicio Vigencia",
+        widget=forms.TextInput(
+            attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}),
+        required=True
+    )
+    fecha_fin_vigencia = forms.CharField(
+        label="Fecha Fin Vigencia",
+        widget=forms.TextInput(
+            attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}),
+        required=False
+    )
+    fecha_inicio_vigencia_recibo = forms.CharField(
+        label="Inicio Vigencia Recibo",
+        widget=forms.TextInput(
+            attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}),
+        required=False
+    )
+    fecha_fin_vigencia_recibo = forms.CharField(
+        label="Fin Vigencia Recibo",
+        widget=forms.TextInput(
+            attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}),
+        required=False
+    )
 
-    ramo = forms.ChoiceField(
-        choices=CommonChoices.RAMO, widget=Select2Widget())
+    ramo = forms.ChoiceField(choices=CommonChoices.RAMO, widget=Select2Widget(
+        attrs={'class': 'form-control'}))
     forma_pago = forms.ChoiceField(
-        choices=CommonChoices.FORMA_PAGO, widget=Select2Widget())
-    estatus = forms.ChoiceField(
-        choices=CommonChoices.ESTADOS_VIGENCIA, widget=Select2Widget())
-    estado_contrato = forms.ChoiceField(
-        choices=CommonChoices.ESTADO_CONTRATO, widget=Select2Widget())
+        choices=CommonChoices.FORMA_PAGO, widget=Select2Widget(attrs={'class': 'form-control'}))
+    estatus = forms.ChoiceField(choices=CommonChoices.ESTADOS_VIGENCIA, widget=Select2Widget(
+        attrs={'class': 'form-control'}))
+    estado_contrato = forms.ChoiceField(choices=CommonChoices.ESTADO_CONTRATO, widget=Select2Widget(
+        attrs={'class': 'form-control'}), required=False)
+
     periodo_vigencia_meses = forms.IntegerField(
-        min_value=1, widget=forms.NumberInput(attrs={'min': '1'}), required=False)
+        label="Duración del Contrato (Meses)",
+        min_value=1,
+        widget=forms.NumberInput(attrs={'min': '1', 'class': 'form-control'}),
+        required=False,
+        help_text="Si se indica, la Fecha Fin se calcula. Si ingresa ambas, deben ser consistentes."
+    )
+
     tipo_identificacion_contratante = forms.ChoiceField(
         choices=CommonChoices.TIPO_IDENTIFICACION,
-        widget=Select2Widget(),
+        widget=Select2Widget(attrs={'class': 'form-control'}),
         label="Tipo Identificación Contratante"
     )
-    contratante_cedula = forms.CharField(max_length=20)
-    contratante_nombre = forms.CharField(max_length=200)
-    direccion_contratante = forms.CharField(
-        widget=forms.Textarea(attrs={'rows': 3}), required=False)
-    telefono_contratante = forms.CharField(max_length=20, required=False)
-    email_contratante = forms.EmailField(required=False)
-    plan_contratado = forms.CharField(max_length=100, required=False)
-    suma_asegurada = forms.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal(
-        '0.01'), widget=forms.NumberInput(attrs={'step': '0.01', 'min': '0.01'}))
-    comision_anual = forms.DecimalField(max_digits=5, decimal_places=2, min_value=Decimal('0'), max_value=Decimal(
-        '100'), widget=forms.NumberInput(attrs={'step': '0.01', 'min': '0', 'max': '100'}), required=False)
-    estatus_emision_recibo = forms.ChoiceField(
-        choices=CommonChoices.EMISION_RECIBO, widget=Select2Widget(), required=False)
-    criterio_busqueda = forms.CharField(max_length=255, required=False)
-    estatus_detalle = forms.CharField(
-        widget=forms.Textarea(attrs={'rows': 2}), required=False)
+    contratante_cedula = forms.CharField(
+        label="Cédula/RIF del Contratante", max_length=15, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    contratante_nombre = forms.CharField(
+        label="Nombre del Contratante", max_length=255, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    direccion_contratante = forms.CharField(label="Dirección del Contratante", widget=forms.Textarea(
+        attrs={'rows': 3, 'class': 'form-control'}), required=False)
+    telefono_contratante = forms.CharField(label="Teléfono del Contratante", max_length=20,
+                                           required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    email_contratante = forms.EmailField(
+        label="Email del Contratante", required=False, widget=forms.EmailInput(attrs={'class': 'form-control'}))
+    plan_contratado = forms.CharField(label="Plan Contratado", max_length=255,
+                                      required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    suma_asegurada = forms.DecimalField(
+        label="Suma Asegurada / Monto Cobertura",
+        max_digits=17, decimal_places=2,
+        min_value=Decimal('0.01'),
+        widget=forms.NumberInput(
+            attrs={'step': '0.01', 'min': '0.01', 'class': 'form-control'}),
+        required=True
+    )
+    comision_anual = forms.DecimalField(
+        label="Comisión Anual (%)",
+        max_digits=5, decimal_places=2,
+        min_value=Decimal('0.00'), max_value=Decimal('100.00'),
+        widget=forms.NumberInput(
+            attrs={'step': '0.01', 'min': '0', 'max': '100', 'class': 'form-control'}),
+        required=False
+    )
+    estatus_emision_recibo = forms.ChoiceField(label="Estatus de Emisión del Recibo", choices=CommonChoices.EMISION_RECIBO, widget=Select2Widget(
+        attrs={'class': 'form-control'}), required=False)
+    criterio_busqueda = forms.CharField(label="Criterio de Búsqueda", max_length=255,
+                                        required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    estatus_detalle = forms.CharField(label="Estatus Detallado", widget=forms.Textarea(
+        attrs={'rows': 2, 'class': 'form-control'}), required=False)
     consultar_afiliados_activos = forms.BooleanField(
-        required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
-    activo = forms.BooleanField(required=False, initial=True, widget=forms.CheckboxInput(
-        attrs={'class': 'form-check-input'}))
+        label="Consultar en data de afiliados activos", required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
+    activo = forms.BooleanField(label="Contrato Activo", required=False, initial=True,
+                                widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
 
     class Meta:
         model = ContratoIndividual
@@ -734,31 +803,25 @@ class ContratoIndividualForm(AwareDateInputMixinVE, BaseModelForm):
             'periodo_vigencia_meses', 'intermediario', 'tipo_identificacion_contratante',
             'contratante_cedula', 'contratante_nombre', 'direccion_contratante',
             'telefono_contratante', 'email_contratante', 'afiliado', 'plan_contratado',
-            'suma_asegurada', 'fecha_inicio_vigencia_recibo', 'fecha_fin_vigencia_recibo',
-            'comision_anual', 'tarifa_aplicada', 'estatus_emision_recibo',
+            'suma_asegurada', 'tarifa_aplicada',
+            'fecha_inicio_vigencia_recibo', 'fecha_fin_vigencia_recibo',
+            'estatus_emision_recibo', 'comision_anual',
             'criterio_busqueda', 'estatus_detalle', 'consultar_afiliados_activos',
         ]
-        # Excluir campos autogenerados o no deseados en el form
         exclude = [
             'numero_contrato', 'numero_poliza', 'certificado', 'monto_total',
-            'pagos_realizados', 'comision_recibo', 'importe_anual_contrato',
-            'importe_recibo_contrato', 'dias_transcurridos_ingreso',
-            'fecha_creacion', 'fecha_modificacion',  # De ModeloBase
-            'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido',  # De ModeloBase
+            'pagos_realizados', 'comision_recibo',
+            'dias_transcurridos_ingreso',
+            'fecha_creacion', 'fecha_modificacion',
+            'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido',
+            'historial_cambios', 'numero_recibo'
         ]
-        widgets = {  # Widgets para campos NO de fecha CharField, o si quieres anular el TextInput por defecto
-            'ramo': Select2Widget,
-            'forma_pago': Select2Widget,
-            'estatus': Select2Widget,
-            'estado_contrato': Select2Widget,
-            'tipo_identificacion_contratante': Select2Widget,
-            'estatus_emision_recibo': Select2Widget,
+        # Los widgets para campos que no son CharField de fecha o Select2 se pueden definir aquí
+        # si necesitas anular los defaults de ModelForm o BaseModelForm.
+        widgets = {
             'activo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'consultar_afiliados_activos': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'suma_asegurada': forms.NumberInput(attrs={'step': '0.01', 'min': '0.01'}),
-            'periodo_vigencia_meses': forms.NumberInput(attrs={'min': '1'}),
-            'comision_anual': forms.NumberInput(attrs={'step': '0.01', 'min': '0', 'max': '100'}),
-            'direccion_contratante': forms.Textarea(attrs={'rows': 3}),
+            # Los widgets para Select2 y TextInput de fecha ya están en la definición de campos.
         }
         help_texts = {
             'fecha_fin_vigencia': "Opcional. Si se provee la Duración, esta fecha se calculará. Si ingresa ambas, deben ser consistentes.",
@@ -766,14 +829,51 @@ class ContratoIndividualForm(AwareDateInputMixinVE, BaseModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        # print(f"DEBUG ContratoIndividualForm __init__ INICIO - args: {args}, kwargs: {kwargs}")
         super().__init__(*args, **kwargs)
-        if not self.instance or not self.instance.pk:
+        # print(f"DEBUG ContratoIndividualForm: self.initial ANTES de formatear: {self.initial}")
+        # print(f"DEBUG ContratoIndividualForm: self.instance: {self.instance}, self.instance.pk: {getattr(self.instance, 'pk', None)}")
+
+        if self.instance and self.instance.pk:  # Modo Edición
+            # print(f"DEBUG ContratoIndividualForm: Editando instancia PK: {self.instance.pk}")
+
+            # Iterar sobre la configuración del mixin para formatear los campos de fecha
+            if hasattr(self, 'aware_date_fields_config'):
+                for config in self.aware_date_fields_config:
+                    field_name = config['name']
+                    if field_name in self.fields and hasattr(self.instance, field_name):
+                        model_value = getattr(self.instance, field_name, None)
+                        # print(f"  DEBUG __init__: Procesando {field_name} - Valor Modelo: {model_value}, Tipo: {type(model_value)}")
+                        if model_value:  # Solo formatear si hay un valor
+                            if isinstance(model_value, datetime):
+                                # Para DateTimeField, usar el formato con hora
+                                dt_local = django_timezone.localtime(
+                                    model_value) if django_timezone.is_aware(model_value) else model_value
+                                self.initial[field_name] = dt_local.strftime(
+                                    config['format'])
+                                # print(f"  DEBUG __init__: {field_name} (datetime) - initial set to: {self.initial[field_name]}")
+                            elif isinstance(model_value, date):
+                                # Para DateField, usar el formato sin hora
+                                self.initial[field_name] = model_value.strftime(
+                                    config['format'])
+                                # print(f"  DEBUG __init__: {field_name} (date) - initial set to: {self.initial[field_name]}")
+                        # Si es None y no requerido
+                        elif self.fields[field_name].required is False:
+                            self.initial[field_name] = ''
+                            # print(f"  DEBUG __init__: {field_name} - initial set to empty string (was None)")
+        else:  # Modo Creación
+            # print("DEBUG ContratoIndividualForm: Creando nueva instancia o instancia sin PK")
             self.initial.setdefault('estatus', 'VIGENTE')
             self.initial.setdefault('activo', True)
-            # No establecer initial para CharFields de fecha aquí, placeholder es suficiente
 
-    def clean(self):  # Adaptado para fechas aware
-        cleaned_data = super().clean()
+        # print(f"DEBUG ContratoIndividualForm: self.initial DESPUÉS de formatear: {self.initial}")
+        # print("DEBUG ContratoIndividualForm __init__ FIN")
+
+    def clean(self):
+        # print("DEBUG ContratoIndividualForm clean INICIO")
+        cleaned_data = super().clean()  # Esto llamará a los clean_<field> del mixin
+        # print(f"DEBUG ContratoIndividualForm: cleaned_data DESPUÉS de super().clean() (y mixin): {cleaned_data}")
+
         fecha_emision = cleaned_data.get("fecha_emision")
         fecha_inicio_vigencia = cleaned_data.get("fecha_inicio_vigencia")
         fecha_fin_vigencia_form = cleaned_data.get("fecha_fin_vigencia")
@@ -781,70 +881,107 @@ class ContratoIndividualForm(AwareDateInputMixinVE, BaseModelForm):
         fecha_inicio_recibo = cleaned_data.get("fecha_inicio_vigencia_recibo")
         fecha_fin_recibo = cleaned_data.get("fecha_fin_vigencia_recibo")
 
-        if fecha_emision and fecha_inicio_vigencia and fecha_emision > fecha_inicio_vigencia:
-            self.add_error(
-                'fecha_emision', "La emisión no puede ser después del inicio de vigencia.")
+        # if fecha_emision: print(f"  DEBUG clean: fecha_emision type: {type(fecha_emision)}, value: {fecha_emision}")
+        # if fecha_inicio_vigencia: print(f"  DEBUG clean: fecha_inicio_vigencia type: {type(fecha_inicio_vigencia)}, value: {fecha_inicio_vigencia}")
+        # if fecha_fin_vigencia_form: print(f"  DEBUG clean: fecha_fin_vigencia_form type: {type(fecha_fin_vigencia_form)}, value: {fecha_fin_vigencia_form}")
 
-        if fecha_inicio_vigencia:
-            if periodo_meses_form is not None and fecha_fin_vigencia_form is not None:
+        # El mixin ya debería haber convertido los campos a objetos date/datetime (aware)
+        # Así que las comparaciones directas deberían funcionar.
+        fecha_emision_date_part = None
+        if isinstance(fecha_emision, datetime):
+            fecha_emision_date_part = fecha_emision.date()
+        # Si el mixin devolviera date para un campo datetime
+        elif isinstance(fecha_emision, date):
+            fecha_emision_date_part = fecha_emision
+
+        if fecha_emision_date_part and fecha_inicio_vigencia and fecha_emision_date_part > fecha_inicio_vigencia:
+            self.add_error(
+                'fecha_emision', "La fecha de emisión no puede ser posterior a la fecha de inicio de vigencia.")
+
+        if fecha_inicio_vigencia:  # fecha_inicio_vigencia ya es un objeto date
+            if periodo_meses_form is not None and fecha_fin_vigencia_form is not None:  # Ambas provistas
                 if periodo_meses_form < 1:
                     self.add_error('periodo_vigencia_meses',
-                                   "Duración debe ser al menos 1 mes.")
+                                   "La duración debe ser de al menos 1 mes.")
                 else:
                     try:
-                        fin_calc = fecha_inicio_vigencia.date() + relativedelta(months=+
-                                                                                periodo_meses_form) - timedelta(days=1)
-                        if fin_calc != fecha_fin_vigencia_form.date():
+                        # Asegurarse que ambos son objetos date para la comparación
+                        fin_calc = fecha_inicio_vigencia + \
+                            relativedelta(
+                                months=+periodo_meses_form) - timedelta(days=1)
+                        if fin_calc != fecha_fin_vigencia_form:
                             self.add_error(None, forms.ValidationError(
-                                f"Inconsistencia Fecha Fin ({fecha_fin_vigencia_form.strftime('%d/%m/%Y')}) vs Duración {periodo_meses_form} meses (resulta en {fin_calc.strftime('%d/%m/%Y')}).", code='inconsistencia_fecha_duracion'))
+                                f"Inconsistencia: La Fecha Fin de Vigencia ({fecha_fin_vigencia_form.strftime('%d/%m/%Y')}) "
+                                f"no coincide con la Duración de {periodo_meses_form} meses "
+                                f"(que resultaría en {fin_calc.strftime('%d/%m/%Y')}). "
+                                "Por favor, ajuste una o la otra, o deje una en blanco para que se calcule automáticamente.",
+                                code='inconsistencia_fecha_duracion'
+                            ))
+                    except TypeError as te:
+                        logger.error(
+                            f"TypeError en validación de consistencia de fechas (clean): {te}", exc_info=True)
+                        self.add_error(
+                            None, f"Error de tipo al verificar fechas de vigencia: {str(te)}")
                     except Exception as e:
-                        self.add_error(None, f"Error verificando fechas: {e}")
-            elif fecha_fin_vigencia_form is not None:
+                        logger.error(
+                            f"Excepción en validación de consistencia de fechas (clean): {e}", exc_info=True)
+                        # CORREGIDO str(e)
+                        self.add_error(
+                            None, f"Error verificando consistencia de fechas: {str(e)}")
+            elif fecha_fin_vigencia_form is not None:  # Solo se proveyó fecha_fin
                 if fecha_fin_vigencia_form < fecha_inicio_vigencia:
-                    self.add_error('fecha_fin_vigencia',
-                                   'Fin no puede ser antes de inicio.')
-            elif periodo_meses_form is None and (not self.instance or not self.instance.pk):
-                self.add_error('periodo_vigencia_meses',
-                               "Debe ingresar Duración o Fecha Fin.")
-        elif not self.instance or not self.instance.pk:
-            self.add_error('fecha_inicio_vigencia',
-                           "Fecha de inicio de vigencia es obligatoria.")
+                    self.add_error(
+                        'fecha_fin_vigencia', 'La Fecha Fin de Vigencia no puede ser anterior a la Fecha de Inicio.')
+            elif periodo_meses_form is not None:  # Solo se proveyó periodo
+                if periodo_meses_form < 1:
+                    self.add_error('periodo_vigencia_meses',
+                                   "La duración debe ser de al menos 1 mes.")
+            # Es nuevo y no se proveyó ni fecha_fin ni periodo
+            elif not (self.instance and self.instance.pk):
+                # Si ambos son opcionales en el form pero lógicamente uno es requerido para calcular el otro
+                if not self.fields['fecha_fin_vigencia'].required and not self.fields['periodo_vigencia_meses'].required:
+                    self.add_error(
+                        None, "Debe ingresar la Duración del Contrato (en meses) o la Fecha Fin de Vigencia para un nuevo contrato.")
 
+        # ... (resto de tu lógica de clean para contratante_cedula, fechas de recibo, etc.) ...
+        # Asegúrate que las comparaciones de fechas de recibo también usen los objetos date convertidos por el mixin.
         tipo_id_contratante = cleaned_data.get(
             'tipo_identificacion_contratante')
         cedula_contratante = cleaned_data.get('contratante_cedula')
         if cedula_contratante and tipo_id_contratante:
             try:
-                if tipo_id_contratante in ['V', 'E']:
+                if tipo_id_contratante == 'CEDULA':
                     validate_cedula(cedula_contratante)
-                elif tipo_id_contratante in ['J', 'G']:
+                elif tipo_id_contratante == 'RIF':
                     validate_rif(cedula_contratante)
             except ValidationError as e:
                 self.add_error('contratante_cedula', e)
-        elif not cedula_contratante and tipo_id_contratante:
-            self.add_error('contratante_cedula',
-                           'Requerido si se especifica tipo de ID.')
+        elif not cedula_contratante and tipo_id_contratante:  # Si se seleccionó tipo pero no se ingresó número
+            self.add_error(
+                'contratante_cedula', 'Este campo es requerido si se especifica un tipo de identificación.')
 
         if fecha_inicio_recibo and fecha_inicio_vigencia and fecha_inicio_recibo < fecha_inicio_vigencia:
             self.add_error('fecha_inicio_vigencia_recibo',
-                           "Inicio recibo no puede ser antes de inicio contrato.")
+                           "El inicio de vigencia del recibo no puede ser anterior al inicio de vigencia del contrato.")
 
-        final_fecha_fin_contrato_aware = fecha_fin_vigencia_form
-        if not final_fecha_fin_contrato_aware and fecha_inicio_vigencia and periodo_meses_form:
+        final_fecha_fin_contrato_efectiva = fecha_fin_vigencia_form
+        if not final_fecha_fin_contrato_efectiva and fecha_inicio_vigencia and periodo_meses_form:
             try:
-                final_fecha_fin_contrato_date_part = fecha_inicio_vigencia.date(
-                ) + relativedelta(months=+periodo_meses_form) - timedelta(days=1)
-                final_fecha_fin_contrato_aware = django_timezone.make_aware(datetime.datetime.combine(
-                    final_fecha_fin_contrato_date_part, datetime.datetime.min.time()))
+                final_fecha_fin_contrato_efectiva = fecha_inicio_vigencia + \
+                    relativedelta(months=+periodo_meses_form) - \
+                    timedelta(days=1)
             except:
                 pass
 
-        if fecha_fin_recibo and final_fecha_fin_contrato_aware and fecha_fin_recibo > final_fecha_fin_contrato_aware:
+        if fecha_fin_recibo and final_fecha_fin_contrato_efectiva and fecha_fin_recibo > final_fecha_fin_contrato_efectiva:
             self.add_error('fecha_fin_vigencia_recibo',
-                           "Fin recibo no puede ser después de fin contrato.")
+                           "El fin de vigencia del recibo no puede ser posterior al fin de vigencia del contrato.")
+
         if fecha_inicio_recibo and fecha_fin_recibo and fecha_fin_recibo < fecha_inicio_recibo:
             self.add_error('fecha_fin_vigencia_recibo',
-                           "Fin recibo no puede ser antes de inicio recibo.")
+                           "La fecha de fin de vigencia del recibo no puede ser anterior a su fecha de inicio.")
+
+        # print(f"DEBUG ContratoIndividualForm clean FIN - Errores: {self.errors}")
         return cleaned_data
 
 # ------------------------------

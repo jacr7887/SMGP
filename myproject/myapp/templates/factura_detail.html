@@ -46,12 +46,12 @@
         </div>
       </fieldset>
 
-      <fieldset class="mb-4 dark-group">
+<fieldset class="mb-4 dark-group">
         <legend class="dark-label">🔗 Contrato e Intermediario</legend>
         <div class="dark-grid">
             <div class="dark-group"><span class="dark-label">📄 Contrato Asociado:</span>
                 <span>
-                    {% if contrato_asociado_url %}
+                    {% if contrato_asociado_url %} {# Usa la URL del contexto #}
                         <a href="{{ contrato_asociado_url }}">{{ contrato_asociado_display|escape }}</a>
                     {% else %}
                         {{ contrato_asociado_display|escape|default:"N/A" }}
@@ -61,7 +61,8 @@
             <div class="dark-group">
                 <span class="dark-label">🤝 Intermediario:</span>
                 <span>
-                    {% if intermediario_final_obj %}
+                    {# Usa intermediario_final_obj del contexto #}
+                    {% if intermediario_final_obj %} 
                         {% if perms.myapp.view_intermediario %}
                         <a href="{% url 'myapp:intermediario_detail' intermediario_final_obj.pk %}">
                             {{ intermediario_final_obj.nombre_completo|default:intermediario_final_obj.codigo|escape }} ({{ intermediario_final_obj.codigo }})
@@ -83,10 +84,9 @@
             </div>
         </div>
       </fieldset>
-
       <fieldset class="mb-4 dark-group">
         <legend class="dark-label">💲 Montos y Estado de Pago</legend>
-        <div class="dark-grid"> {# Asegúrate que .dark-grid exista o usa .dark-group directamente #}
+        <div class="dark-grid"> 
             <div class="dark-group">
                 <span class="dark-label">💰 Monto Total Factura:</span>
                 <span>${{ object.monto|floatformat:2|intcomma|default:"0.00" }}</span>
