@@ -4,7 +4,7 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import Group, Permission
 from django.core.exceptions import ValidationError
-from django.core.validators import FileExtensionValidator, EmailValidator
+from django.core.validators import FileExtensionValidator, EmailValidator, MinValueValidator
 from django.db.models import Sum
 from django_select2.forms import Select2Widget, Select2MultipleWidget
 # Necesario para cálculos de fechas
@@ -1164,86 +1164,212 @@ class ContratoColectivoForm(AwareDateInputMixinVE, BaseModelForm):
 
 
 class ReclamacionForm(AwareDateInputMixinVE, BaseModelForm):
-    aware_date_fields = ['fecha_reclamo', 'fecha_cierre_reclamo']
+    # Configuración para el mixin AwareDateInputMixinVE
+    aware_date_fields_config = [
+        {'name': 'fecha_reclamo', 'is_datetime': False,
+            'format': '%d/%m/%Y', 'placeholder': PLACEHOLDER_DATE_STRICT},
+        {'name': 'fecha_cierre_reclamo', 'is_datetime': False,
+            'format': '%d/%m/%Y', 'placeholder': PLACEHOLDER_DATE_STRICT},
+    ]
 
-    contrato_individual = forms.ModelChoiceField(queryset=ContratoIndividual.objects.filter(activo=True).select_related('afiliado').order_by(
-        '-fecha_emision', 'numero_contrato'), required=False, widget=Select2Widget(attrs={'data-placeholder': 'Buscar Contrato Individual...'}), label="Contrato Individual Asociado")
-    contrato_colectivo = forms.ModelChoiceField(queryset=ContratoColectivo.objects.filter(activo=True).order_by(
-        '-fecha_emision', 'numero_contrato'), required=False, widget=Select2Widget(attrs={'data-placeholder': 'Buscar Contrato Colectivo...'}), label="Contrato Colectivo Asociado")
-    usuario_asignado = forms.ModelChoiceField(queryset=Usuario.objects.filter(is_active=True, is_staff=True).order_by(
-        'email'), required=False, widget=Select2Widget(attrs={'data-placeholder': 'Buscar Usuario Asignado...'}), label="Usuario Asignado")
-    diagnostico_principal = forms.ChoiceField(choices=CommonChoices.DIAGNOSTICOS, required=True, widget=Select2Widget(
-        attrs={'data-placeholder': 'Buscar Diagnóstico Principal...'}), label="Diagnóstico Principal (Médico/Técnico)")
-    documentos_adjuntos = forms.FileField(validators=[FileExtensionValidator(allowed_extensions=[
-                                          'pdf', 'jpg', 'png']), validate_file_size], required=False, help_text="Formatos: PDF, JPG, PNG. Max 10MB.")
+    # Definición explícita de campos para control total
+    contrato_individual = forms.ModelChoiceField(
+        queryset=ContratoIndividual.objects.filter(activo=True).select_related(
+            'afiliado').order_by('-fecha_emision', 'numero_contrato'),
+        required=False,
+        widget=Select2Widget(attrs={
+                             'data-placeholder': 'Buscar Contrato Individual...', 'class': 'form-control'}),
+        label="Contrato Individual Asociado"
+    )
+    contrato_colectivo = forms.ModelChoiceField(
+        queryset=ContratoColectivo.objects.filter(
+            activo=True).order_by('-fecha_emision', 'numero_contrato'),
+        required=False,
+        widget=Select2Widget(attrs={
+                             'data-placeholder': 'Buscar Contrato Colectivo...', 'class': 'form-control'}),
+        label="Contrato Colectivo Asociado"
+    )
+    usuario_asignado = forms.ModelChoiceField(
+        queryset=Usuario.objects.filter(
+            is_active=True, is_staff=True).order_by('email'),
+        required=False,
+        widget=Select2Widget(
+            attrs={'data-placeholder': 'Buscar Usuario Asignado...', 'class': 'form-control'}),
+        label="Usuario Asignado"
+    )
+    diagnostico_principal = forms.ChoiceField(
+        choices=CommonChoices.DIAGNOSTICOS,
+        required=True,
+        widget=Select2Widget(attrs={
+                             'data-placeholder': 'Buscar Diagnóstico Principal...', 'class': 'form-control'}),
+        label="Diagnóstico Principal (Médico/Técnico)"
+    )
+    documentos_adjuntos = forms.FileField(
+        label="Documentos Adjuntos",
+        validators=[FileExtensionValidator(
+            allowed_extensions=['pdf', 'jpg', 'png']), validate_file_size],
+        required=False,
+        help_text="Formatos: PDF, JPG, PNG. Max 10MB.",
+        # Widget estándar para FileField
+        widget=forms.ClearableFileInput(attrs={'class': 'form-control'})
+    )
 
-    fecha_reclamo = forms.CharField(label="Fecha de Reclamo", widget=forms.TextInput(
-        attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}), required=True)
-    fecha_cierre_reclamo = forms.CharField(label="Fecha Cierre Reclamo", widget=forms.TextInput(
-        attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}), required=False)
+    # Campos de fecha como CharField, manejados por el mixin
+    fecha_reclamo = forms.CharField(
+        label="Fecha de Reclamo",
+        widget=forms.TextInput(
+            attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}),
+        required=True
+    )
+    fecha_cierre_reclamo = forms.CharField(
+        label="Fecha Cierre Reclamo",
+        widget=forms.TextInput(
+            attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}),
+        required=False
+    )
 
+    # Otros campos del formulario
     tipo_reclamacion = forms.ChoiceField(
-        choices=CommonChoices.TIPO_RECLAMACION, widget=forms.Select())
+        label="Tipo de Reclamación",
+        choices=CommonChoices.TIPO_RECLAMACION,
+        # Usar form-select para Bootstrap
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
     descripcion_reclamo = forms.CharField(
-        widget=forms.Textarea(attrs={'rows': 4}))
+        label="Descripción del Reclamo",
+        widget=forms.Textarea(attrs={'rows': 4, 'class': 'form-control'})
+    )
     estado = forms.ChoiceField(
-        choices=CommonChoices.ESTADO_RECLAMACION, widget=forms.Select())
+        label="Estado de la Reclamación",
+        choices=CommonChoices.ESTADO_RECLAMACION,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
     monto_reclamado = forms.DecimalField(
-        max_digits=12, decimal_places=2, required=False, widget=forms.NumberInput(attrs={'step': '0.01'}))
+        label="Monto Reclamado",
+        max_digits=15,  # Coincidir con el modelo
+        decimal_places=2,
+        required=True,  # Asumo que es requerido, si no, cambiar a False
+        widget=forms.NumberInput(
+            attrs={'step': '0.01', 'class': 'form-control'}),
+        validators=[MinValueValidator(Decimal('0.01'))]  # Del modelo
+    )
     observaciones_internas = forms.CharField(
-        widget=forms.Textarea(attrs={'rows': 3}), required=False)
+        label="Observaciones Internas",
+        widget=forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+        required=False
+    )
     observaciones_cliente = forms.CharField(
-        widget=forms.Textarea(attrs={'rows': 3}), required=False)
+        label="Observaciones para el Cliente",
+        widget=forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+        required=False
+    )
     activo = forms.BooleanField(
-        required=False, initial=True, widget=forms.CheckboxInput(attrs={'class': 'switch'}))
+        label="Reclamación Activa",
+        required=False,
+        initial=True,
+        # Para estilo Bootstrap de switch
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+    )
 
     class Meta:
         model = Reclamacion
-        fields = [
+        fields = [  # Lista explícita de campos en el orden deseado
             'activo', 'contrato_individual', 'contrato_colectivo',
             'fecha_reclamo', 'tipo_reclamacion', 'descripcion_reclamo', 'estado',
             'monto_reclamado', 'fecha_cierre_reclamo', 'usuario_asignado',
             'diagnostico_principal', 'observaciones_internas', 'observaciones_cliente',
             'documentos_adjuntos',
         ]
-        exclude = ['fecha_creacion', 'fecha_modificacion', 'primer_nombre',
-                   'segundo_nombre', 'primer_apellido', 'segundo_apellido']
+        # Campos excluidos (los que son auto-generados o no deben ser editados aquí)
+        exclude = [
+            'numero_reclamacion',  # Se genera en el modelo
+            'fecha_creacion', 'fecha_modificacion',
+            'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido'  # De ModeloBase
+        ]
+        # Widgets para campos que no fueron definidos explícitamente arriba
+        # o para anular los defaults de ModelForm si es necesario.
         widgets = {
-            'activo': forms.CheckboxInput(attrs={'class': 'switch'}),
-            'estado': forms.Select(), 'tipo_reclamacion': forms.Select(),
-            'descripcion_reclamo': forms.Textarea(attrs={'rows': 4}),
-            'monto_reclamado': forms.NumberInput(attrs={'step': '0.01'}),
-            'observaciones_internas': forms.Textarea(attrs={'rows': 3}),
-            'observaciones_cliente': forms.Textarea(attrs={'rows': 3}),
+            'activo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            # Los widgets para Select2 y TextInput de fecha ya están en la definición de campos.
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Formatear fechas para la visualización en modo edición
+        if self.instance and self.instance.pk:  # Modo Edición
+            if hasattr(self, 'aware_date_fields_config'):
+                for config in self.aware_date_fields_config:
+                    field_name = config['name']
+                    display_format = config['format']  # Formato DD/MM/YYYY
+
+                    if field_name in self.fields and hasattr(self.instance, field_name):
+                        model_value = getattr(self.instance, field_name, None)
+                        if model_value:
+                            # Como los campos del modelo son DateField, model_value será date
+                            if isinstance(model_value, date):
+                                self.initial[field_name] = model_value.strftime(
+                                    display_format)
+                        elif self.fields[field_name].required is False:
+                            self.initial[field_name] = ''
+        # else: # Modo Creación
+            # Puedes setear defaults aquí si es necesario, ej:
+            # self.initial.setdefault('estado', 'ABIERTA')
 
     def clean_tipo_reclamacion(self):
         tipo = self.cleaned_data.get('tipo_reclamacion')
-        if tipo not in dict(CommonChoices.TIPO_RECLAMACION):
-            raise ValidationError(("Tipo de reclamación inválido"))
+        # Validar contra las claves de los choices
+        if tipo not in [choice[0] for choice in CommonChoices.TIPO_RECLAMACION]:
+            raise ValidationError(("Tipo de reclamación inválido."))
         return tipo
 
     def clean(self):
         cleaned_data = super().clean()
         contrato_individual = cleaned_data.get('contrato_individual')
         contrato_colectivo = cleaned_data.get('contrato_colectivo')
-        fecha_reclamo_aware = cleaned_data.get('fecha_reclamo')
-        fecha_cierre_aware = cleaned_data.get('fecha_cierre_reclamo')
-        hoy_aware = django_timezone.now()
+
+        # Gracias al mixin, estos ya deberían ser objetos 'date' o None
+        fecha_reclamo_obj = cleaned_data.get('fecha_reclamo')
+        fecha_cierre_obj = cleaned_data.get('fecha_cierre_reclamo')
+
+        hoy_date = django_timezone.now().date()
 
         if not contrato_individual and not contrato_colectivo:
             raise ValidationError(
-                ("Debe seleccionar un contrato individual o colectivo."))
-        if contrato_individual and contrato_colectivo:
-            raise ValidationError(("No puede seleccionar ambos contratos."))
+                "El pago debe estar asociado a una Factura o a una Reclamación.", code='missing_association')
+        if Factura and Reclamacion:  # Debería ser contrato_individual y contrato_colectivo
+            raise ValidationError(
+                "El pago no puede estar asociado a una Factura y a una Reclamación a la vez.", code='multiple_associations')
 
-        if fecha_reclamo_aware and fecha_cierre_aware and fecha_cierre_aware < fecha_reclamo_aware:
+        if fecha_reclamo_obj and fecha_cierre_obj and fecha_cierre_obj < fecha_reclamo_obj:
             self.add_error('fecha_cierre_reclamo',
-                           "Cierre no puede ser antes del reclamo.")
-        if fecha_reclamo_aware and fecha_reclamo_aware > hoy_aware:
+                           "La fecha de cierre no puede ser anterior a la fecha del reclamo.")
+
+        if fecha_reclamo_obj and fecha_reclamo_obj > hoy_date:
             self.add_error('fecha_reclamo',
-                           "Fecha del reclamo no puede ser futura.")
+                           "La fecha del reclamo no puede ser futura.")
+
+        # Lógica de validación de monto_reclamado vs suma_asegurada del contrato
+        contrato = contrato_individual or contrato_colectivo
+        monto_reclamado_val = cleaned_data.get('monto_reclamado')
+
+        if contrato and monto_reclamado_val is not None:  # monto_reclamado es DecimalField, no necesita .value
+            if hasattr(contrato, 'suma_asegurada') and contrato.suma_asegurada is not None:
+                if monto_reclamado_val > contrato.suma_asegurada:
+                    self.add_error('monto_reclamado', ValidationError(
+                        f"Monto reclamado (${monto_reclamado_val:,.2f}) excede suma asegurada del contrato (${contrato.suma_asegurada:,.2f}).",
+                        code='monto_excede_cobertura'
+                    ))
+            # else:
+            #     logger.warning(f"Contrato {contrato.pk if contrato and contrato.pk else 'Nuevo'} sin suma asegurada para validar Reclamación.")
+
+        estado_reclamacion = cleaned_data.get('estado')
+        if estado_reclamacion == 'CERRADA' and not fecha_cierre_obj:
+            self.add_error('fecha_cierre_reclamo',
+                           "Debe indicar la fecha de cierre si el estado es 'CERRADA'.")
+
         return cleaned_data
+
 
 # ------------------------------
 # PagoForm
@@ -1251,32 +1377,82 @@ class ReclamacionForm(AwareDateInputMixinVE, BaseModelForm):
 
 
 class PagoForm(AwareDateInputMixinVE, BaseModelForm):
-    aware_date_fields = ['fecha_pago', 'fecha_notificacion_pago']
+    aware_date_fields_config = [
+        {'name': 'fecha_pago', 'is_datetime': False,
+            'format': '%d/%m/%Y', 'placeholder': PLACEHOLDER_DATE_STRICT},
+        {'name': 'fecha_notificacion_pago', 'is_datetime': False,
+            'format': '%d/%m/%Y', 'placeholder': PLACEHOLDER_DATE_STRICT},
+    ]
 
-    reclamacion = forms.ModelChoiceField(queryset=Reclamacion.objects.filter(activo=True).exclude(estado__in=['PAGADA', 'CERRADA', 'ANULADA']).order_by(
-        '-fecha_reclamo'), required=False, widget=Select2Widget(attrs={'data-placeholder': 'Buscar Reclamación ...'}), label="Reclamación Asociada")
-    factura = forms.ModelChoiceField(queryset=Factura.objects.filter(activo=True, pagada=False).order_by(
-        '-fecha_creacion'), required=False, widget=Select2Widget(attrs={'data-placeholder': 'Buscar Factura Pendiente...'}), label="Factura Asociada")
-    documentos_soporte_pago = forms.FileField(validators=[
-                                              validate_file_size, validate_file_type], required=False, help_text="Formatos: PDF, JPG, PNG. Max 10MB.")
-
-    fecha_pago = forms.CharField(label="Fecha de Pago", widget=forms.TextInput(
-        attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}), required=True)
-    fecha_notificacion_pago = forms.CharField(label="Fecha Notificación Pago", widget=forms.TextInput(
-        attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}), required=False)
-
-    monto_pago = forms.DecimalField(max_digits=12, decimal_places=2, widget=forms.NumberInput(
-        attrs={'step': '0.01', 'required': 'required'}))
+    reclamacion = forms.ModelChoiceField(
+        queryset=Reclamacion.objects.filter(activo=True).exclude(
+            estado__in=['PAGADA', 'CERRADA', 'ANULADA']).order_by('-fecha_reclamo'),
+        required=False,
+        widget=Select2Widget(
+            attrs={'data-placeholder': 'Buscar Reclamación ...', 'class': 'form-control'}),
+        label="Reclamación Asociada"
+    )
+    factura = forms.ModelChoiceField(
+        queryset=Factura.objects.filter(
+            activo=True, pagada=False).order_by('-fecha_creacion'),
+        required=False,
+        widget=Select2Widget(
+            attrs={'data-placeholder': 'Buscar Factura Pendiente...', 'class': 'form-control'}),
+        label="Factura Asociada"
+    )
+    documentos_soporte_pago = forms.FileField(
+        validators=[validate_file_size, validate_file_type],
+        required=False,
+        help_text="Formatos: PDF, JPG, PNG. Max 10MB."
+    )
+    fecha_pago = forms.CharField(
+        label="Fecha de Pago",
+        widget=forms.TextInput(
+            attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}),
+        required=True
+    )
+    fecha_notificacion_pago = forms.CharField(
+        label="Fecha Notificación Pago",
+        widget=forms.TextInput(
+            attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}),
+        required=False
+    )
+    monto_pago = forms.DecimalField(
+        label="Monto del Pago",
+        max_digits=15,
+        decimal_places=2,
+        widget=forms.NumberInput(
+            attrs={'step': '0.01', 'class': 'form-control'}),
+        validators=[MinValueValidator(Decimal('0.01'))]  # <--- CORRECCIÓN AQUÍ
+    )
     forma_pago = forms.ChoiceField(
-        choices=CommonChoices.FORMA_PAGO_RECLAMACION, widget=forms.Select())
-    referencia_pago = forms.CharField(max_length=100, required=False, widget=forms.TextInput(
-        attrs={'placeholder': 'Nro. Transferencia, Zelle, etc.'}))
+        label="Forma de Pago",
+        choices=CommonChoices.FORMA_PAGO_RECLAMACION,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    referencia_pago = forms.CharField(
+        label="Referencia de Pago",
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(
+            attrs={'placeholder': 'Nro. Transferencia, Zelle, etc.', 'class': 'form-control'})
+    )
     observaciones_pago = forms.CharField(
-        widget=forms.Textarea(attrs={'rows': 3}), required=False)
+        label="Observaciones del Pago",
+        widget=forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+        required=False
+    )
     activo = forms.BooleanField(
-        required=False, initial=True, widget=forms.CheckboxInput(attrs={'class': 'switch'}))
+        label="Pago Activo",
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+    )
     aplica_igtf_pago = forms.BooleanField(
-        required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
+        label="¿Pago sujeto a IGTF?",
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+    )
 
     class Meta:
         model = Pago
@@ -1288,16 +1464,30 @@ class PagoForm(AwareDateInputMixinVE, BaseModelForm):
         exclude = ['fecha_creacion', 'fecha_modificacion', 'primer_nombre',
                    'segundo_nombre', 'primer_apellido', 'segundo_apellido']
         widgets = {
-            'activo': forms.CheckboxInput(attrs={'class': 'switch'}),
+            'activo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'aplica_igtf_pago': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'forma_pago': forms.Select(),
-            'observaciones_pago': forms.Textarea(attrs={'rows': 3}),
-            'monto_pago': forms.NumberInput(attrs={'step': '0.01', 'required': 'required'}),
-            'referencia_pago': forms.TextInput(attrs={'placeholder': 'Nro. Transferencia, Zelle, etc.'}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            if hasattr(self, 'aware_date_fields_config'):
+                for config in self.aware_date_fields_config:
+                    field_name = config['name']
+                    display_format = config['format']
+                    if field_name in self.fields and hasattr(self.instance, field_name):
+                        model_value = getattr(self.instance, field_name, None)
+                        if model_value:
+                            if isinstance(model_value, datetime):
+                                date_to_format = django_timezone.localtime(model_value).date(
+                                ) if django_timezone.is_aware(model_value) else model_value.date()
+                                self.initial[field_name] = date_to_format.strftime(
+                                    display_format)
+                            elif isinstance(model_value, date):
+                                self.initial[field_name] = model_value.strftime(
+                                    display_format)
+                        elif self.fields[field_name].required is False:
+                            self.initial[field_name] = ''
 
     def clean_forma_pago(self):
         metodo = self.cleaned_data.get('forma_pago')
@@ -1314,9 +1504,8 @@ class PagoForm(AwareDateInputMixinVE, BaseModelForm):
         factura = cleaned_data.get('factura')
         reclamacion = cleaned_data.get('reclamacion')
         monto_pago = cleaned_data.get('monto_pago')
-        fecha_pago_aware = cleaned_data.get('fecha_pago')
-        instance = self.instance
-        hoy_aware = django_timezone.now()
+        fecha_pago_obj = cleaned_data.get('fecha_pago')
+        hoy_date_para_comparar = django_timezone.now().date()
 
         if not factura and not reclamacion:
             raise ValidationError(
@@ -1325,15 +1514,16 @@ class PagoForm(AwareDateInputMixinVE, BaseModelForm):
             raise ValidationError(
                 "El pago no puede estar asociado a una Factura y a una Reclamación a la vez.", code='multiple_associations')
 
-        if fecha_pago_aware and fecha_pago_aware > hoy_aware:
+        if fecha_pago_obj and fecha_pago_obj > hoy_date_para_comparar:
             self.add_error(
                 'fecha_pago', "La fecha de pago no puede ser futura.")
 
         if monto_pago:
             TOLERANCE = Decimal('0.01')
+            instance = self.instance
             if factura:
                 pagos_previos = factura.pagos.filter(activo=True)
-                if instance.pk:
+                if instance and instance.pk:
                     pagos_previos = pagos_previos.exclude(pk=instance.pk)
                 total_pagado_previo = pagos_previos.aggregate(total=Sum('monto_pago'))[
                     'total'] or Decimal('0.00')
@@ -1344,7 +1534,7 @@ class PagoForm(AwareDateInputMixinVE, BaseModelForm):
                         f"El monto (${monto_pago:.2f}) excede el pendiente actual (${pendiente_factura:.2f}) de la Factura {factura.numero_recibo}."))
             elif reclamacion:
                 pagos_previos = reclamacion.pagos.filter(activo=True)
-                if instance.pk:
+                if instance and instance.pk:
                     pagos_previos = pagos_previos.exclude(pk=instance.pk)
                 total_pagado_previo = pagos_previos.aggregate(total=Sum('monto_pago'))[
                     'total'] or Decimal('0.00')
@@ -1354,7 +1544,6 @@ class PagoForm(AwareDateInputMixinVE, BaseModelForm):
                     self.add_error('monto_pago', ValidationError(
                         f"El monto (${monto_pago:.2f}) excede el pendiente actual (${pendiente_reclamacion:.2f}) de la Reclamación #{reclamacion.pk}."))
         return cleaned_data
-
 # ------------------------------
 # TarifaForm
 # ------------------------------
