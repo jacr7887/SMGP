@@ -46,8 +46,22 @@
             </div>
              <div class="dark-group">
                 <span class="dark-label">🚦 Estado:</span>
-                <span class="badge {% if object.estado == 'CERRADA' or object.estado == 'PAGADA' or object.estado == 'RECHAZADA' %}badge-danger{% elif object.estado == 'APROBADA' %}badge-success{% else %}badge-warning{% endif %}">{{ estado_display|escape|default:object.get_estado_display }}</span>
-            </div>
+                <span class="badge 
+                                {% if object.estado == 'APROBADA' or object.estado == 'PAGADA' %} 
+                                    badge-success
+                                {% elif object.estado == 'CERRADA' or object.estado == 'RECHAZADA' %} 
+                                    badge-danger
+                                {% elif object.estado == 'ABIERTA' or object.estado == 'EN_PROCESO' or object.estado == 'PENDIENTE_DOCS' or object.estado == 'EN_ANALISIS' or object.estado == 'ESCALADA' or object.estado == 'EN_ARBITRAJE' or object.estado == 'INVESTIGACION' %}
+                                    badge-warning
+                                {% elif object.estado == 'SUSPENDIDA' %}
+                                    badge-info 
+                                {% else %}
+                                    badge-secondary
+                                {% endif %}
+                            ">
+                                {{ estado_display|escape|default:object.get_estado_display }}
+                            </span>
+                            </div>
             <div class="dark-group">
                 <span class="dark-label">💰 Monto Reclamado:</span>
                 <span>${{ object.monto_reclamado|floatformat:2|intcomma|default:"0.00" }}</span>
