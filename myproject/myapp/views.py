@@ -401,7 +401,7 @@ class CustomLogoutView(LogoutView):
 
 
 # O MultipleObjectMixin si quieres get_ordering directamente de Django
-class BaseCRUDView(View):
+class BaseCRUDView(View):  # Ajusta la herencia si es necesario
     model = None
     model_manager_name = 'objects'
     search_fields = []
@@ -412,55 +412,38 @@ class BaseCRUDView(View):
         return getattr(self.model, self.model_manager_name)
 
     def get_ordering(self):
-        # Este método es crucial. Las subclases (ListViews) definirán 'ordering'.
-        # Si esta BaseCRUDView fuera a ser usada por algo que no es una ListView,
-        # necesitaría un fallback más robusto, pero en el contexto de BaseListView,
-        # 'self' será la instancia de la ListView hija.
         return getattr(self, 'ordering', self.default_ordering_if_none_specified)
 
     def _apply_search(self, queryset, search_query):
         if search_query and self.search_fields:
-            from functools import reduce
-            import operator
             or_conditions = [Q(**{f"{field}__icontains": search_query})
                              for field in self.search_fields]
             if or_conditions:
                 queryset = queryset.filter(reduce(operator.or_, or_conditions))
         return queryset
 
-    def _apply_url_ordering(self, queryset):  # Renombrado para claridad
+    def _apply_url_ordering(self, queryset):
         sort_param = self.request.GET.get('sort')
         order_param = self.request.GET.get('order', 'asc')
-
-        # Usa 'ordering_fields' de la instancia (que debería ser la ListView hija)
         view_instance_ordering_fields = getattr(self, 'ordering_fields', [])
-
         if sort_param and sort_param in view_instance_ordering_fields:
             prefix = "-" if order_param == "desc" else ""
             return queryset.order_by(f"{prefix}{sort_param}")
-        return queryset  # Devuelve el queryset sin cambios si no hay orden por URL
+        return queryset
 
     def get_queryset(self):
         manager = self.get_manager()
         queryset = manager.all()
-
         search_query = self.request.GET.get('search', '').strip()
         if search_query:
             queryset = self._apply_search(queryset, search_query)
-
-        # Aplicar ordenamiento por defecto de la vista hija ANTES del ordenamiento por URL
         default_ordering = self.get_ordering()
         if default_ordering:
             if isinstance(default_ordering, str):
                 default_ordering = (default_ordering,)
             queryset = queryset.order_by(*default_ordering)
-
-        # Aplicar ordenamiento dinámico por URL (si existe)
-        # Esto sobrescribirá el ordenamiento por defecto si se especifica un 'sort' en la URL
         queryset = self._apply_url_ordering(queryset)
-
         return queryset
-    # Helper para validar rutas (asegúrate que esté en la clase)
 
     def _validate_lookup_path(self, model, field_path):
         related_model = model
@@ -474,36 +457,29 @@ class BaseCRUDView(View):
                     raise FieldDoesNotExist(
                         f"'{part}' no es relación en '{field_path}'")
             else:
-                related_model._meta.get_field(part)  # Validar campo final
+                related_model._meta.get_field(part)
 
-    # Helper para ordenar (asegúrate que esté en la clase)
+    # Este método parece ser de BaseListView, no BaseCRUDView
     def _apply_ordering(self, queryset):
         sort_by = self.request.GET.get('sort')
-        # get_ordering() viene de MultipleObjectMixin
         default_sort = self.get_ordering() or ['-pk']
         if not sort_by:
             sort_by = default_sort[0]
-
         order = self.request.GET.get(
             'order', 'asc' if not sort_by.startswith('-') else 'desc')
         prefix = '-' if order == 'desc' else ''
         sort_field = sort_by.lstrip('-')
-
-        # Usar self.ordering_fields definido en la subclase
         allowed_ordering_fields = getattr(self, 'ordering_fields', [])
 
         if sort_field and allowed_ordering_fields and sort_field in allowed_ordering_fields:
-            logger.debug(
-                f"[{self.__class__.__name__}] Aplicando orden: {prefix}{sort_field}")
             try:
                 self._validate_lookup_path(self.model, sort_field)
-                # Lógica de anotación específica para orden (si existe en subclase)
                 if hasattr(self, f'_annotate_sort_{sort_field}'):
                     queryset = getattr(self, f'_annotate_sort_{sort_field}')(
                         queryset, prefix)
                 else:
                     queryset = queryset.order_by(f'{prefix}{sort_field}')
-                self.current_sort = sort_field  # Guardar para contexto
+                self.current_sort = sort_field
                 self.current_order = order
             except FieldDoesNotExist:
                 logger.warning(
@@ -529,10 +505,13 @@ class BaseCRUDView(View):
                 '-') else 'asc'
         return queryset
 
+    # Este es más típico de ListView/DetailView/TemplateView
     def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
+        context = super().get_context_data(
+            **kwargs) if hasattr(super(), 'get_context_data') else {}
         context.update({
             'search_query': escape(self.request.GET.get('search', '')),
+            # Los siguientes son más para ListView, pero no hacen daño si están
             'order_by': escape(self.request.GET.get('order_by', '')),
             'direction': escape(self.request.GET.get('direction', 'asc')),
             'aria_current_page': ('Página actual'),
@@ -540,57 +519,71 @@ class BaseCRUDView(View):
             'aria_role': 'form',
             'aria_live': 'polite'
         })
-        # Las subclases (ListView) añadirán 'filter', 'page_obj', 'paginator'
         return context
 
-    # --- Método form_valid para Create/Update ---
     def form_valid(self, form):
-        is_update = hasattr(self, 'object') and self.object is not None
-        action_type = 'MODIFICACION' if is_update else 'CREACION'
-        # Guardar estado anterior para Update
-        objeto_antes = self.get_object() if is_update else None
+        is_update_operation = self.object is not None
+
+        objeto_antes_dict = None
+        if is_update_operation:
+            try:
+                db_instance_before_save = self.model.objects.get(
+                    pk=self.object.pk)
+                fields_to_compare = [
+                    f.name for f in db_instance_before_save._meta.fields if f.name in form.fields]
+                objeto_antes_dict = model_to_dict(
+                    db_instance_before_save, fields=fields_to_compare)
+            except self.model.DoesNotExist:
+                logger.warning(
+                    f"No se encontró el objeto original PK={self.object.pk} en form_valid para comparación.")
+
+        action_type = 'MODIFICACION' if is_update_operation else 'CREACION'
 
         try:
-            # Guardar el objeto a través del formulario
-            self.object = form.save()
+            with transaction.atomic():  # Envolver el guardado en una transacción
+                self.object = form.save()
 
             try:
-                if is_update:
+                if is_update_operation and objeto_antes_dict is not None:
                     if hasattr(self, 'enviar_notificacion_actualizacion'):
                         self.enviar_notificacion_actualizacion(
-                            objeto_antes, self.object, form.changed_data)
-                else:  # Es creación
+                            objeto_antes_dict, self.object, form.changed_data)
+                elif not is_update_operation:
                     if hasattr(self, 'enviar_notificacion_creacion'):
                         self.enviar_notificacion_creacion(self.object)
             except Exception as notif_error:
-                # Auditoría de éxito
-                self._create_audit_entry(
-                    action_type=action_type,
-                    resultado='EXITO',
-                    detalle=f"{action_type} exitosa de {self.model._meta.verbose_name}: {self.object}"
-                )
+                logger.error(
+                    f"Error enviando notificación para {action_type} de {self.model._meta.verbose_name} {self.object.pk if self.object else 'N/A'}: {notif_error}", exc_info=True)
+
+            self._create_audit_entry(
+                action_type=action_type,
+                resultado='EXITO',
+                detalle=f"{action_type} exitosa de {self.model._meta.verbose_name}: {str(self.object)}"
+            )
             messages.success(self.request, ('Operación exitosa'))
-            # Redirigir a success_url (definido en la subclase)
             return HttpResponseRedirect(self.get_success_url())
 
         except ValidationError as e:
             logger.error(
-                f"ValidationError en {self.__class__.__name__} - {action_type}: {e.message_dict}", exc_info=True)
-            form._update_errors(e)  # Añade errores al formulario
-            messages.error(self.request, "Error de validación al guardar.")
-            self._create_audit_entry(
-                action_type=action_type, resultado='ERROR', detalle=f"ValidationError: {e.message_dict}")
+                f"ValidationError en {self.__class__.__name__} ({action_type}): {e.message_dict if hasattr(e, 'message_dict') else str(e)}", exc_info=True)
+            if hasattr(e, 'message_dict'):
+                form._update_errors(e)
+            else:
+                form.add_error(None, str(e))
+            messages.error(
+                self.request, "Error de validación al guardar. Por favor, corrija los errores.")
+            self._create_audit_entry(action_type=action_type, resultado='ERROR',
+                                     detalle=f"ValidationError: {str(e.message_dict if hasattr(e, 'message_dict') else str(e))[:450]}")
             return self.form_invalid(form)
         except IntegrityError as e:
             logger.error(
-                f"IntegrityError en {self.__class__.__name__} - {action_type}: {e}", exc_info=True)
-            # Intenta dar un mensaje más útil
+                f"IntegrityError en {self.__class__.__name__} ({action_type}): {e}", exc_info=True)
             error_msg = "Error de base de datos (posible duplicado o FK inválida)."
-            if "violates unique constraint" in str(e):
+            if "violates unique constraint" in str(e).lower():
                 error_msg = "Error: Ya existe un registro con uno de estos valores únicos."
-            elif "violates foreign key constraint" in str(e):
+            elif "violates foreign key constraint" in str(e).lower():
                 error_msg = "Error: No se puede asignar una relación a un registro que no existe."
-            elif "violates not-null constraint" in str(e):
+            elif "violates not-null constraint" in str(e).lower():
                 error_msg = "Error: Uno de los campos obligatorios está vacío."
             form.add_error(None, error_msg)
             messages.error(self.request, error_msg)
@@ -602,33 +595,29 @@ class BaseCRUDView(View):
                 f"Error inesperado en {self.__class__.__name__}.form_valid ({action_type}): {e}", exc_info=True)
             messages.error(
                 self.request, f'Error inesperado al procesar el formulario: {str(e)}')
-            self._create_audit_entry(
-                action_type=action_type,
-                resultado='ERROR',
-                detalle=f"Error inesperado en {action_type.lower()}: {str(e)[:200]}"
-            )
+            self._create_audit_entry(action_type=action_type, resultado='ERROR',
+                                     detalle=f"Error inesperado en {action_type.lower()}: {str(e)[:200]}")
             return self.form_invalid(form)
 
     def _create_audit_entry(self, action_type, resultado, detalle):
-        # Usar self.object.pk si existe (creación/update exitoso), sino None
-        registro_pk = self.object.pk if hasattr(
-            self, 'object') and self.object and self.object.pk else None
+        registro_pk = None
+        if hasattr(self, 'object') and self.object and self.object.pk:
+            registro_pk = self.object.pk
+
         AuditoriaSistema.objects.create(
             usuario=self.request.user if self.request.user.is_authenticated else None,
             tipo_accion=action_type,
-            tabla_afectada=self.model._meta.db_table,
+            tabla_afectada=self.model._meta.db_table if self.model else "N/A",
             registro_id_afectado=registro_pk,
-            detalle_accion=detalle[:500],  # Limitar longitud
+            detalle_accion=detalle[:500],
             direccion_ip=self._get_client_ip(),
-            agente_usuario=self.request.META.get('HTTP_USER_AGENT', '')[
-                :500],  # Limitar longitud
+            agente_usuario=self.request.META.get('HTTP_USER_AGENT', '')[:500],
             resultado_accion=resultado
         )
 
     def _get_client_ip(self):
         x_forwarded_for = self.request.META.get('HTTP_X_FORWARDED_FOR')
         return x_forwarded_for.split(',')[0].strip() if x_forwarded_for else self.request.META.get('REMOTE_ADDR', '')
-
 # Vistas Base CRUD (Optimizadas)
 
 
