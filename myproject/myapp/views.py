@@ -20,7 +20,7 @@ from .commons import CommonChoices
 from .models import Pago, Factura, Reclamacion, AuditoriaSistema
 from xhtml2pdf import pisa
 from django.db.models import Q
-from django.http import HttpResponse
+from django.http import HttpResponse, FileResponse
 from django.shortcuts import get_object_or_404
 from django.db.models.functions import Coalesce
 from urllib.parse import urlencode
@@ -4380,7 +4380,19 @@ class FacturaCreateView(BaseCreateView):
     success_url = reverse_lazy('myapp:factura_list')
     permission_required = 'myapp.add_factura'
 
-    # form_valid heredado
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        # O solo para GET si es pre-llenado inicial
+        if self.request.method in ('POST', 'PUT'):
+            pass  # No pasar para POST para no sobreescribir datos del usuario
+        else:  # Para GET (carga inicial del formulario)
+            contrato_id = self.request.GET.get(
+                'contrato_id_param')  # Elige un nombre de parámetro
+            contrato_tipo = self.request.GET.get('contrato_tipo_param')
+            if contrato_id and contrato_tipo:
+                kwargs['contrato_id'] = contrato_id
+                kwargs['contrato_tipo'] = contrato_tipo
+        return kwargs
 
     def enviar_notificacion_creacion(self, factura):
         mensaje = f"Nueva Factura generada: {factura.numero_recibo} por ${factura.monto:.2f}."
@@ -4443,9 +4455,6 @@ class FacturaUpdateView(BaseUpdateView):
             if fac_despues.estatus_factura == 'ANULADA':
                 tipo_notif = 'error'
 
-        # Añadir otros campos si son relevantes
-        # ...
-
         mensaje = mensaje_base + \
             (", ".join(detalles)
              if detalles else f" Cambios: {', '.join(changed_data)}.")
@@ -4459,6 +4468,72 @@ class FacturaUpdateView(BaseUpdateView):
         if destinatarios:
             crear_notificacion(list(set(destinatarios)), mensaje, tipo=tipo_notif,
                                url_path_name='myapp:factura_detail', url_kwargs={'pk': fac_despues.pk})
+
+
+def get_contrato_monto_cuota_api_view(request):
+    tipo_contrato = request.GET.get('tipo_contrato')
+    contrato_id_str = request.GET.get('contrato_id')
+
+    if not tipo_contrato or not contrato_id_str:
+        return JsonResponse({'error': 'Parámetros incompletos.'}, status=400)
+
+    try:
+        contrato_id = int(contrato_id_str)
+    except ValueError:
+        return JsonResponse({'error': 'ID de contrato inválido.'}, status=400)
+
+    contrato_obj = None
+    monto_factura_sugerido_str = None
+    saldo_contrato_str = None
+
+    try:
+        if tipo_contrato == 'individual':
+            contrato_obj = get_object_or_404(
+                ContratoIndividual.objects.select_related('tarifa_aplicada'),
+                pk=contrato_id,
+                activo=True
+            )
+        elif tipo_contrato == 'colectivo':
+            contrato_obj = get_object_or_404(
+                ContratoColectivo.objects.select_related('tarifa_aplicada'),
+                pk=contrato_id,
+                activo=True
+            )
+        else:
+            return JsonResponse({'error': 'Tipo de contrato no válido.'}, status=400)
+
+        if contrato_obj:
+            if hasattr(contrato_obj, 'monto_cuota_estimada'):
+                monto_cuota_decimal = contrato_obj.monto_cuota_estimada
+                if monto_cuota_decimal is not None:
+                    monto_factura_sugerido_str = str(monto_cuota_decimal)
+
+            if hasattr(contrato_obj, 'saldo_pendiente_contrato'):
+                saldo_contrato_decimal = contrato_obj.saldo_pendiente_contrato
+                if saldo_contrato_decimal is not None:
+                    saldo_contrato_str = str(saldo_contrato_decimal)
+                elif hasattr(contrato_obj, 'monto_total') and contrato_obj.monto_total is not None:
+                    saldo_contrato_str = str(contrato_obj.monto_total)
+                else:
+                    saldo_contrato_str = '0.00'
+            elif hasattr(contrato_obj, 'monto_total'):
+                saldo_contrato_str = str(
+                    contrato_obj.monto_total) if contrato_obj.monto_total is not None else '0.00'
+
+            if monto_factura_sugerido_str is None and hasattr(contrato_obj, 'monto_total') and contrato_obj.monto_total is not None and contrato_obj.forma_pago == 'CONTADO':
+                monto_factura_sugerido_str = str(contrato_obj.monto_total)
+
+    except (ContratoIndividual.DoesNotExist, ContratoColectivo.DoesNotExist):
+        return JsonResponse({'error': f'Contrato {tipo_contrato} con ID {contrato_id} no encontrado o no activo.'}, status=404)
+    except Exception as e:
+        logger.error(
+            f"Error en API get_contrato_monto_cuota_api_view para {tipo_contrato} ID {contrato_id}: {e}", exc_info=True)
+        return JsonResponse({'error': 'Error interno del servidor al procesar la solicitud.'}, status=500)
+
+    return JsonResponse({
+        'monto_factura_sugerido': monto_factura_sugerido_str,
+        'saldo_total_contrato_pendiente': saldo_contrato_str
+    })
 
 
 @method_decorator(csrf_protect, name='dispatch')
@@ -6767,3 +6842,24 @@ def license_invalid_view(request):
     context = {}
     # Ajusta la ruta a tu plantilla
     return render(request, 'license_invalid.html', context)
+
+
+def serve_media_file(request, file_path):
+    # Construir la ruta completa y segura al archivo
+    # file_path vendrá de la URL y será relativa a MEDIA_ROOT
+    full_path = os.path.join(settings.MEDIA_ROOT, file_path)
+
+    # Medidas de seguridad: evitar path traversal
+    if not os.path.abspath(full_path).startswith(os.path.abspath(settings.MEDIA_ROOT)):
+        raise Http404("Acceso denegado a la ruta del archivo.")
+
+    if os.path.exists(full_path) and os.path.isfile(full_path):
+        # Determinar el content type (opcional pero bueno para el navegador)
+        import mimetypes
+        content_type, encoding = mimetypes.guess_type(full_path)
+        content_type = content_type or 'application/octet-stream'
+
+        # Usar FileResponse para archivos grandes o binarios
+        return FileResponse(open(full_path, 'rb'), content_type=content_type)
+    else:
+        raise Http404("Archivo no encontrado.")

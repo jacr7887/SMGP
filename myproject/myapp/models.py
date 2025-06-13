@@ -2521,7 +2521,7 @@ class Intermediario(ModeloBase):
 # ---------------------------
 
 
-class Factura(ModeloBase):  # Asegúrate que herede de ModeloBase si lo necesita
+class Factura(ModeloBase):
     TOLERANCE = Decimal('0.01')
     activo = models.BooleanField(
         default=True,
@@ -2534,10 +2534,10 @@ class Factura(ModeloBase):  # Asegúrate que herede de ModeloBase si lo necesita
         default='GENERADA',
         verbose_name="Estatus de Factura",
         db_index=True,
-        help_text="Estado del ciclo de vida de la factura (ej. Generada, Cobranza, Pagada, Anulada)."
+        help_text="Estado del ciclo de vida de la factura."
     )
     contrato_individual = models.ForeignKey(
-        'ContratoIndividual',
+        'ContratoIndividual',  # Asegúrate que ContratoIndividual esté definido/importado
         on_delete=models.PROTECT,
         null=True,
         blank=True,
@@ -2545,7 +2545,7 @@ class Factura(ModeloBase):  # Asegúrate que herede de ModeloBase si lo necesita
         help_text="Contrato individual al que corresponde esta factura (si aplica)."
     )
     contrato_colectivo = models.ForeignKey(
-        'ContratoColectivo',
+        'ContratoColectivo',  # Asegúrate que ContratoColectivo esté definido/importado
         on_delete=models.PROTECT,
         null=True,
         blank=True,
@@ -2563,7 +2563,7 @@ class Factura(ModeloBase):  # Asegúrate que herede de ModeloBase si lo necesita
         help_text="Fecha de fin del período de cobertura que cubre esta factura."
     )
     intermediario = models.ForeignKey(
-        'Intermediario',
+        'Intermediario',  # Asegúrate que Intermediario esté definido/importado
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -2574,9 +2574,10 @@ class Factura(ModeloBase):  # Asegúrate que herede de ModeloBase si lo necesita
     monto = models.DecimalField(
         max_digits=15,
         decimal_places=2,
-        validators=[MinValueValidator(Decimal('0.01'))],
+        # Permitir monto 0.00 si es necesario
+        validators=[MinValueValidator(Decimal('0.00'))],
         default=Decimal('0.00'),
-        help_text="Monto base (subtotal) de la factura. Debe ser mayor a 0."
+        help_text="Monto base (subtotal) de la factura."
     )
     monto_pendiente = models.DecimalField(
         max_digits=15,
@@ -2598,7 +2599,8 @@ class Factura(ModeloBase):  # Asegúrate que herede de ModeloBase si lo necesita
     )
     dias_periodo_cobro = models.IntegerField(
         verbose_name="Días del período de cobro",
-        validators=[MinValueValidator(1)],
+        # Permitir 0 si es un pago único o no aplica
+        validators=[MinValueValidator(0)],
         blank=True,
         null=True,
         help_text="Duración en días del período que cubre la factura (calculado o manual)."
@@ -2620,7 +2622,6 @@ class Factura(ModeloBase):  # Asegúrate que herede de ModeloBase si lo necesita
     relacion_ingreso = models.CharField(
         max_length=50,
         verbose_name="N° Relación de Ingreso",
-        # unique=True, # Comentado - Revisar si realmente debe ser único
         blank=True,
         null=True,
         editable=False,
@@ -2645,163 +2646,86 @@ class Factura(ModeloBase):  # Asegúrate que herede de ModeloBase si lo necesita
         help_text="Notas o comentarios adicionales específicos de esta factura."
     )
 
-    # --- Managers ---
-    objects = SoftDeleteManager()  # Usar SoftDeleteManager si aplica
-    all_objects = models.Manager()  # Manager estándar siempre disponible
+    objects = SoftDeleteManager()
+    all_objects = models.Manager()
 
     def _generar_numero_recibo_factura(self):
-        # Intenta mantener algo de información si es útil
-        fecha_actual_str = timezone.now().strftime("%y%m%d")
+        fecha_actual_str = django_timezone.now().strftime("%y%m%d")
         tipo_contrato_str = "UNK"
         id_contrato_ref_simple = "NA"
-
         contrato_obj = self.contrato_individual or self.contrato_colectivo
         if contrato_obj:
             tipo_contrato_str = "IND" if self.contrato_individual else "COL"
-            # Usar el PK del contrato si ya existe, de lo contrario un placeholder
             id_contrato_ref_simple = str(
-                contrato_obj.pk) if contrato_obj.pk else "NEW"
-
-        # Generar una parte UUID para asegurar unicidad
-        # "REC-" (4) + tipo (3) + "-" (1) + id_contrato (hasta ~5 si es PK) + "-" (1) + fecha (6) + "-" (1) + UUID (variable)
-        # Ejemplo: REC-COL-12345-250513-UUIDPART
-        # Max length de numero_recibo es 50.
-        # Longitud base sin UUID: 4+3+1+5+1+6+1 = 21 (asumiendo PK de 5 dígitos)
-        # Quedan 50 - 21 = 29 caracteres para el UUID. Es más que suficiente.
-        # 12 caracteres de UUID son muy únicos
+                contrato_obj.pk if contrato_obj and contrato_obj.pk else "NEW")[:5]
         uuid_part = uuid.uuid4().hex[:12].upper()
-
-        return f"REC-{tipo_contrato_str}-{id_contrato_ref_simple}-{fecha_actual_str}-{uuid_part}"
+        return f"REC-{tipo_contrato_str}-{id_contrato_ref_simple}-{fecha_actual_str}-{uuid_part}"[:50]
 
     def _generar_relacion_ingreso_factura(self):
-        fecha_actual = timezone.now()
-        fecha_str_completa = fecha_actual.strftime("%Y%m%d")
-        seq_name = f"fact_ri_{fecha_actual.strftime('%y%m')}"
-        prefijo = f"RI-{fecha_str_completa}-"
-        return generar_codigo_unico(seq_name, prefijo, 5, fallback_prefix=f"RI-ERR-{fecha_str_completa}")
+        # Implementa tu lógica para generar_codigo_unico o usa UUID
+        fecha_actual = django_timezone.now()
+        return f"RI-{fecha_actual.strftime('%Y%m%d')}-{uuid.uuid4().hex[:10].upper()}"[:50]
 
     def save(self, *args, **kwargs):
         is_new = self._state.adding
-        update_fields = kwargs.get('update_fields', None)
+
+        # Pre-llenar intermediario desde el contrato si no se especificó en la factura
+        if not self.intermediario:
+            if self.contrato_individual and self.contrato_individual.intermediario:
+                self.intermediario = self.contrato_individual.intermediario
+            elif self.contrato_colectivo and self.contrato_colectivo.intermediario:
+                self.intermediario = self.contrato_colectivo
+
+        # Calcular días periodo si no se proveyó y las fechas sí
+        if self.vigencia_recibo_desde and self.vigencia_recibo_hasta and self.dias_periodo_cobro is None:
+            if isinstance(self.vigencia_recibo_desde, date) and isinstance(self.vigencia_recibo_hasta, date):
+                delta = self.vigencia_recibo_hasta - self.vigencia_recibo_desde
+                self.dias_periodo_cobro = delta.days + 1  # Incluir ambos días
+            else:  # Si son datetime, convertir a date primero
+                desde = self.vigencia_recibo_desde
+                hasta = self.vigencia_recibo_hasta
+                if isinstance(desde, datetime):
+                    desde = django_timezone.localtime(desde).date(
+                    ) if django_timezone.is_aware(desde) else desde.date()
+                if isinstance(hasta, datetime):
+                    hasta = django_timezone.localtime(hasta).date(
+                    ) if django_timezone.is_aware(hasta) else hasta.date()
+                if desde and hasta:
+                    delta = hasta - desde
+                    self.dias_periodo_cobro = delta.days + 1
 
         if is_new:
             if not self.numero_recibo:
                 self.numero_recibo = self._generar_numero_recibo_factura()
             if not self.relacion_ingreso:
                 self.relacion_ingreso = self._generar_relacion_ingreso_factura()
-            # Para nuevas facturas, el monto pendiente es el monto total
             self.monto_pendiente = self.monto or Decimal('0.00')
-            self.pagada = False  # Una nueva factura no está pagada
+            self.pagada = False
+            if not self.primer_nombre:  # Llenar campos de ModeloBase para Factura
+                contrato = self.contrato_individual or self.contrato_colectivo
+                if contrato:
+                    self.primer_nombre = f"Factura Cont. {contrato.numero_contrato or contrato.pk}"
+                    self.primer_apellido = f"Vig. {self.vigencia_recibo_desde.strftime('%d/%m/%y') if self.vigencia_recibo_desde else 'N/A'}"
+                else:
+                    self.primer_nombre = "Factura"
+                    self.primer_apellido = f"ID {self.pk or 'Nueva'}"
 
-        # Siempre recalcular monto_pendiente y pagada si no se están actualizando específicamente
-        # y si el objeto ya tiene un PK (es decir, no es la primera vez que se guarda y es un update).
-        # O si es nuevo y no se inicializaron arriba.
-        # La señal se encargará de actualizar estos campos después de un pago.
-        # Esta lógica aquí es más para guardados manuales o cuando no interviene la señal de Pago.
-        if self.pk and (update_fields is None or ('monto_pendiente' not in update_fields and 'pagada' not in update_fields)):
-            try:
-                # Usar self.pagos.all() es correcto aquí para reflejar el estado actual de los pagos asociados
-                total_pagado_actual = self.pagos.filter(activo=True).aggregate(
-                    total=Coalesce(Sum('monto_pago'), Decimal('0.00'), output_field=DecimalField()))['total']
-                self.monto_pendiente = max(
-                    Decimal('0.00'), (self.monto or Decimal('0.00')) - total_pagado_actual)
-                self.pagada = (self.monto_pendiente <= self.TOLERANCE)
-            except Exception as e:  # Fallback si hay error con la agregación
-                logger.error(
-                    f"Error calculando monto_pendiente/pagada en Factura.save() para PK {self.pk}: {e}")
-                if self.monto_pendiente is None:  # Si no se pudo calcular y era None
-                    self.monto_pendiente = self.monto or Decimal('0.00')
-                if not hasattr(self, 'pagada'):  # Si pagada no estaba definida
-                    self.pagada = False
-
-        # Lógica para estatus_factura (basada en self.pagada y vigencia)
-        # Esta lógica se ejecutará siempre, usando el valor de self.pagada (ya sea el recién calculado o el que venía)
-        estatus_actual_instancia = self.estatus_factura
-        estatus_deberia_ser = self.estatus_factura  # Por defecto, mantener el actual
-
-        if self.pagada:
-            estatus_deberia_ser = 'PAGADA'
-        elif estatus_actual_instancia != 'ANULADA':  # No cambiar si ya está anulada
-            esta_vencida = False
-            if self.vigencia_recibo_hasta and isinstance(self.vigencia_recibo_hasta, date):
-                # Considerar un umbral de vencimiento, ej. 30 días después de vigencia_hasta
-                if django_timezone.now().date() > (self.vigencia_recibo_hasta + timedelta(days=CommonChoices.DIAS_VENCIMIENTO_FACTURA if hasattr(CommonChoices, 'DIAS_VENCIMIENTO_FACTURA') else 30)):  # Usar constante si existe
-                    esta_vencida = True
-
-            if esta_vencida:
-                estatus_deberia_ser = 'VENCIDA'
-            # Si es nueva o ya pendiente, y no pagada/vencida
-            elif estatus_actual_instancia == 'GENERADA' or estatus_actual_instancia == 'PENDIENTE':
-                estatus_deberia_ser = 'PENDIENTE'
-            # Si estaba PAGADA pero ahora no (ej. pago inactivado), y no vencida, pasa a PENDIENTE
-            elif estatus_actual_instancia == 'PAGADA' and not self.pagada and not esta_vencida:
-                estatus_deberia_ser = 'PENDIENTE'
-
-        # Aplicar el nuevo estatus solo si es diferente y válido
-        if estatus_actual_instancia != estatus_deberia_ser and any(choice[0] == estatus_deberia_ser for choice in CommonChoices.ESTATUS_FACTURA):
-            self.estatus_factura = estatus_deberia_ser
+        # La lógica de actualización de monto_pendiente, pagada y estatus_factura
+        # se maneja mejor con señales post_save/post_delete de Pago,
+        # o si se llama explícitamente a un método de actualización.
+        # Aquí solo se actualiza si no hay pagos (ej. al cambiar el monto de la factura)
+        # o si se está creando.
+        # Si quieres que se recalcule siempre, quita la condición de is_new para monto_pendiente.
+        # Pero es más eficiente hacerlo con señales.
 
         super().save(*args, **kwargs)
-
-    def __str__(self):
-        contrato_info = "N/A"
-        if self.contrato_individual and self.contrato_individual.numero_contrato:
-            contrato_info = f"CI:{self.contrato_individual.numero_contrato}"
-        elif self.contrato_individual:
-            contrato_info = f"CI_PK:{self.contrato_individual.pk}"
-        elif self.contrato_colectivo and self.contrato_colectivo.numero_contrato:
-            contrato_info = f"CC:{self.contrato_colectivo.numero_contrato}"
-        elif self.contrato_colectivo:
-            contrato_info = f"CC_PK:{self.contrato_colectivo.pk}"
-
-        recibo = self.numero_recibo or "REC_PENDIENTE"
-        return f"Factura {recibo} ({contrato_info}) Monto: {self.monto:.2f} Pend: {self.monto_pendiente:.2f}"
-
-    def clean(self):
-        super().clean()
-        if not self.contrato_individual and not self.contrato_colectivo:
-            raise ValidationError(
-                "La factura debe estar vinculada a un Contrato Individual o Colectivo.")
-        if self.contrato_individual and self.contrato_colectivo:
-            raise ValidationError(
-                "La factura no puede estar vinculada a ambos tipos de contrato.")
-        contrato = self.contrato_individual or self.contrato_colectivo
-        if contrato:
-            if self.vigencia_recibo_desde and self.vigencia_recibo_hasta:
-                if self.vigencia_recibo_hasta < self.vigencia_recibo_desde:
-                    raise ValidationError(
-                        {'vigencia_recibo_hasta': "La fecha de fin de vigencia del recibo debe ser igual o posterior a la de inicio."})
-                if contrato.fecha_inicio_vigencia and self.vigencia_recibo_desde < contrato.fecha_inicio_vigencia:
-                    raise ValidationError(
-                        {'vigencia_recibo_desde': "La vigencia del recibo no puede iniciar antes que la del contrato."})
-                if contrato.fecha_fin_vigencia and self.vigencia_recibo_hasta > contrato.fecha_fin_vigencia:
-                    raise ValidationError(
-                        {'vigencia_recibo_hasta': "La vigencia del recibo no puede terminar después que la del contrato."})
-            elif self.vigencia_recibo_desde and not self.vigencia_recibo_hasta:
-                raise ValidationError(
-                    {'vigencia_recibo_hasta': "Debe especificar la fecha de fin de vigencia del recibo."})
-            elif not self.vigencia_recibo_desde and self.vigencia_recibo_hasta:
-                raise ValidationError(
-                    {'vigencia_recibo_desde': "Debe especificar la fecha de inicio de vigencia del recibo."})
-
-    @classmethod
-    def con_relaciones(cls):
-        try:
-            PagoModel = apps.get_model('myapp', 'Pago')
-            pago_qs = PagoModel.objects.all()
-        except LookupError:
-            pago_qs = None
-        prefetch_args = []
-        if pago_qs is not None:
-            prefetch_args.append(Prefetch('pagos', queryset=pago_qs))
-        return cls.objects.select_related('contrato_individual', 'contrato_colectivo', 'intermediario').prefetch_related(*prefetch_args)
 
     @property
     def ramo_contrato(self):
         if self.contrato_individual and self.contrato_individual.ramo:
-            return self.contrato_individual.get_ramo_display()  # Devuelve el display name
+            return self.contrato_individual.get_ramo_display()
         elif self.contrato_colectivo and self.contrato_colectivo.ramo:
-            return self.contrato_colectivo.get_ramo_display()  # Devuelve el display name
+            return self.contrato_colectivo.get_ramo_display()
         return None
 
     class Meta:
@@ -2819,6 +2743,9 @@ class Factura(ModeloBase):  # Asegúrate que herede de ModeloBase si lo necesita
             models.Index(fields=['aplica_igtf', 'pagada']),
         ]
         ordering = ['-fecha_creacion']
+
+    def __str__(self):
+        return self.numero_recibo or f"Factura ID {self.pk}"
 
 # =====================#
 # AUDITORIA SISTEMA   #

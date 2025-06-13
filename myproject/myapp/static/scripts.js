@@ -410,6 +410,314 @@ function initCalculations() {
     });
 }
 
+/**
+ * Calcula el número de cuotas y el monto por cuota basado en los parámetros del contrato.
+ * @param {number} montoTotalContrato - El monto total del contrato.
+ * @param {string} formaPago - El código de la forma de pago (ej. 'MENSUAL', 'TRIMESTRAL').
+ * @param {number} periodoVigenciaMeses - La duración del contrato en meses.
+ * @returns {object} Un objeto con { numeroCuotas, montoCuota }.
+ */
+function calcularDetallesCuotas(montoTotalContrato, formaPago, periodoVigenciaMeses) {
+    let numeroCuotas = 0;
+    let montoCuota = 0;
+
+    const montoTotal = parseFloat(String(montoTotalContrato).replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+    const periodoMeses = parseInt(periodoVigenciaMeses) || 0;
+
+    if (montoTotal <= 0) {
+        return { numeroCuotas: 0, montoCuota: 0, montoTotalCalculado: montoTotal };
+    }
+
+    // Si la forma de pago es periódica, el periodo en meses debe ser positivo
+    if (formaPago !== 'CONTADO' && periodoMeses <= 0) {
+        return { numeroCuotas: 0, montoCuota: 0, montoTotalCalculado: montoTotal };
+    }
+
+    switch (formaPago) {
+        case 'CONTADO':
+            numeroCuotas = 1;
+            montoCuota = montoTotal;
+            break;
+        case 'MENSUAL':
+            numeroCuotas = periodoMeses;
+            montoCuota = numeroCuotas > 0 ? montoTotal / numeroCuotas : 0;
+            break;
+        case 'TRIMESTRAL':
+            numeroCuotas = Math.ceil(periodoMeses / 3);
+            montoCuota = numeroCuotas > 0 ? montoTotal / numeroCuotas : 0;
+            break;
+        case 'SEMESTRAL':
+            numeroCuotas = Math.ceil(periodoMeses / 6);
+            montoCuota = numeroCuotas > 0 ? montoTotal / numeroCuotas : 0;
+            break;
+        case 'ANUAL':
+            numeroCuotas = Math.ceil(periodoMeses / 12);
+            montoCuota = numeroCuotas > 0 ? montoTotal / numeroCuotas : 0;
+            break;
+        default:
+            // Si la forma de pago no es reconocida, no se puede calcular
+            return { numeroCuotas: 0, montoCuota: 0, montoTotalCalculado: montoTotal };
+    }
+    
+    return { 
+        numeroCuotas: numeroCuotas > 0 ? numeroCuotas : 0, 
+        montoCuota: parseFloat(montoCuota.toFixed(2)), // Redondear a 2 decimales
+        montoTotalCalculado: montoTotal // Devolver el monto total parseado
+    };
+}
+
+/**
+ * Calcula la diferencia en días entre dos fechas.
+ * @param {string} fechaDesdeStr - Fecha de inicio en formato DD/MM/YYYY.
+ * @param {string} fechaHastaStr - Fecha de fin en formato DD/MM/YYYY.
+ * @returns {number|null} Número de días o null si las fechas son inválidas.
+ */
+function calcularDiasEntreFechas(fechaDesdeStr, fechaHastaStr) {
+    // Función para parsear DD/MM/YYYY a un objeto Date
+    function parseDMY(dateString) {
+        if (!dateString || typeof dateString !== 'string') return null;
+        const parts = dateString.split('/');
+        if (parts.length === 3) {
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1; // Meses en JS son 0-indexados
+            const year = parseInt(parts[2], 10);
+            if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+                const dateObj = new Date(year, month, day);
+                // Verificar si el objeto Date es válido y corresponde a la entrada
+                if (dateObj.getFullYear() === year && dateObj.getMonth() === month && dateObj.getDate() === day) {
+                    return dateObj;
+                }
+            }
+        }
+        return null;
+    }
+
+    const fechaDesde = parseDMY(fechaDesdeStr);
+    const fechaHasta = parseDMY(fechaHastaStr);
+
+    if (fechaDesde && fechaHasta && fechaHasta >= fechaDesde) {
+        const diffTime = Math.abs(fechaHasta - fechaDesde);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 para incluir ambos días
+        return diffDays;
+    }
+    return null; // O 0 si prefieres
+}
+
+/**
+ * Inicializa los cálculos y pre-llenados en el formulario de Factura.
+ */
+// EN TU ARCHIVO scripts.js
+// Asunciones:
+// - jQuery ($) está disponible globalmente ANTES de que este script se ejecute.
+// - Select2 está inicializado en los campos de contrato (id_contrato_individual, id_contrato_colectivo)
+//   por django-select2 o similar ANTES de que DOMContentLoaded se dispare completamente.
+// - Las funciones calcularDiasEntreFechas, showLoading, hideLoading, y el objeto AppConfig están definidos.
+// - La variable global window.URL_GET_CONTRATO_MONTO_CUOTA se define en tu plantilla HTML ANTES de este script.
+
+function initFacturaFormCalculations() {
+    const facturaFormElement = document.getElementById('facturaForm'); 
+    const isEditingMode = facturaFormElement ? (facturaFormElement.dataset.isEditing === 'true') : false;
+
+    const vigenciaDesdeInput = document.getElementById('id_vigencia_recibo_desde');
+    const vigenciaHastaInput = document.getElementById('id_vigencia_recibo_hasta');
+    const diasPeriodoInput = document.getElementById('id_dias_periodo_cobro');
+    
+    const contratoIndividualSelect = document.getElementById('id_contrato_individual');
+    const contratoColectivoSelect = document.getElementById('id_contrato_colectivo');
+    const montoInput = document.getElementById('id_monto');
+    const saldoContratoDisplay = document.getElementById('id_saldo_contrato_display'); 
+    
+    const urlApiContratoMonto = window.URL_GET_CONTRATO_MONTO_CUOTA;
+
+    if (!urlApiContratoMonto) {
+        console.error("FacturaFormCalculations: URL_GET_CONTRATO_MONTO_CUOTA no está definida.");
+    }
+    if (!contratoIndividualSelect || !contratoColectivoSelect || !montoInput || !saldoContratoDisplay) {
+        // No es un error crítico si algunos elementos no están, la función podría ser llamada en otras páginas.
+        // Pero si estamos en factura_form.html y faltan, es un problema de la plantilla.
+        // console.warn("FacturaFormCalculations: Uno o más elementos del DOM (contratos, monto, saldo) no fueron encontrados.");
+    }
+
+
+    function actualizarDiasPeriodo() {
+        if (!vigenciaDesdeInput || !vigenciaHastaInput || !diasPeriodoInput) return;
+        const dias = calcularDiasEntreFechas(vigenciaDesdeInput.value, vigenciaHastaInput.value);
+        diasPeriodoInput.value = dias !== null ? dias : '';
+    }
+
+    async function fetchContratoData(contratoId, tipoContrato, esCambioHechoPorUsuario) {
+        if (!contratoId || !tipoContrato || !urlApiContratoMonto) {
+            if (montoInput) montoInput.value = '';
+            if (saldoContratoDisplay) saldoContratoDisplay.textContent = '0.00';
+            return;
+        }
+        if (!montoInput && !saldoContratoDisplay) return;
+
+        if (typeof showLoading === 'function') showLoading();
+
+        try {
+            const queryParams = new URLSearchParams({
+                tipo_contrato: tipoContrato,
+                contrato_id: contratoId
+            });
+            const response = await fetch(`${urlApiContratoMonto}?${queryParams.toString()}`);
+            
+            if (!response.ok) {
+                let errorMsg = `Error ${response.status}: ${response.statusText}`;
+                try { const errData = await response.json(); errorMsg = errData.error || errorMsg; } catch (e) {}
+                throw new Error(errorMsg);
+            }
+
+            const data = await response.json();
+            const decimales = (typeof AppConfig !== 'undefined' && AppConfig.decimales) ? AppConfig.decimales : 2;
+
+            if (montoInput) {
+                if (data.monto_factura_sugerido !== undefined && data.monto_factura_sugerido !== null) {
+                    montoInput.value = parseFloat(data.monto_factura_sugerido).toFixed(decimales);
+                } else {
+                    montoInput.value = '';
+                }
+            }
+
+            if (saldoContratoDisplay) {
+                if (data.saldo_total_contrato_pendiente !== undefined && data.saldo_total_contrato_pendiente !== null) {
+                    saldoContratoDisplay.textContent = parseFloat(data.saldo_total_contrato_pendiente).toFixed(decimales);
+                } else {
+                    saldoContratoDisplay.textContent = '0.00';
+                }
+            }
+            if(data.error) console.error('API devolvió un error al obtener datos del contrato:', data.error);
+
+        } catch (error) {
+            console.error('Fallo al obtener datos del contrato:', error.message);
+            if (montoInput) montoInput.value = ''; 
+            if (saldoContratoDisplay) saldoContratoDisplay.textContent = '0.00';
+        } finally {
+            if (typeof hideLoading === 'function') hideLoading();
+        }
+    }
+
+    if (vigenciaDesdeInput) vigenciaDesdeInput.addEventListener('change', actualizarDiasPeriodo);
+    if (vigenciaHastaInput) vigenciaHastaInput.addEventListener('change', actualizarDiasPeriodo);
+    
+    if (contratoIndividualSelect && contratoColectivoSelect) {
+        if (typeof $ === 'function') { 
+            $(contratoIndividualSelect).on('select2:select select2:clear', function (e) {
+                const value = $(this).val(); 
+                if (value) {
+                    if ($(contratoColectivoSelect).val()) { 
+                        if ($(contratoColectivoSelect).data('select2')) {
+                            $(contratoColectivoSelect).val(null).trigger('change.select2').trigger('change');
+                        } else { 
+                             contratoColectivoSelect.value = ''; 
+                        }
+                    }
+                    fetchContratoData(value, 'individual', true);
+                } else if (!$(contratoColectivoSelect).val()) { 
+                    if (montoInput) montoInput.value = '';
+                    if (saldoContratoDisplay) saldoContratoDisplay.textContent = '0.00';
+                }
+            });
+
+            $(contratoColectivoSelect).on('select2:select select2:clear', function (e) {
+                const value = $(this).val();
+                if (value) {
+                    if ($(contratoIndividualSelect).val()) {
+                        if ($(contratoIndividualSelect).data('select2')) {
+                            $(contratoIndividualSelect).val(null).trigger('change.select2').trigger('change');
+                        } else {
+                            contratoIndividualSelect.value = ''; 
+                        }
+                    }
+                    fetchContratoData(value, 'colectivo', true);
+                } else if (!$(contratoIndividualSelect).val()) {
+                    if (montoInput) montoInput.value = '';
+                    if (saldoContratoDisplay) saldoContratoDisplay.textContent = '0.00';
+                }
+            });
+        } else { 
+            console.error("jQuery no está disponible; los listeners de Select2 para cálculo de monto en factura pueden no funcionar.");
+            // Considerar añadir listeners nativos como fallback si jQuery es opcional
+        }
+    }
+
+    actualizarDiasPeriodo();
+    
+    let contratoInicialId = null;
+    let contratoInicialTipo = null;
+
+    if (contratoIndividualSelect && contratoIndividualSelect.value) {
+       contratoInicialId = contratoIndividualSelect.value;
+       contratoInicialTipo = 'individual';
+    } else if (contratoColectivoSelect && contratoColectivoSelect.value) {
+       contratoInicialId = contratoColectivoSelect.value;
+       contratoInicialTipo = 'colectivo';
+    }
+
+    if (contratoInicialId) {
+        fetchContratoData(contratoInicialId, contratoInicialTipo, false);
+    } else {
+        if (montoInput && !montoInput.value && saldoContratoDisplay) {
+             if (!isEditingMode || (isEditingMode && saldoContratoDisplay.textContent.trim() === '' )) {
+                saldoContratoDisplay.textContent = '0.00';
+             }
+        } else if (montoInput && montoInput.value && saldoContratoDisplay && !isEditingMode){
+             saldoContratoDisplay.textContent = montoInput.value;
+        }
+    }
+    console.log("Factura form calculations initialized (monto y saldo contrato).");
+}
+
+/**
+ * Inicializa los cálculos dinámicos de cuotas en los formularios de contrato.
+ */
+function initContratoCuotasCalculator() {
+    // IDs de los campos en el formulario de Contrato (Individual o Colectivo)
+    // Asegúrate que estos IDs coincidan con los generados por Django o los que asignes.
+    const montoTotalInput = document.getElementById('id_monto_total'); // Campo donde se ingresa/calcula el monto total del contrato
+    const formaPagoSelect = document.getElementById('id_forma_pago');
+    const periodoInput = document.getElementById('id_periodo_vigencia_meses');
+    
+    // IDs de los campos (readonly) donde se mostrarán los resultados
+    const cantidadCuotasDisplay = document.getElementById('id_cantidad_cuotas_display'); // Necesitas añadir este campo al form
+    const montoCuotaDisplay = document.getElementById('id_monto_cuota_display');       // Necesitas añadir este campo al form
+
+    // Si alguno de los elementos cruciales no existe, no hacer nada.
+    if (!montoTotalInput || !formaPagoSelect || !periodoInput || !cantidadCuotasDisplay || !montoCuotaDisplay) {
+        // console.warn("Calculadora de cuotas: Faltan elementos del DOM. IDs esperados: id_monto_total, id_forma_pago, id_periodo_vigencia_meses, id_cantidad_cuotas_display, id_monto_cuota_display");
+        return;
+    }
+
+    function actualizarCamposCalculados() {
+        const montoTotalValue = montoTotalInput.value;
+        const formaPagoValue = formaPagoSelect.value;
+        const periodoMesesValue = periodoInput.value;
+
+        const resultado = calcularDetallesCuotas(montoTotalValue, formaPagoValue, periodoMesesValue);
+
+        cantidadCuotasDisplay.value = resultado.numeroCuotas;
+        
+        // Formatear para mostrar con símbolo de moneda y separadores locales
+        // Asumiendo que AppConfig.decimales está disponible o usa un default
+        const decimales = (typeof AppConfig !== 'undefined' && AppConfig.decimales) ? AppConfig.decimales : 2;
+        montoCuotaDisplay.value = resultado.montoCuota > 0 
+            ? `$${resultado.montoCuota.toLocaleString(undefined, { minimumFractionDigits: decimales, maximumFractionDigits: decimales })}` 
+            : '$0.00';
+    }
+
+    // Añadir event listeners a los campos que disparan el cálculo
+    montoTotalInput.addEventListener('input', actualizarCamposCalculados);
+    formaPagoSelect.addEventListener('change', actualizarCamposCalculados);
+    periodoInput.addEventListener('input', actualizarCamposCalculados);
+
+    // Calcular al cargar la página si los campos ya tienen valores (modo edición)
+    actualizarCamposCalculados();
+    
+    console.log("Calculadora de cuotas para contratos inicializada.");
+}
+
+
+
 /* ======================
     FUNCIONES UTILITARIAS
 ====================== */
@@ -528,4 +836,12 @@ document.addEventListener("DOMContentLoaded", () => {
     try { initExportPopup(); } catch (e) { console.error("Error en initExportPopup:", e); }
     try { if (document.getElementById('id_monto_anual')) inicializarCalculosTarifa(); } catch (e) { console.error("Error en inicializarCalculosTarifa:", e); }
     try { initTableInteractions(); } catch (e) { console.error("Error en initTableInteractions:", e); }
+    try { if (document.getElementById('id_monto_total') && document.getElementById('id_forma_pago')) {initContratoCuotasCalculator();}} catch (e) { console.error("Error en initContratoCuotasCalculator:", e); }
+    try { 
+        if (document.getElementById('id_contrato_individual') || document.getElementById('id_contrato_colectivo')) {
+            initFacturaFormCalculations(); // Esta es la llamada correcta
+        }
+    } catch (e) { 
+        console.error("Error en initFacturaFormCalculations:", e); 
+    }
 });
