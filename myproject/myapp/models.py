@@ -623,8 +623,10 @@ class ContratoBase(ModeloBase):
         max_digits=15,
         decimal_places=2,
         verbose_name="Monto Total del Contrato",
-        db_index=True,
-        help_text="Costo total del contrato para el período de vigencia especificado."
+        help_text="Costo total del contrato para el período de vigencia especificado.",
+        # Permite que la BD acepte NULL (importante para la migración)
+        null=True,
+        blank=True  # Le dice a los formularios de Django que este campo NO es requerido
     )
     intermediario = models.ForeignKey(
         'Intermediario',
@@ -676,24 +678,47 @@ class ContratoBase(ModeloBase):
                 return tarifa_anual_base.quantize(Decimal("0.01"), ROUND_HALF_UP)
         return None
 
+    @property
+    def total_pagado_a_facturas(self):
+        """
+        Suma los montos de los pagos activos asociados a las facturas activas de este contrato.
+        Funciona para ContratoIndividual y ContratoColectivo gracias al related_name 'factura_set'.
+        """
+        if hasattr(self, 'factura_set'):
+            pagos = self.factura_set.filter(activo=True, pagos__activo=True).aggregate(
+                total=Coalesce(Sum('pagos__monto_pago'), Decimal(
+                    '0.00'), output_field=DecimalField())
+            )['total']
+            return pagos.quantize(Decimal("0.01"), ROUND_HALF_UP)
+        return Decimal('0.00')
+
+    @property
+    def saldo_pendiente_contrato(self):
+        """
+        Calcula el saldo pendiente del contrato restando los pagos al monto total.
+        Funciona para ambos tipos de contrato.
+        """
+        # Asegurarse de que monto_total sea un Decimal
+        monto_total_contrato = self.monto_total if isinstance(
+            self.monto_total, Decimal) else Decimal('0.00')
+
+        if monto_total_contrato <= Decimal('0.00'):
+            return Decimal('0.00')
+
+        # Llama a la propiedad que acabamos de mover a esta misma clase.
+        pendiente = monto_total_contrato - self.total_pagado_a_facturas
+        return max(Decimal('0.00'), pendiente).quantize(Decimal("0.01"), ROUND_HALF_UP)
+
     def save(self, *args, **kwargs):
-        # La lógica de fechas (periodo_vigencia_meses vs fecha_fin_vigencia)
-        # se manejará en las clases hijas (ContratoIndividual, ContratoColectivo)
-        # antes de llamar a este super().save().
+        # Esta lógica se asegura de que el campo NUNCA se guarde como NULL
+        if self.tarifa_aplicada and self.periodo_vigencia_meses:
+            tarifa_anual = self.tarifa_aplicada.monto_anual
+            if tarifa_anual is not None and self.periodo_vigencia_meses > 0:
+                self.monto_total = (Decimal(tarifa_anual) / 12) * \
+                    Decimal(self.periodo_vigencia_meses)
+                self.monto_total = self.monto_total.quantize(
+                    Decimal('0.01'), rounding=ROUND_HALF_UP)
 
-        # Cálculo de monto_total:
-        # Si el monto_total no fue provisto o es inválido, intentar calcularlo.
-        # Las clases hijas pueden haber pre-calculado un monto_total más específico.
-        if not hasattr(self, '_monto_total_pre_calculado_por_hijo') or not self._monto_total_pre_calculado_por_hijo:
-            calculated_monto = self._calculate_monto_total_base()
-            if calculated_monto is not None and not calculated_monto.is_nan():
-                self.monto_total = calculated_monto
-            elif self.monto_total is None or (isinstance(self.monto_total, Decimal) and self.monto_total.is_nan()):
-                self.monto_total = Decimal('0.00')
-                logger.info(
-                    f"ContratoBase {self.numero_contrato or self.pk or 'Nuevo'}: monto_total no calculado y era None/NaN, establecido a 0.00.")
-
-        # Asegurar que monto_total no sea None antes del save final
         if self.monto_total is None:
             self.monto_total = Decimal('0.00')
 
@@ -1378,16 +1403,6 @@ class ContratoIndividual(ContratoBase):
         db_index=True,
         help_text="Indica si el recibo actual o próximo ha sido generado."
     )
-    comision_anual = models.DecimalField(
-        validators=[MinValueValidator(0), MaxValueValidator(100)],
-        max_digits=5,
-        decimal_places=2,
-        verbose_name="Comisión Anual (%)",
-        # <-- MODIFICADO
-        help_text="Porcentaje de comisión anual para el intermediario. Entre 0.00 y 100.00.",
-        blank=True,
-        null=True
-    )
 
     objects = SoftDeleteManager()
     all_objects = models.Manager()
@@ -1531,50 +1546,6 @@ class ContratoIndividual(ContratoBase):
 
         if error_messages:
             raise ValidationError(error_messages)
-
-    @property
-    def monto_comision_intermediario_estimada(self):
-        """
-        Suma los montos de todas las comisiones (DIRECTA y OVERRIDE si aplica al intermediario del contrato)
-        que están PENDIENTES o PAGADAS para este contrato individual.
-        """
-        # Necesitamos el modelo RegistroComision. Si está en el mismo archivo, no hay problema.
-        # Si está en otro, asegúrate de la importación.
-        # from .models import RegistroComision # Descomentar si es necesario y no causa circularidad
-
-        # Comisiones directas para el intermediario de este contrato
-        comisiones_directas = RegistroComision.objects.filter(
-            contrato_individual=self,
-            intermediario=self.intermediario,  # El intermediario principal del contrato
-            tipo_comision='DIRECTA',
-            estatus_pago_comision__in=['PENDIENTE', 'PAGADA']
-        ).aggregate(total=Coalesce(Sum('monto_comision'), Value(Decimal('0.00')), output_field=DecimalField()))['total']
-
-        # Comisiones de override donde este contrato fue la venta original
-        # y el beneficiario del override es el padre del intermediario de este contrato.
-        # Esto es un poco más complejo si el intermediario del contrato no tiene padre,
-        # o si el override se paga a alguien más arriba en la jerarquía.
-        # Por simplicidad, si solo te interesa la comisión directa generada por este contrato
-        # para su intermediario principal, puedes omitir la parte de override aquí
-        # o ajustarla a tu estructura de comisiones.
-
-        # Ejemplo simplificado: solo comisiones directas para el intermediario del contrato
-        # Si quieres incluir overrides donde este contrato es la fuente y el intermediario
-        # del contrato es el VENDEDOR, y su PADRE recibe el override, la lógica sería:
-        # comisiones_override_para_padre = RegistroComision.objects.filter(
-        #     contrato_individual=self,
-        #     intermediario_vendedor=self.intermediario, # Este intermediario hizo la venta
-        #     intermediario=self.intermediario.intermediario_relacionado, # El padre recibe
-        #     tipo_comision='OVERRIDE',
-        #     estatus_pago_comision__in=['PENDIENTE', 'PAGADA']
-        # ).aggregate(total=Coalesce(Sum('monto_comision'), Value(Decimal('0.00')), output_field=DecimalField()))['total']
-        # total_comisiones = comisiones_directas + comisiones_override_para_padre
-
-        # Por ahora, nos enfocaremos en la comisión directa generada por este contrato
-        # para el intermediario asignado a este contrato.
-        # Si el campo "Comisión Intermediario (Estimada)" en tu detalle se refiere
-        # solo a la comisión directa del intermediario principal del contrato:
-        return comisiones_directas.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
     def _generar_recibo_inicial_contrato(self):
         # print(f"    CI (PK:{self.pk or 'Nuevo'}) GENERANDO RECIBO INICIAL...")
@@ -1748,24 +1719,6 @@ class ContratoIndividual(ContratoBase):
             Prefetch('factura_set',
                      queryset=Factura.objects.prefetch_related('pagos'))
         )
-
-    @property
-    def total_pagado_a_facturas(self):
-        # Suma los Pago.monto_pago de las Facturas activas de este contrato
-        if hasattr(self, 'factura_set'):  # 'factura_set' es el related_name por defecto
-            pagos = self.factura_set.filter(activo=True, pagos__activo=True).aggregate(
-                total=Coalesce(Sum('pagos__monto_pago'), Decimal(
-                    '0.00'), output_field=DecimalField())
-            )['total']
-            return pagos.quantize(Decimal("0.01"), ROUND_HALF_UP)
-        return Decimal('0.00')
-
-    @property
-    def saldo_pendiente_contrato(self):
-        if not self.monto_total or self.monto_total < Decimal('0.00'):
-            return Decimal('0.00')
-        pendiente = self.monto_total - self.total_pagado_a_facturas
-        return max(Decimal('0.00'), pendiente).quantize(Decimal("0.01"), ROUND_HALF_UP)
 
     @property
     def monto_total_pagado_reclamaciones(self):
@@ -2225,32 +2178,6 @@ class ContratoColectivo(ContratoBase):
             Prefetch('reclamacion_set', queryset=reclamacion_qs),
             Prefetch('factura_set', queryset=factura_qs)
         )
-
-    @property
-    def monto_comision_intermediario_estimada(self):
-        """
-        Calcula la comisión estimada para el intermediario basada en el monto total del contrato
-        y el porcentaje de comisión de la tarifa aplicada.
-        ContratoColectivo no tiene un campo 'comision_anual' directo como ContratoIndividual.
-        """
-        if self.monto_total and self.tarifa_aplicada and self.tarifa_aplicada.comision_intermediario is not None:
-            try:
-                comision = (Decimal(str(self.monto_total)) * Decimal(
-                    str(self.tarifa_aplicada.comision_intermediario))) / Decimal('100.00')
-                return comision.quantize(Decimal("0.01"), ROUND_HALF_UP)
-            except (InvalidOperation, TypeError):
-                return None  # O Decimal('0.00')
-        return None  # O Decimal('0.00')
-
-    @property
-    def total_pagado_a_facturas(self):  # Para el "Resumen Financiero"
-        if hasattr(self, 'factura_set'):
-            pagos = self.factura_set.filter(activo=True, pagos__activo=True).aggregate(
-                total=Coalesce(Sum('pagos__monto_pago'), Decimal(
-                    '0.00'), output_field=DecimalField())
-            )['total']
-            return pagos.quantize(Decimal("0.01"), ROUND_HALF_UP)
-        return Decimal('0.00')
 
     @property
     def saldo_pendiente_contrato(self):  # Para el "Resumen Financiero"
@@ -3512,12 +3439,6 @@ class Tarifa(ModeloBase):
         max_length=50, verbose_name="Tipo de Fraccionamiento",
         blank=True, null=True, choices=CommonChoices.FORMA_PAGO,
         help_text="Indica si esta tarifa es específica para un pago fraccionado (ej. Mensual, Trimestral). Dejar en blanco si es la tarifa base anual."
-    )
-    comision_intermediario = models.DecimalField(
-        max_digits=5, decimal_places=2, verbose_name="Comisión Intermediario (%)",
-        # Ajustado MaxValue
-        blank=True, null=True, validators=[MinValueValidator(Decimal('0.00')), MaxValueValidator(Decimal('100.00'))],
-        help_text="Porcentaje de comisión para el intermediario asociado a contratos que usen esta tarifa (0.00-100.00)."
     )
 
     objects = SoftDeleteManager()

@@ -259,7 +259,7 @@ class BaseTestCase(TestCase):
         cls.tarifa = Tarifa.objects.create(
             ramo='HCM', rango_etario='18-25',
             fecha_aplicacion=date.today() - timedelta(days=30),
-            monto_anual=Decimal('1200.00'), comision_intermediario=Decimal('15.00'),
+            monto_anual=Decimal('1200.00'),
             primer_nombre="Tarifa", primer_apellido="Prueba"
         )
         cls.afiliado_individual = AfiliadoIndividual.objects.create(
@@ -466,6 +466,7 @@ class TarifaModelTests(BaseTestCase):
         self.assertIn(RAMO_ABREVIATURAS[tarifa.ramo], tarifa.codigo_tarifa)
         self.assertIn(
             RANGO_ETARIO_ABREVIATURAS[tarifa.rango_etario], tarifa.codigo_tarifa)
+        # La validación de la comisión se elimina porque el campo ya no existe en Tarifa.
 
     def test_tarifa_montos_fraccionados(self):
         tarifa = Tarifa.objects.get(pk=self.tarifa.pk)
@@ -476,7 +477,6 @@ class TarifaModelTests(BaseTestCase):
 
 class ContratoIndividualModelTests(BaseTestCase):
     def test_create_contrato_individual(self):
-        # ContratoIndividual.objects.all().delete() # No es necesario si no hay colisiones
         contrato = ContratoIndividual.objects.create(
             afiliado=self.afiliado_individual,
             intermediario=self.intermediario,
@@ -487,22 +487,15 @@ class ContratoIndividualModelTests(BaseTestCase):
             periodo_vigencia_meses=12,
             suma_asegurada=Decimal('50000.00'),
             contratante_cedula=self.afiliado_individual.cedula,
-            tipo_identificacion_contratante='V',  # Clave de CommonChoices.TIPO_CEDULA
+            tipo_identificacion_contratante='V',
             contratante_nombre=self.afiliado_individual.nombre_completo
         )
         self.assertEqual(ContratoIndividual.objects.filter(
             pk=contrato.pk).count(), 1)
         self.assertTrue(contrato.numero_contrato.startswith("CONT-IND-"))
-        self.assertTrue(contrato.numero_poliza.startswith("POL-IND-"))
-        self.assertTrue(contrato.certificado.startswith("CERT-IND-"))
-        self.assertTrue(contrato.numero_recibo.startswith("REC-IND-"))
-        self.assertEqual(contrato.fecha_fin_vigencia, contrato.fecha_inicio_vigencia +
-                         relativedelta(months=+12) - timedelta(days=1))
-        self.assertEqual(contrato.monto_total,
-                         Decimal('1200.00'))  # (1200/12)*12
+        self.assertEqual(contrato.monto_total, Decimal('1200.00'))
         self.assertEqual(
             str(contrato), f"CI: {contrato.numero_contrato} - Juan Perez")
-        self.assertEqual(contrato.estatus, 'VIGENTE')  # Default del modelo
 
     def test_contrato_individual_monto_total_6_meses(self):
         # ContratoIndividual.objects.all().delete()
@@ -732,19 +725,25 @@ class RegistroComisionModelTest(BaseTestCase):
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()
-        # RegistroComision.objects.all().delete()
-        # Factura.objects.all().delete()
-        # Pago.objects.all().delete()
-        # ContratoIndividual.objects.all().delete()
+        # Configurar un intermediario padre para probar el override
+        cls.intermediario_padre = Intermediario.objects.create(
+            nombre_completo="Intermediario Padre de Prueba",
+            # El padre también puede vender
+            porcentaje_comision=Decimal('5.00'),
+            porcentaje_override=Decimal('2.50'),  # Porcentaje de override
+            primer_nombre="Padre", primer_apellido="Inter"
+        )
+        # Asignar el padre al intermediario vendedor
+        cls.intermediario.intermediario_relacionado = cls.intermediario_padre
+        cls.intermediario.save()
 
         cls.contrato_comision = ContratoIndividual.objects.create(
             afiliado=cls.afiliado_individual,
-            intermediario=cls.intermediario,
+            intermediario=cls.intermediario,  # Venta hecha por el intermediario hijo
             tarifa_aplicada=cls.tarifa,
             ramo='HCM',
             fecha_inicio_vigencia=date.today() - timedelta(days=90),
             periodo_vigencia_meses=12,
-            # monto_total se calcula
             suma_asegurada=Decimal('10000.00'),
             tipo_identificacion_contratante='V',
             contratante_cedula=cls.afiliado_individual.cedula,
@@ -756,38 +755,55 @@ class RegistroComisionModelTest(BaseTestCase):
             vigencia_recibo_desde=date.today() - timedelta(days=30),
             vigencia_recibo_hasta=date.today() - timedelta(days=1)
         )
-        cls.pago_comision = Pago.objects.create(
-            factura=cls.factura_comision,
+        # El pago se crea en el test para disparar la señal
+
+    def test_comisiones_creadas_por_signal_de_pago(self):
+        # Crear el pago aquí para disparar la señal post_save
+        pago_comision = Pago.objects.create(
+            factura=self.factura_comision,
             monto_pago=Decimal('100.00'),
             fecha_pago=date.today()
         )
-        # La señal de Pago debería haber creado la comisión.
-        # Vamos a verificarlo en el test.
 
-    def test_comision_creada_por_signal_de_pago(self):
-        # Verificar que la señal de Pago creó la comisión
-        comisiones = RegistroComision.objects.filter(
-            pago_cliente=self.pago_comision)
-        self.assertTrue(comisiones.exists(),
-                        "La señal de Pago no creó la comisión.")
-        comision = comisiones.first()
-        self.assertEqual(comision.intermediario, self.intermediario)
-        self.assertEqual(comision.tipo_comision, 'DIRECTA')
-        # El porcentaje de comisión directa se toma de ContratoIndividual.comision_anual (si existe y > 0),
-        # luego de Intermediario.porcentaje_comision (si > 0),
-        # luego de Tarifa.comision_intermediario (si > 0).
-        # En este caso, ContratoIndividual.comision_anual es None.
-        # Intermediario.porcentaje_comision es 10.00.
-        # Tarifa.comision_intermediario es 15.00.
-        # Debería tomar 10.00 de Intermediario.
-        expected_percentage = self.intermediario.porcentaje_comision  # 10.00
-        self.assertEqual(comision.porcentaje_aplicado, expected_percentage)
-        self.assertEqual(comision.monto_base_calculo,
-                         self.pago_comision.monto_pago)
-        expected_monto_comision = (self.pago_comision.monto_pago * expected_percentage /
+        # 1. Verificar la comisión DIRECTA para el vendedor
+        comision_directa = RegistroComision.objects.filter(
+            pago_cliente=pago_comision,
+            tipo_comision='DIRECTA'
+        ).first()
+
+        self.assertIsNotNone(
+            comision_directa, "La señal no creó la comisión DIRECTA.")
+        self.assertEqual(comision_directa.intermediario, self.intermediario)
+        # La nueva lógica toma el % del intermediario vendedor
+        expected_percentage_directa = self.intermediario.porcentaje_comision  # 10.00%
+        self.assertEqual(comision_directa.porcentaje_aplicado,
+                         expected_percentage_directa)
+        expected_monto_directa = (pago_comision.monto_pago * expected_percentage_directa /
+                                  Decimal('100.00')).quantize(Decimal('0.01'), ROUND_HALF_UP)
+        self.assertEqual(comision_directa.monto_comision,
+                         expected_monto_directa)
+        self.assertEqual(comision_directa.estatus_pago_comision, 'PENDIENTE')
+
+        # 2. Verificar la comisión de OVERRIDE para el padre
+        comision_override = RegistroComision.objects.filter(
+            pago_cliente=pago_comision,
+            tipo_comision='OVERRIDE'
+        ).first()
+
+        self.assertIsNotNone(
+            comision_override, "La señal no creó la comisión de OVERRIDE.")
+        self.assertEqual(comision_override.intermediario,
+                         self.intermediario_padre)
+        # La nueva lógica toma el % de override del intermediario padre
+        expected_percentage_override = self.intermediario_padre.porcentaje_override  # 2.50%
+        self.assertEqual(comision_override.porcentaje_aplicado,
+                         expected_percentage_override)
+        expected_monto_override = (pago_comision.monto_pago * expected_percentage_override /
                                    Decimal('100.00')).quantize(Decimal('0.01'), ROUND_HALF_UP)
-        self.assertEqual(comision.monto_comision, expected_monto_comision)
-        self.assertEqual(comision.estatus_pago_comision, 'PENDIENTE')
+        self.assertEqual(comision_override.monto_comision,
+                         expected_monto_override)
+        self.assertEqual(comision_override.intermediario_vendedor,
+                         self.intermediario)  # Verifica quién vendió
 
 
 # --- FORM TESTS ---

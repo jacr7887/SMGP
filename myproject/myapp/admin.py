@@ -481,7 +481,7 @@ class PagoAdmin(CustomModelAdmin):
 class TarifaAdmin(CustomModelAdmin):
     # actions = [importar_datos_action] # <- ELIMINADO
     list_display = ('ramo', 'rango_etario', 'fecha_aplicacion', 'monto_anual',
-                    'monto_mensual_display', 'tipo_fraccionamiento', 'comision_intermediario', 'activo')
+                    'monto_mensual_display', 'tipo_fraccionamiento', 'activo')
     list_filter = ('ramo', 'rango_etario', 'activo', 'tipo_fraccionamiento')
     search_fields = ('ramo', 'rango_etario')
     # monto_mensual, etc. son properties

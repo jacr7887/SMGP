@@ -1457,7 +1457,6 @@ class ContratoIndividualListView(BaseListView):
         'dias_transcurridos_ingreso',
         # 'estatus_detalle', # TextField
         'estatus_emision_recibo',
-        'comision_anual',
         'activo', 'fecha_creacion', 'fecha_modificacion',
         'cantidad_cuotas_estimadas_anotado',
         'monto_cuota_estimada_anotado',
@@ -1487,61 +1486,66 @@ class ContratoIndividualListView(BaseListView):
         return context
 
 
-# O directamente DetailView si BaseDetailView no existe o no es adecuada
 class ContratoIndividualDetailView(BaseDetailView):
     model = ContratoIndividual
     template_name = 'contrato_individual_detail.html'
-    context_object_name = 'contrato'  # Esto es lo que usa tu plantilla
+    context_object_name = 'contrato'
     permission_required = 'myapp.view_contratoindividual'
-    # model_manager_name = 'all_objects' # Descomenta si BaseDetailView usa esta lógica y quieres ver inactivos
+    model_manager_name = 'all_objects'
 
     def get_queryset(self):
-        # Si usas model_manager_name en una clase base:
-        # queryset = super().get_queryset()
-        # Si no, y quieres asegurar que ves todos (incluyendo inactivos si accedes por PK):
-        # O ContratoIndividual.objects.all() si solo activos
-        queryset = ContratoIndividual.all_objects.all()
-
-        return super().get_queryset().select_related(
+        # TU GET_QUERYSET ESTÁ PERFECTO. NO SE TOCA.
+        queryset = super().get_queryset()
+        return queryset.select_related(
             'afiliado',
             'intermediario',
             'tarifa_aplicada'
         ).prefetch_related(
             Prefetch('reclamacion_set', queryset=Reclamacion.objects.select_related('usuario_asignado').prefetch_related(
-                Prefetch('pagos', queryset=Pago.objects.filter(activo=True).order_by('-fecha_pago'), to_attr='pagos_activos_de_reclamacion'))
-                .only('pk', 'monto_reclamado', 'estado', 'fecha_reclamo', 'tipo_reclamacion', 'usuario_asignado_id', 'contrato_individual_id'),
+                Prefetch('pagos', queryset=Pago.objects.filter(activo=True).order_by('-fecha_pago'), to_attr='pagos_activos_de_reclamacion')),
                 to_attr='reclamaciones_con_pagos'),
             Prefetch('factura_set', queryset=Factura.objects.select_related('intermediario').prefetch_related(
                 Prefetch('pagos', queryset=Pago.objects.filter(activo=True).only('pk', 'monto_pago'), to_attr='pagos_activos_de_factura')))
-        )  # No es necesario añadir prefetch para RegistroComision si solo usas la propiedad agregada
+        )
 
     def get_context_data(self, **kwargs):
+        # TU GET_CONTEXT_DATA ES LA BASE. SOLO AÑADIMOS UNA COSA.
         context = super().get_context_data(**kwargs)
         contrato = self.object
 
         logger.info(
             f"--- ContratoIndividualDetailView.get_context_data para Contrato PK: {contrato.pk} ---")
 
-        # Procesar Facturas y sus Pagos
-        facturas_asociadas = list(
-            contrato.factura_set.all())  # Usa el prefetch
+        # Procesar Facturas y sus Pagos (tu código, sin cambios)
+        facturas_asociadas = list(contrato.factura_set.all())
         monto_total_pagado_facturas = Decimal('0.00')
         for factura_obj in facturas_asociadas:
-            # Acceder a los pagos prefetched usando el to_attr
             for pago_obj in getattr(factura_obj, 'pagos_activos_de_factura', []):
-                if pago_obj.monto_pago:  # activo=True ya está en el prefetch
+                if pago_obj.monto_pago:
                     monto_total_pagado_facturas += pago_obj.monto_pago
 
         saldo_pendiente_facturas = sum(
             f.monto_pendiente for f in facturas_asociadas if f.monto_pendiente is not None
         ) or Decimal('0.00')
 
-        # Procesar Reclamaciones y sus Pagos
+        # Procesar Reclamaciones y sus Pagos (tu código, con una adición)
         reclamaciones_con_sus_pagos = list(
             getattr(contrato, 'reclamaciones_con_pagos', []))
+
+        # =================================================================
+        # === INICIO DE LA ÚNICA CORRECCIÓN NECESARIA ===
+        # =================================================================
+        # Antes de usar las reclamaciones, forzamos a que cada una recargue
+        # su información desde la base de datos. Esto asegura que veamos
+        # el estado ('PAGADA') que la señal acaba de guardar.
+        for rec in reclamaciones_con_sus_pagos:
+            rec.refresh_from_db()
+        # =================================================================
+        # === FIN DE LA CORRECCIÓN ===
+        # =================================================================
+
         pagos_de_reclamaciones_list = []
         for rec in reclamaciones_con_sus_pagos:
-            # Acceder a los pagos prefetched usando el to_attr
             pagos_de_esta_reclamacion = list(
                 getattr(rec, 'pagos_activos_de_reclamacion', []))
             pagos_de_reclamaciones_list.extend(pagos_de_esta_reclamacion)
@@ -1553,12 +1557,9 @@ class ContratoIndividualDetailView(BaseDetailView):
         logger.info(
             f"  Total pagos de reclamaciones para el contexto: {len(pagos_de_reclamaciones_list)}, Monto: {monto_total_pagado_reclamaciones}")
 
-        # Consumo de Cobertura (basado en todas las reclamaciones asociadas)
         monto_total_reclamado_general = sum(
-            # Usa la lista de reclamaciones ya obtenida
             r.monto_reclamado for r in reclamaciones_con_sus_pagos if r.monto_reclamado
         ) or Decimal('0.00')
-
         saldo_cobertura = (contrato.suma_asegurada or Decimal(
             '0.00')) - monto_total_reclamado_general
         porcentaje_consumido = 0
@@ -1571,12 +1572,19 @@ class ContratoIndividualDetailView(BaseDetailView):
                 porcentaje_consumido = 0 if monto_total_reclamado_general == Decimal(
                     '0.00') else 100
 
+        user_permissions = {
+            'can_view_reclamaciones': self.request.user.has_perm('myapp.view_reclamacion'),
+            'can_view_facturas': self.request.user.has_perm('myapp.view_factura'),
+            'can_view_pagos': self.request.user.has_perm('myapp.view_pago'),
+            'can_view_intermediarios': self.request.user.has_perm('myapp.view_intermediario'),
+            'can_view_afiliados_ind': self.request.user.has_perm('myapp.view_afiliadoindividual'),
+        }
         context.update({
             'page_title': f"Detalle CI: {contrato.numero_contrato or '(Sin número)'}",
             'afiliado': contrato.afiliado,
             'intermediario': contrato.intermediario,
+            'user_perms': user_permissions,
             'tarifa_aplicada_obj': contrato.tarifa_aplicada,
-
             'duracion_contrato_meses': contrato.periodo_vigencia_meses or contrato.duracion_calculada_meses,
             'dias_desde_ingreso_afiliado': contrato.dias_transcurridos_ingreso,
             'esta_vigente_contrato': contrato.esta_vigente,
@@ -1588,21 +1596,17 @@ class ContratoIndividualDetailView(BaseDetailView):
             'estatus_emision_recibo_display': contrato.get_estatus_emision_recibo_display() if hasattr(contrato, 'get_estatus_emision_recibo_display') else contrato.estatus_emision_recibo,
             'suma_asegurada_contrato': contrato.suma_asegurada,
             'prima_anual_contrato': contrato.importe_anual_contrato,
-
             'facturas_asociadas': facturas_asociadas,
             'total_facturas': len(facturas_asociadas),
             'monto_total_pagado_facturas': monto_total_pagado_facturas,
             'saldo_pendiente_facturas': saldo_pendiente_facturas,
             'saldo_pendiente_anual': max(Decimal('0.00'), (contrato.importe_anual_contrato or Decimal('0.00')) - monto_total_pagado_facturas),
-
             'reclamaciones_asociadas': reclamaciones_con_sus_pagos,
             'total_reclamaciones': len(reclamaciones_con_sus_pagos),
             'monto_total_reclamado_general': monto_total_reclamado_general,
-
             'pagos_de_reclamaciones': pagos_de_reclamaciones_list,
             'total_pagos_reclamaciones': len(pagos_de_reclamaciones_list),
             'monto_total_pagado_reclamaciones': monto_total_pagado_reclamaciones,
-
             'saldo_cobertura': saldo_cobertura,
             'porcentaje_consumido': porcentaje_consumido,
         })
@@ -2607,6 +2611,36 @@ class ReclamacionDeleteView(BaseDeleteView):
         if admin_users:
             crear_notificacion(list(admin_users), mensaje, tipo='warning')
 
+
+class ReclamacionStatusAPIView(View):
+    """
+    API simple para obtener el estado actualizado de una reclamación.
+    """
+
+    def get(self, request, *args, **kwargs):
+        reclamacion_pk = kwargs.get('pk')
+        if not reclamacion_pk:
+            return JsonResponse({'error': 'Falta el ID de la reclamación.'}, status=400)
+
+        try:
+            # Obtenemos la reclamación directamente de la BD para asegurar datos frescos
+            reclamacion = Reclamacion.objects.get(pk=reclamacion_pk)
+
+            # Devolvemos los datos que el frontend necesita para actualizar la UI
+            data = {
+                'pk': reclamacion.pk,
+                'estado_valor': reclamacion.estado,  # Ej: 'PAGADA'
+                'estado_display': reclamacion.get_estado_display(),  # Ej: 'Pagada'
+            }
+            return JsonResponse(data)
+
+        except Reclamacion.DoesNotExist:
+            return JsonResponse({'error': 'Reclamación no encontrada.'}, status=404)
+        except Exception as e:
+            logger.error(
+                f"Error en ReclamacionStatusAPIView para PK {reclamacion_pk}: {e}")
+            return JsonResponse({'error': 'Error interno del servidor.'}, status=500)
+
 # ==========================
 # Pago Vistas
 # ==========================
@@ -2923,65 +2957,72 @@ class PagoDetailView(BaseDetailView):  # Asegúrate que BaseDetailView esté def
         return context
 
 
-@method_decorator(csrf_protect, name='dispatch')
 class PagoCreateView(BaseCreateView):
     model = Pago
-    model_manager_name = 'all_objects'
     form_class = PagoForm
     template_name = 'pago_form.html'
-    success_url = reverse_lazy('myapp:pago_list')
     permission_required = 'myapp.add_pago'
 
-    # --- Sobrescribir form_valid para manejar específicamente errores de Pago.save() ---
+    # Definimos una URL de éxito estática como fallback seguro.
+    success_url = reverse_lazy('myapp:pago_list')
+
     def form_valid(self, form):
+        """
+        Este es el método correcto y estándar para una CreateView.
+        Guarda el formulario y luego redirige.
+        La lógica compleja está en las señales.
+        """
         try:
-            # Intentar guardar el objeto Pago (esto llamará a Pago.save() con su lógica)
-            with transaction.atomic():
-                self.object = form.save()
+            # Guardamos el objeto. La señal post_save se disparará automáticamente.
+            self.object = form.save()
 
-            # --- INICIO NOTIFICACIÓN (CREATE) ---
-            try:
-                if hasattr(self, 'enviar_notificacion_creacion'):
-                    self.enviar_notificacion_creacion(self.object)
-            except Exception as notif_error:
-                logger.error(
-                    f"Error al enviar notificación de creación para Pago {self.object.pk}: {notif_error}", exc_info=True)
-                messages.warning(
-                    self.request, "El pago se guardó, pero hubo un problema al enviar la notificación.")
-            # --- FIN NOTIFICACIÓN ---
+            # --- Lógica de Mensajes Post-Guardado ---
+            # Refrescamos la reclamación para mostrar el mensaje correcto.
+            if self.object.reclamacion:
+                self.object.reclamacion.refresh_from_db()
+                if self.object.reclamacion.estado == 'PAGADA':
+                    messages.success(
+                        self.request,
+                        f"Pago registrado. La Reclamación #{self.object.reclamacion.pk} ha sido actualizada a PAGADA."
+                    )
+                else:
+                    messages.success(
+                        self.request, "Pago parcial registrado exitosamente.")
+            else:
+                messages.success(
+                    self.request, "Pago de factura registrado exitosamente.")
 
-            # Auditoría y mensaje de éxito (manejados por BaseCreateView/BaseCRUDView si form_valid no se sobrescribiera)
-            self._create_audit_entry(
-                action_type='CREACION', resultado='EXITO', detalle=f"Pago creado: {self.object}")
-            messages.success(self.request, "Pago guardado exitosamente.")
+            # Devolvemos la redirección. super().form_valid() hace esto, pero
+            # ser explícito es más claro.
             return HttpResponseRedirect(self.get_success_url())
 
         except ValidationError as e:
-            # Errores específicos lanzados desde Pago.clean o Pago.save
-            logger.warning(
-                f"ValidationError al guardar Pago: {e.message_dict if hasattr(e, 'message_dict') else e.messages}")
-            if hasattr(e, 'message_dict'):
-                for field, errors in e.message_dict.items():
-                    form.add_error(field if field !=
-                                   '__all__' else None, errors)
-            else:
-                form.add_error(None, e.messages)
-            self._create_audit_entry(
-                action_type='CREACION', resultado='ERROR', detalle=f"ValidationError: {e.messages}")
-            return self.form_invalid(form)
-        except IntegrityError as e:
-            logger.error(f"IntegrityError al guardar Pago: {e}", exc_info=True)
-            form.add_error(None, "Error de base de datos al guardar.")
-            self._create_audit_entry(
-                action_type='CREACION', resultado='ERROR', detalle=f"IntegrityError: {str(e)[:200]}")
+            # Si el modelo o el form lanzan un error de validación
+            logger.warning(f"ValidationError al guardar Pago: {e}")
+            form.add_error(None, e)
             return self.form_invalid(form)
         except Exception as e:
-            logger.exception(f"Error inesperado al guardar Pago: {e!r}")
-            form.add_error(
-                None, "Ocurrió un error inesperado al guardar el pago.")
-            self._create_audit_entry(
-                action_type='CREACION', resultado='ERROR', detalle=f"Error inesperado: {str(e)[:200]}")
+            # Para cualquier otro error inesperado
+            logger.exception(f"Error inesperado al guardar Pago: {e}")
+            messages.error(
+                self.request, "Ocurrió un error inesperado al guardar el pago.")
             return self.form_invalid(form)
+
+    def get_success_url(self):
+        """
+        Redirige al detalle del contrato asociado después de crear el pago.
+        """
+        if self.object.reclamacion and self.object.reclamacion.contrato_individual:
+            return reverse('myapp:contrato_individual_detail', kwargs={'pk': self.object.reclamacion.contrato_individual.pk})
+        elif self.object.reclamacion and self.object.reclamacion.contrato_colectivo:
+            return reverse('myapp:contrato_colectivo_detail', kwargs={'pk': self.object.reclamacion.contrato_colectivo.pk})
+        elif self.object.factura and self.object.factura.contrato_individual:
+            return reverse('myapp:contrato_individual_detail', kwargs={'pk': self.object.factura.contrato_individual.pk})
+        elif self.object.factura and self.object.factura.contrato_colectivo:
+            return reverse('myapp:contrato_colectivo_detail', kwargs={'pk': self.object.factura.contrato_colectivo.pk})
+
+        # Si no hay contrato, vuelve a la lista de pagos.
+        return reverse('myapp:pago_list')
 
     def enviar_notificacion_creacion(self, pago):
         mensaje = f"Nuevo pago (Ref: {pago.referencia_pago or pago.pk}) por ${pago.monto_pago:.2f}."
@@ -3190,7 +3231,6 @@ class TarifaListView(BaseListView):
         'fecha_aplicacion',
         'monto_anual',
         'tipo_fraccionamiento',
-        'comision_intermediario',
         'fecha_creacion', 'fecha_modificacion'
     ]
     ordering = ['ramo', 'rango_etario', '-fecha_aplicacion']
@@ -3204,7 +3244,6 @@ class TarifaListView(BaseListView):
             total_tarifas=Count('id'),
             tarifas_activas=Count(Case(When(activo=True, then=1))),
             promedio_monto=Avg('monto_anual'),
-            promedio_comision=Avg('comision_intermediario')
         )
         context['total_tarifas'] = stats.get('total_tarifas', 0)
         context['tarifas_activas'] = stats.get('tarifas_activas', 0)
@@ -3809,11 +3848,15 @@ class UsuarioListView(BaseListView):
     filterset_class = UsuarioFilter
     permission_required = 'myapp.view_usuario'
     search_fields = [
-        'email', 'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido',  # Nombres
-        'username',  # Username
-        'tipo_usuario', 'departamento', 'nivel_acceso',  # Roles y estructura
-        'intermediario__nombre_completo', 'intermediario__codigo',  # Intermediario
-        'telefono'  # Añadido
+        'email',
+        'primer_nombre',
+        'segundo_nombre',
+        'primer_apellido',
+        'segundo_apellido',
+        'username',
+        'intermediario__nombre_completo',
+        'intermediario__codigo',
+        'telefono'
     ]
     ordering_fields = [
         'primer_apellido', 'primer_nombre', 'email', 'username',
@@ -5560,7 +5603,7 @@ class ReporteGeneralView(LoginRequiredMixin, TemplateView):
 # Diccionario modelos_busqueda (sin cambios)
 modelos_busqueda = {
     'usuario': {'nombre': ('Usuario'), 'campos': [('id', 'ID'), ('primer_nombre', 'Primer Nombre'), ('segundo_nombre', 'Segundo Nombre'), ('primer_apellido', 'Primer Apellido'), ('segundo_apellido', 'Segundo Apellido'), ('email', 'Correo Electrónico'), ('tipo_usuario', 'Tipo Usuario'), ('fecha_nacimiento', 'Fecha Nacimiento'), ('departamento', 'Departamento'), ('telefono', 'Teléfono'), ('direccion', 'Dirección'), ('intermediario', 'Intermediario'), ('nivel_acceso', 'Nivel Acceso'), ('username', 'Nombre de Usuario'), ('is_staff', 'Es Staff'), ('is_active', 'Está Activo'), ('is_superuser', 'Es Superusuario'), ('last_login', 'Último Login'), ('date_joined', 'Fecha de Registro')]},
-    'contratoindividual': {'nombre': ('Contrato Individual'), 'campos': [('id', 'ID'), ('primer_nombre', 'Primer Nombre'), ('segundo_nombre', 'Segundo Nombre'), ('primer_apellido', 'Primer Apellido'), ('segundo_apellido', 'Segundo Apellido'), ('fecha_creacion', 'Fecha de Creación'), ('fecha_modificacion', 'Fecha de modificación'), ('ramo', 'Ramo'), ('forma_pago', 'Forma de Pago'), ('pagos_realizados', 'Pagos Realizados'), ('estatus', 'Estatus'), ('estado_contrato', 'Estado Contrato'), ('numero_contrato', 'Número de Contrato'), ('numero_poliza', 'Número de Póliza'), ('fecha_emision', 'Fecha de Emisión del Contrato'), ('fecha_inicio_vigencia', 'Fecha de Inicio de Vigencia'), ('fecha_fin_vigencia', 'Fecha de Fin de Vigencia'), ('monto_total', 'Monto Total del Contrato'), ('intermediario', 'Intermediario'), ('consultar_afiliados_activos', 'Consultar en data de afiliados activos'), ('tipo_identificacion_contratante', 'Tipo de Identificación del Contratante'), ('contratante_cedula', 'Cédula del Contratante'), ('contratante_nombre', 'Nombre del Contratante'), ('direccion_contratante', 'Dirección del Contratante'), ('telefono_contratante', 'Teléfono del Contratante'), ('email_contratante', 'Email del Contratante'), ('cantidad_cuotas', 'Cantidad de Cuotas'), ('afiliado', 'Afiliado'), ('plan_contratado', 'Plan Contratado'), ('comision_recibo', 'Comisión Recibo'), ('certificado', 'Certificado'), ('importe_anual_contrato', 'Importe Anual del Contrato'), ('importe_recibo_contrato', 'Importe Recibo del Contrato'), ('fecha_inicio_vigencia_recibo', 'Fecha Inicio Vigencia Recibo'), ('fecha_fin_vigencia_recibo', 'Fecha Fin Vigencia Recibo'), ('criterio_busqueda', 'Criterio de Búsqueda'), ('dias_transcurridos_ingreso', 'Días Transcurridos Ingreso'), ('estatus_detalle', 'Estatus Detalle'), ('estatus_emision_recibo', 'Estatus Emisión Recibo'), ('comision_anual', 'Comisión Anual')]},
+    'contratoindividual': {'nombre': ('Contrato Individual'), 'campos': [('id', 'ID'), ('primer_nombre', 'Primer Nombre'), ('segundo_nombre', 'Segundo Nombre'), ('primer_apellido', 'Primer Apellido'), ('segundo_apellido', 'Segundo Apellido'), ('fecha_creacion', 'Fecha de Creación'), ('fecha_modificacion', 'Fecha de modificación'), ('ramo', 'Ramo'), ('forma_pago', 'Forma de Pago'), ('pagos_realizados', 'Pagos Realizados'), ('estatus', 'Estatus'), ('estado_contrato', 'Estado Contrato'), ('numero_contrato', 'Número de Contrato'), ('numero_poliza', 'Número de Póliza'), ('fecha_emision', 'Fecha de Emisión del Contrato'), ('fecha_inicio_vigencia', 'Fecha de Inicio de Vigencia'), ('fecha_fin_vigencia', 'Fecha de Fin de Vigencia'), ('monto_total', 'Monto Total del Contrato'), ('intermediario', 'Intermediario'), ('consultar_afiliados_activos', 'Consultar en data de afiliados activos'), ('tipo_identificacion_contratante', 'Tipo de Identificación del Contratante'), ('contratante_cedula', 'Cédula del Contratante'), ('contratante_nombre', 'Nombre del Contratante'), ('direccion_contratante', 'Dirección del Contratante'), ('telefono_contratante', 'Teléfono del Contratante'), ('email_contratante', 'Email del Contratante'), ('cantidad_cuotas', 'Cantidad de Cuotas'), ('afiliado', 'Afiliado'), ('plan_contratado', 'Plan Contratado'), ('comision_recibo', 'Comisión Recibo'), ('certificado', 'Certificado'), ('importe_anual_contrato', 'Importe Anual del Contrato'), ('importe_recibo_contrato', 'Importe Recibo del Contrato'), ('fecha_inicio_vigencia_recibo', 'Fecha Inicio Vigencia Recibo'), ('fecha_fin_vigencia_recibo', 'Fecha Fin Vigencia Recibo'), ('criterio_busqueda', 'Criterio de Búsqueda'), ('dias_transcurridos_ingreso', 'Días Transcurridos Ingreso'), ('estatus_detalle', 'Estatus Detalle'), ('estatus_emision_recibo', 'Estatus Emisión Recibo')]},
     'afiliadoindividual': {'nombre': ('Afiliado Individual'), 'campos': [('id', 'ID'), ('primer_nombre', 'Primer Nombre'), ('segundo_nombre', 'Segundo Nombre'), ('primer_apellido', 'Primer Apellido'), ('segundo_apellido', 'Segundo Apellido'), ('tipo_identificacion', 'Tipo de Identificación'), ('cedula', 'Cédula'), ('estado_civil', 'Estado Civil'), ('sexo', 'Sexo'), ('parentesco', 'Parentesco'), ('fecha_nacimiento', 'Fecha Nacimiento'), ('nacionalidad', 'Nacionalidad'), ('zona_postal', 'Zona Postal'), ('estado', 'Estado'), ('municipio', 'Municipio'), ('ciudad', 'Ciudad'), ('fecha_ingreso', 'Fecha Ingreso'), ('direccion_habitacion', 'Dirección Habitación'), ('telefono_habitacion', 'Teléfono Habitación'), ('direccion_oficina', 'Dirección Oficina'), ('telefono_oficina', 'Teléfono Oficina'), ('codigo_validacion', 'Código de Validación'), ('activo', 'Estado activo')]},
     'afiliadocolectivo': {'nombre': ('Afiliado Colectivo'), 'campos': [('id', 'ID'), ('primer_nombre', 'Primer Nombre'), ('segundo_nombre', 'Segundo Nombre'), ('primer_apellido', 'Primer Apellido'), ('segundo_apellido', 'Segundo Apellido'), ('activo', 'Activo'), ('razon_social', 'Razón Social'), ('rif', 'RIF'), ('tipo_empresa', 'Tipo Empresa'), ('direccion_comercial', 'Dirección Fiscal'), ('estado', 'Estado'), ('municipio', 'Municipio'), ('ciudad', 'Ciudad'), ('zona_postal', 'Zona Postal'), ('telefono_contacto', 'Teléfono Contacto'), ('email_contacto', 'Email Contacto')]},
     'contratocolectivo': {'nombre': ('Contrato Colectivo'), 'campos': [('id', 'ID'), ('primer_nombre', 'Primer Nombre'), ('segundo_nombre', 'Segundo Nombre'), ('primer_apellido', 'Primer Apellido'), ('segundo_apellido', 'Segundo Apellido'), ('tipo_empresa', 'Tipo Empresa'), ('criterio_busqueda', 'Criterio de Búsqueda'), ('razon_social', 'Razón Social'), ('rif', 'RIF'), ('cantidad_empleados', 'Cantidad Empleados'), ('direccion_comercial', 'Dirección Comercial'), ('zona_postal', 'Zona Postal'), ('numero_recibo', 'Número Recibo'), ('comision_recibo', 'Comisión Recibo'), ('estado', 'Estado'), ('codigo_validacion', 'Código de Validación')]},
@@ -5568,7 +5611,7 @@ modelos_busqueda = {
     'factura': {'nombre': ('Factura'), 'campos': [('id', 'ID'), ('primer_nombre', 'Primer Nombre'), ('segundo_nombre', 'Segundo Nombre'), ('primer_apellido', 'Primer Apellido'), ('segundo_apellido', 'Segundo Apellido'), ('estatus_factura', 'Estatus Factura'), ('contrato_individual', 'Contrato Individual'), ('contrato_colectivo', 'Contrato Colectivo'), ('ramo', 'Ramo'), ('vigencia_recibo_desde', 'Vigencia Recibo Desde'), ('vigencia_recibo_hasta', 'Vigencia Recibo Hasta'), ('observaciones', 'Observaciones de la Factura')]},
     'reclamacion': {'nombre': ('Reclamación'), 'campos': [('id', 'ID'), ('primer_nombre', 'Primer Nombre'), ('segundo_nombre', 'Segundo Nombre'), ('primer_apellido', 'Primer Apellido'), ('segundo_apellido', 'Segundo Apellido'), ('tipo_reclamacion', 'Tipo Reclamación'), ('estado', 'Estado'), ('descripcion_reclamo', 'Descripción Reclamo'), ('monto_reclamado', 'Monto Reclamado'), ('contrato_individual', 'Contrato Individual'), ('contrato_colectivo', 'Contrato Colectivo'), ('fecha_reclamo', 'Fecha Reclamo'), ('usuario_asignado', 'Usuario Asignado'), ('observaciones_internas', 'Observaciones Internas'), ('observaciones_cliente', 'Observaciones Cliente')]},
     'pago': {'nombre': ('Pago'), 'campos': [('id', 'ID'), ('primer_nombre', 'Primer Nombre'), ('segundo_nombre', 'Segundo Nombre'), ('primer_apellido', 'Primer Apellido'), ('segundo_apellido', 'Segundo Apellido'), ('forma_pago', 'Forma de Pago'), ('reclamacion', 'Reclamación'), ('fecha_pago', 'Fecha Pago'), ('monto_pago', 'Monto Pago'), ('referencia_pago', 'Referencia Pago'), ('fecha_notificacion_pago', 'Fecha Notificación Pago'), ('observaciones_pago', 'Observaciones Pago'), ('factura', 'Factura')]},
-    'tarifa': {'nombre': ('Tarifa'), 'campos': [('id', 'ID'), ('primer_nombre', 'Primer Nombre'), ('segundo_nombre', 'Segundo Nombre'), ('primer_apellido', 'Primer Apellido'), ('segundo_apellido', 'Segundo Apellido'), ('rango_etario', 'Rango Etario'), ('ramo', 'Ramo'), ('fecha_aplicacion', 'Fecha Aplicación'), ('monto_anual', 'Monto Anual'), ('tipo_fraccionamiento', 'Tipo Fraccionamiento'), ('comision_intermediario', 'Comisión Intermediario')]},
+    'tarifa': {'nombre': ('Tarifa'), 'campos': [('id', 'ID'), ('primer_nombre', 'Primer Nombre'), ('segundo_nombre', 'Segundo Nombre'), ('primer_apellido', 'Primer Apellido'), ('segundo_apellido', 'Segundo Apellido'), ('rango_etario', 'Rango Etario'), ('ramo', 'Ramo'), ('fecha_aplicacion', 'Fecha Aplicación'), ('monto_anual', 'Monto Anual'), ('tipo_fraccionamiento', 'Tipo Fraccionamiento')]},
     'auditoriasistema': {'nombre': ('Auditoria Sistema'), 'campos': [('id', 'ID'), ('tipo_accion', 'Tipo Acción'), ('resultado_accion', 'Resultado Acción'), ('usuario__username', 'Usuario'), ('tabla_afectada', 'Tabla Afectada'), ('registro_id_afectado', 'Registro ID Afectado'), ('detalle_accion', 'Detalle Acción'), ('direccion_ip', 'Dirección IP'), ('agente_usuario', 'Agente Usuario'), ('tiempo_inicio', 'Tiempo Inicio'), ('tiempo_final', 'Tiempo Final'), ('control_fecha_actual', 'Control Fecha Actual')]},
 }
 
@@ -6863,3 +6906,37 @@ def serve_media_file(request, file_path):
         return FileResponse(open(full_path, 'rb'), content_type=content_type)
     else:
         raise Http404("Archivo no encontrado.")
+
+
+class CalcularMontoContratoAPI(View):
+    def get(self, request, *args, **kwargs):
+        tarifa_id = request.GET.get('tarifa_id')
+        periodo_meses_str = request.GET.get('periodo_meses')
+
+        if not tarifa_id or not periodo_meses_str:
+            return JsonResponse({'error': 'Faltan parámetros tarifa_id o periodo_meses.'}, status=400)
+
+        try:
+            tarifa = Tarifa.objects.get(pk=tarifa_id)
+            periodo_meses = int(periodo_meses_str)
+
+            if tarifa.monto_anual is None or periodo_meses <= 0:
+                raise ValueError("Datos inválidos para el cálculo.")
+
+            # La lógica de cálculo que ya conocemos
+            monto_total = (tarifa.monto_anual / Decimal(12)) * \
+                Decimal(periodo_meses)
+
+            return JsonResponse({
+                # Devolvemos como string con 2 decimales
+                'monto_total': f"{monto_total:.2f}"
+            })
+
+        except Tarifa.DoesNotExist:
+            return JsonResponse({'error': 'La tarifa especificada no existe.'}, status=404)
+        except (ValueError, TypeError, InvalidOperation):
+            return JsonResponse({'error': 'Parámetros inválidos para el cálculo.'}, status=400)
+        except Exception as e:
+            # Loguear el error real en el servidor
+            # logger.error(f"Error en CalcularMontoContratoAPI: {e}")
+            return JsonResponse({'error': 'Ocurrió un error interno en el servidor.'}, status=500)

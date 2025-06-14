@@ -49,10 +49,6 @@
                 <span>{{ tarifa.get_tipo_fraccionamiento_display|escape|default:"Anual (Base)" }}</span> {# Usar get_display o default #}
             </div>
              <div class="dark-group">
-                 <span class="dark-label">💲 Comisión Intermediario (%):</span>
-                 <span>{{ tarifa.comision_intermediario|floatformat:2|default:"-" }}%</span>
-             </div>
-             <div class="dark-group">
                 <span class="dark-label">💡 Tarifa Activa:</span>
                  <span class="badge {% if tarifa.activo %}badge-success{% else %}badge-danger{% endif %}">{{ tarifa.activo|yesno:"Sí,No" }}</span>
             </div>

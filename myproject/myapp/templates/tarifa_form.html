@@ -86,14 +86,6 @@
             {% if form.tipo_fraccionamiento.help_text %}<small class="form-text text-muted">{{ form.tipo_fraccionamiento.help_text }}</small>{% endif %}
         </div>
 
-        {# Campo comision_intermediario #}
-        <div class="dark-group {% if form.comision_intermediario.errors %}error{% endif %}">
-            <label class="dark-label" for="{{ form.comision_intermediario.id_for_label }}">🤝 Comisión Intermediario (%)</label>
-            {{ form.comision_intermediario }} {# Asume Input Number #}
-            {% if form.comision_intermediario.errors %}<ul class="error-messages">{% for error in form.comision_intermediario.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-            {% if form.comision_intermediario.help_text %}<small class="form-text text-muted">{{ form.comision_intermediario.help_text }}</small>{% endif %}
-        </div>
-
       {# Renderizar campos ocultos #}
       {% for field in form.hidden_fields %}
           {{ field }}

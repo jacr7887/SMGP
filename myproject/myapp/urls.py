@@ -3,6 +3,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from . import views
 from myapp import views
+from .views import CalcularMontoContratoAPI, ReclamacionStatusAPIView
 from django.views.generic import TemplateView  # Importa TemplateView
 
 app_name = 'myapp'
@@ -105,6 +106,8 @@ urlpatterns = [
          views.ReclamacionUpdateView.as_view(), name='reclamacion_update'),
     path('reclamaciones/eliminar/<int:pk>/',
          views.ReclamacionDeleteView.as_view(), name='reclamacion_delete'),
+    path('api/reclamacion/<int:pk>/status/',
+         ReclamacionStatusAPIView.as_view(), name='api_reclamacion_status'),
 
     # Vistas de Pago
     path('pagos/', views.PagoListView.as_view(), name='pago_list'),
@@ -198,6 +201,8 @@ urlpatterns = [
     path('licencia/', views.ActivateLicenseView.as_view(), name='activate_license'),
     path('licencia-invalida/',
          TemplateView.as_view(template_name='license_invalid.html'), name='license_invalid'),
+    path('api/calcular-monto-contrato/', CalcularMontoContratoAPI.as_view(),
+         name='api_calcular_monto_contrato'),
 
 
     path('error/', views.error_page, name='error_page'),

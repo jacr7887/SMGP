@@ -356,12 +356,34 @@ def validate_reclamacion_monto(monto_solicitado, monto_contrato):
 
 
 def validate_estado_reclamacion(estado_actual, nuevo_estado):
-    validos = {"ABIERTA": ["APROBADA", "RECHAZADA", "EN_PROCESO"], "EN_PROCESO": [
-        "APROBADA", "RECHAZADA"], "APROBADA": ["PAGADA"], "RECHAZADA": [], "PAGADA": []}
-    permitidas = validos.get(estado_actual, [])
+    """
+    Valida las transiciones de estado permitidas para una Reclamación.
+    """
+    # --- DICCIONARIO DE TRANSICIONES CORREGIDO ---
+    transiciones_permitidas = {
+        # Desde abierta puede pasar a en proceso o anularse
+        "ABIERTA": ["EN_PROCESO", "ANULADA"],
+        # <-- AQUÍ AÑADIMOS "PAGADA"
+        "EN_PROCESO": ["APROBADA", "RECHAZADA", "PAGADA"],
+        # Desde aprobada se puede pagar o revertir a en proceso
+        "APROBADA": ["PAGADA", "EN_PROCESO"],
+        # Una vez rechazada, no se puede cambiar (o permitir revertir a EN_PROCESO si se quiere)
+        "RECHAZADA": [],
+        "PAGADA": [],    # Una vez pagada, no se puede cambiar
+        "ANULADA": [],   # Una vez anulada, no se puede cambiar
+    }
+    # ---------------------------------------------
+
+    # La lógica de validación no cambia
+    permitidas = transiciones_permitidas.get(estado_actual, [])
+
     if nuevo_estado != estado_actual and nuevo_estado not in permitidas:
+        # Formateamos el mensaje de error para que sea más legible
+        permitidas_str = ", ".join(permitidas) if permitidas else "ninguna"
         raise ValidationError(
-            f"Transición inválida: '{estado_actual}' a '{nuevo_estado}'. Permitidas: {permitidas}")
+            f"No se puede cambiar el estado de '{estado_actual}' a '{nuevo_estado}'. "
+            f"Desde '{estado_actual}', las transiciones permitidas son: {permitidas_str}."
+        )
 
 
 def validate_metodo_pago(value):

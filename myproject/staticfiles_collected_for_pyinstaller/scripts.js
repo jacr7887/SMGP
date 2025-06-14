@@ -238,6 +238,39 @@ function initExportPopup() {
     });
 }
 
+
+/* ======================
+    VISUALIZADOR DE ARCHIVOS (POPUP)
+====================== */
+/**
+ * Abre una URL en una ventana emergente (popup) centrada.
+ * @param {string} url - La URL del archivo a mostrar.
+ * @param {string} title - El título de la ventana emergente.
+ */
+function openFilePopup(url, title) {
+    const width = 800;
+    const height = 600;
+    const left = (screen.width / 2) - (width / 2);
+    const top = (screen.height / 2) - (height / 2);
+    const windowFeatures = `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes,status=yes`;
+    
+    window.open(url, title, windowFeatures);
+}
+
+// NUEVA FUNCIÓN DE INICIALIZACIÓN
+function initFilePopups() {
+    document.body.addEventListener('click', function(event) {
+        const fileLink = event.target.closest('a.file-popup-trigger');
+        if (fileLink) {
+            event.preventDefault(); // Prevenimos la navegación normal
+            const url = fileLink.href;
+            const title = fileLink.dataset.popupTitle || 'Visor de Documento';
+            openFilePopup(url, title);
+        }
+    });
+    console.log("Manejador de popups para archivos inicializado.");
+}
+
 // Comportamientos de Formularios
 function initFormBehaviors() {
     document.addEventListener('input', e => { if (e.target.matches('[required]') && e.target.closest('.dark-group.error')) { if (e.target.value.trim()) { const g=e.target.closest('.dark-group'); g.classList.remove('error'); e.target.classList.remove('is-invalid'); g.querySelector('.error-messages')?.remove(); } } });
@@ -794,6 +827,51 @@ function inicializarCalculosTarifa(opciones = {}) {
     if (campos.anual.value) { actualizarCampos(); const valorLimpioInicial = limpiarNumero(campos.anual.value); if (!isNaN(parseFloat(valorLimpioInicial))) campos.anual.value = formatearNumero(valorLimpioInicial); }
 }
 
+function initContratoMontoCalculator() {
+    // Usamos selectores de jQuery para ser compatibles con Select2
+    const $tarifaSelect = $('#id_tarifa_aplicada');
+    const $periodoInput = $('#id_periodo_vigencia_meses');
+    const $montoDisplay = $('#monto-total-display');
+
+    if ($tarifaSelect.length === 0 || $periodoInput.length === 0 || $montoDisplay.length === 0) {
+        return; 
+    }
+
+    const actualizarMonto = () => {
+        // Encontramos la opción seleccionada dentro del select original
+        const selectedOption = $tarifaSelect.find('option:selected');
+        const periodoMeses = parseInt($periodoInput.val(), 10);
+
+        // Leemos el atributo data-monto-anual de la opción seleccionada
+        const montoAnualStr = selectedOption.data('monto-anual');
+
+        if (!montoAnualStr || isNaN(periodoMeses) || periodoMeses <= 0) {
+            $montoDisplay.text('$0.00');
+            return;
+        }
+
+        const montoAnual = parseFloat(montoAnualStr);
+        
+        if (!isNaN(montoAnual)) {
+            const montoCalculado = (montoAnual / 12) * periodoMeses;
+            $montoDisplay.text(`$${montoCalculado.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+        } else {
+            $montoDisplay.text('$0.00');
+        }
+    };
+
+    // --- LA CLAVE ESTÁ AQUÍ ---
+    // Usamos el evento 'change' de jQuery, que Select2 dispara correctamente.
+    $tarifaSelect.on('change', actualizarMonto);
+    $periodoInput.on('input', debounce(actualizarMonto, 300));
+
+    // Ejecutar al cargar por si hay valores iniciales (modo edición)
+    // Esperamos un poco para que Select2 termine de inicializarse
+    setTimeout(actualizarMonto, 200);
+    
+    console.log("Calculadora de monto para contratos (con Select2 y data-attributes) inicializada.");
+}
+
 // ==================================================
 // === INICIALIZACIÓN DE INTERACCIONES DE TABLA (NO DATATABLES) ===
 // ==================================================
@@ -825,6 +903,17 @@ function initTableInteractions() {
     INICIALIZACIÓN PRINCIPAL (DOMContentLoaded)
 ======================================= */
 document.addEventListener("DOMContentLoaded", () => {
+
+    document.body.addEventListener('click', function(event) {
+        const fileLink = event.target.closest('a.file-popup-trigger');
+        if (fileLink) {
+            event.preventDefault(); // Prevenimos la navegación normal
+            const url = fileLink.href;
+            const title = fileLink.dataset.popupTitle || 'Visor de Documento';
+            openFilePopup(url, title);
+        }
+    });
+
     try { initTabs(); } catch (e) { console.error("Error en initTabs:", e); }
     try { carouselInstance = initCarousel(); } catch (e) { console.error("Error en initCarousel:", e); }
     try { initFormBehaviors(); } catch (e) { console.error("Error en initFormBehaviors:", e); }
@@ -837,11 +926,11 @@ document.addEventListener("DOMContentLoaded", () => {
     try { if (document.getElementById('id_monto_anual')) inicializarCalculosTarifa(); } catch (e) { console.error("Error en inicializarCalculosTarifa:", e); }
     try { initTableInteractions(); } catch (e) { console.error("Error en initTableInteractions:", e); }
     try { if (document.getElementById('id_monto_total') && document.getElementById('id_forma_pago')) {initContratoCuotasCalculator();}} catch (e) { console.error("Error en initContratoCuotasCalculator:", e); }
-    try { 
-        if (document.getElementById('id_contrato_individual') || document.getElementById('id_contrato_colectivo')) {
-            initFacturaFormCalculations(); // Esta es la llamada correcta
-        }
-    } catch (e) { 
-        console.error("Error en initFacturaFormCalculations:", e); 
-    }
+    try { if (document.getElementById('id_contrato_individual') || document.getElementById('id_contrato_colectivo')) {initFacturaFormCalculations();}} catch (e) {console.error("Error en initFacturaFormCalculations:", e);}
+    try { initFilePopups(); } catch (e) { console.error("Error en initFilePopups:", e); }
+    try { initContratoMontoCalculator(); } catch (e) { console.error("Error en initContratoMontoCalculator:", e); }
+
 });
+
+
+

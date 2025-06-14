@@ -410,7 +410,6 @@ class TarifaModelTest(TestCase):
             fecha_aplicacion='2023-01-01',
             monto_anual=1200.00,
             tipo_fraccionamiento='ANUAL',
-            comision_intermediario=5.00,
             monto_semestral=600.00,
             monto_trimestral=300.00,
             monto_mensual=100.00
@@ -422,7 +421,6 @@ class TarifaModelTest(TestCase):
         self.assertEqual(self.tarifa.fecha_aplicacion, date(2023, 1, 1))
         self.assertEqual(self.tarifa.monto_anual, 1200.00)
         self.assertEqual(self.tarifa.tipo_fraccionamiento, 'ANUAL')
-        self.assertEqual(self.tarifa.comision_intermediario, 5.00)
         self.assertEqual(self.tarifa.monto_semestral, 600.00)
         self.assertEqual(self.tarifa.monto_trimestral, 300.00)
         self.assertEqual(self.tarifa.monto_mensual, 100.00)
@@ -449,7 +447,6 @@ class TarifaModelTest(TestCase):
                 fecha_aplicacion='2100-01-01',  # Fecha futura
                 monto_anual=1200.00,
                 tipo_fraccionamiento='ANUAL',
-                comision_intermediario=5.00,
                 monto_semestral=600.00,
                 monto_trimestral=300.00,
                 monto_mensual=100.00
@@ -465,7 +462,6 @@ class TarifaModelTest(TestCase):
             fecha_aplicacion='2023-01-01',
             monto_anual=1200.00,
             tipo_fraccionamiento='ANUAL',
-            comision_intermediario=5.00,
             # No especificamos los montos fraccionados
         )
         self.assertEqual(tarifa.monto_semestral, 600.00)
@@ -497,7 +493,6 @@ class TarifaModelTest(TestCase):
             fecha_aplicacion='2023-01-01',
             monto_anual=1200.00,
             tipo_fraccionamiento='ANUAL',
-            comision_intermediario=5.00,
             monto_semestral=600.00,
             monto_trimestral=300.00,
             monto_mensual=100.00

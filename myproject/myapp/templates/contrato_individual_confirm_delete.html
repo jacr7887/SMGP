@@ -183,15 +183,6 @@
                 <span class="dark-label">🧾 Estatus Emisión Recibo:</span>
                 <span class="data-value">{{ object.get_estatus_emision_recibo_display|escape }}</span>
             </div>
-             <div class="dark-group">
-                <span class="dark-label">💲 Comisión Anual (%):</span>
-                <span class="data-value">{{ object.comision_anual|floatformat:2|default:"-" }}{% if object.comision_anual is not None %}%{% endif %}</span> {# Añade % si hay valor #}
-            </div>
-            <div class="dark-group">
-                <span class="dark-label">💲 Comisión por Recibo ($):</span>
-                <span class="data-value">${{ object.comision_recibo|floatformat:2|intcomma|default:"-" }}</span>
-            </div>
-        </div>
 
         {# --- Sección Otros y Sistema --- #}
          <div class="detail-section" data-section="otros"> {# Tu clase #}

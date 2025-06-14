@@ -19,11 +19,11 @@
     {# --- Botones de Acción Superiores --- #}
     <div class="header-actions mb-4"> {# Añadido mb-4 para separación #}
        {% if form.instance.pk %} {# Mostrar botones de PDF y eliminar solo si el pago existe #}
-            <a href="{% url 'myapp:pago_pdf' pago.pk %}" target="_blank" class="btn btn-info">
+            <a href="{% url 'myapp:pago_pdf' form.instance.pk %}" target="_blank" class="btn btn-info">
               📄 Ver Recibo PDF
             </a>
             {% if perms.myapp.delete_pago %}
-            <a href="{% url 'myapp:pago_delete' pago.pk %}" class="btn btn-danger delete-link">
+            <a href="{% url 'myapp:pago_delete' form.instance.pk %}" class="btn btn-danger delete-link">
               ❌ Eliminar
             </a>
             {% endif %}

@@ -74,8 +74,6 @@
             <div class="dark-group"><span class="dark-label">✅ Pagos Realizados (Contador):</span><span>{{ object.pagos_realizados|default:"0" }}</span></div>
             <div class="dark-group"><span class="dark-label">🛡️ Suma Asegurada:</span><span>${{ object.suma_asegurada|floatformat:2|intcomma|default:"0.00" }}</span></div>
             <div class="dark-group"><span class="dark-label">🧾 N° Recibo Base:</span><span>{{ object.numero_recibo|escape|default:"-" }}</span></div>
-            <div class="dark-group"><span class="dark-label">💲 Comisión Intermediario (%):</span><span>{% if object.tarifa_aplicada and object.tarifa_aplicada.comision_intermediario is not None %}{{ object.tarifa_aplicada.comision_intermediario|floatformat:2 }}%{% else %}<span class="text-muted">N/A</span>{% endif %}</span></div>
-            <div class="dark-group"><span class="dark-label">💸 Comisión Intermediario (Estimada):</span><span>${{ object.monto_comision_intermediario_estimada|floatformat:2|intcomma|default:"-" }}</span></div>
             <div class="dark-group" style="grid-column: span 2;"><span class="dark-label">💳 Estado General de Pagos:</span><span><strong>{{ object.estado_pago_general }}</strong></span></div>
         </div>
         <div style="grid-column: 1 / -1; border-top: 1px dashed var(--border-light); padding-top: 1rem; margin-top: 1rem;">

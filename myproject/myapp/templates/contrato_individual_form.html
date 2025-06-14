@@ -75,12 +75,17 @@
                      <label class="dark-label">🧾 Número Último Recibo (Contrato)</label>
                      <input type="text" value="{{ form.instance.numero_recibo|default:'N/A' }}" readonly class="dark-group-plaintext">
                  </div>
-                 <div class="dark-group readonly-group">
-                     <label class="dark-label">💰 Prima Total (Calculada)</label>
-                     <input type="text" value="${{ form.instance.monto_total|floatformat:2|intcomma|default:'0.00' }}" readonly class="dark-group-plaintext">
-                     <small class="form-text text-muted">Monto calculado al momento de la creación/última modificación.</small>
-                </div>
-            </div>
+                  {% for field in form.hidden_fields %}
+                        {{ field }}
+                  {% endfor %}
+
+          <div class="dark-group readonly-group">
+              <label class="dark-label">💰 Monto Total del Contrato (Calculado)</label>
+              <span id="monto-total-display" class="dark-group-plaintext" style="text-align: right; font-weight: bold;">
+                  $0.00
+              </span>
+              <small class="form-text text-muted">Este monto se calcula automáticamente al seleccionar Tarifa y Duración.</small>
+          </div>
           {% endif %}
 
           <div class="dark-grid">
@@ -125,7 +130,6 @@
       <fieldset class="dark-group" data-section="comisiones-estatus">
         <legend class="dark-label">📊 Comisiones y Estatus del Contrato</legend>
         <div class="dark-grid">
-            {% with field=form.comision_anual %}{% if field %}<div class="dark-group {% if field.errors %}error{% endif %}"><label class="dark-label" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="text-danger">*</span>{% endif %}</label>{{ field }}{% if field.errors %}<ul class="error-messages">{% for error in field.errors %}<li>{{error|escape}}</li>{% endfor %}</ul>{% endif %}{% if field.help_text %}<small class="form-text text-muted">{{ field.help_text|escape }}</small>{% endif %}</div>{% endif %}{% endwith %}
             {% with field=form.estatus %}{% if field %}<div class="dark-group {% if field.errors %}error{% endif %}"><label class="dark-label" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="text-danger">*</span>{% endif %}</label>{{ field }}{% if field.errors %}<ul class="error-messages">{% for error in field.errors %}<li>{{error|escape}}</li>{% endfor %}</ul>{% endif %}{% if field.help_text %}<small class="form-text text-muted">{{ field.help_text|escape }}</small>{% endif %}</div>{% endif %}{% endwith %}
             {% with field=form.estado_contrato %}{% if field %}<div class="dark-group {% if field.errors %}error{% endif %}"><label class="dark-label" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="text-danger">*</span>{% endif %}</label>{{ field }}{% if field.errors %}<ul class="error-messages">{% for error in field.errors %}<li>{{error|escape}}</li>{% endfor %}</ul>{% endif %}{% if field.help_text %}<small class="form-text text-muted">{{ field.help_text|escape }}</small>{% endif %}</div>{% endif %}{% endwith %}
             {% with field=form.estatus_emision_recibo %}{% if field %}<div class="dark-group {% if field.errors %}error{% endif %}"><label class="dark-label" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="text-danger">*</span>{% endif %}</label>{{ field }}{% if field.errors %}<ul class="error-messages">{% for error in field.errors %}<li>{{error|escape}}</li>{% endfor %}</ul>{% endif %}{% if field.help_text %}<small class="form-text text-muted">{{ field.help_text|escape }}</small>{% endif %}</div>{% endif %}{% endwith %}
@@ -200,5 +204,10 @@
     display: block !important;
   }
 </style>
+{% block extra_js %}
+<script>
+    window.URL_CALCULAR_MONTO_CONTRATO = "{% url 'myapp:api_calcular_monto_contrato' %}";
+</script>>
+{% endblock extra_js %}
 
 {% endblock content %}

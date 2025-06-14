@@ -118,10 +118,7 @@
             <div class="dark-group"><span class="dark-label">💳 Forma Pago:</span><span>{{ forma_pago_display|escape }}</span></div>
             <div class="dark-group"><span class="dark-label">✅ Pagos Realizados (Contador):</span><span>{{ contrato.pagos_realizados|default:"0" }}</span></div>
             <div class="dark-group"><span class="dark-label">🧾 Estatus Emisión Recibo:</span><span>{{ estatus_emision_recibo_display|escape|default:"-" }}</span></div>
-            <div class="dark-group"><span class="dark-label">📈 Comisión Anual (%):</span><span>{{ contrato.comision_anual|floatformat:2|default:"-" }}%</span></div>
             
-            <div class="dark-group"><span class="dark-label">💸 Comisión Intermediario (Estimada):</span><span>${{ contrato.monto_comision_intermediario_estimada|floatformat:2|intcomma|default:"-" }}</span></div>
-
             <div class="dark-group"><span class="dark-label">🛡️ Suma Asegurada / Cobertura:</span><span>${{ suma_asegurada_contrato|floatformat:2|intcomma|default:"0.00" }}</span></div>
             
             <div class="dark-group" style="grid-column: span 2;"><span class="dark-label">💳 Estado General de Pagos:</span><span><strong>{{ contrato.estado_pago_general }}</strong></span></div>
@@ -250,28 +247,45 @@
 
             <h4 class="mt-3">🆘 Reclamaciones Asociadas ({{ total_reclamaciones }})</h4>
             {% if reclamaciones_asociadas %}
-               <div class="table-container">
-                   <table class="data-table">
-                       <thead><tr><th>ID Reclamo</th><th>Fecha Reclamo</th><th>Tipo</th><th>Estado</th><th class="text-end">Monto Reclamado</th><th>Acciones</th></tr></thead>
-                       <tbody>
-                           {% for rec in reclamaciones_asociadas %}
-                           <tr>
-                               <td>{{ rec.pk }}</td>
-                               <td>{{ rec.fecha_reclamo|date:"d/m/Y"|default:"-" }}</td>
-                               <td>{{ rec.get_tipo_reclamacion_display|default:"-" }}</td>
-                               <td><span class="badge {% if rec.estado == 'APROBADA' or rec.estado == 'PAGADA' %}badge-success{% elif rec.estado == 'RECHAZADA' %}badge-danger{% elif rec.estado == 'EN_PROCESO' %}badge-info{% else %}badge-secondary{% endif %}">{{ rec.get_estado_display|default:rec.estado|default:"-" }}</span></td>
-                               <td class="text-end">${{ rec.monto_reclamado|default:"0.00"|floatformat:2|intcomma }}</td>
-                               <td class="actions"><div class="action-group">
-                                  {% if user_perms.can_view_reclamaciones %}<a href="{% url 'myapp:reclamacion_detail' rec.pk %}" class="action-icon" title="Ver Reclamación">👁️</a>{% endif %}
-                               </div></td>
-                           </tr>
-                           {% endfor %}
-                       </tbody>
-                   </table>
-               </div>
-           {% else %}
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID Reclamo</th>
+                            <th>Fecha Reclamo</th>
+                            <th>Tipo</th>
+                            <th>Estado</th>
+                            <th class="text-end">Monto Reclamado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for rec in reclamaciones_asociadas %}
+                        <!-- 1. AÑADIMOS UN ID ÚNICO A LA FILA -->
+                        <tr role="row" id="reclamacion-row-{{ rec.pk }}">
+                            <td>{{ rec.pk }}</td>
+                            <td>{{ rec.fecha_reclamo|date:"d/m/Y"|default:"-" }}</td>
+                            <td>{{ rec.get_tipo_reclamacion_display|default:"-" }}</td>
+                            <td>
+                                <!-- 2. AÑADIMOS UN ID ÚNICO AL BADGE -->
+                                <span id="status-badge-{{ rec.pk }}" class="badge {% if rec.estado == 'APROBADA' or rec.estado == 'PAGADA' %}badge-success{% elif rec.estado == 'RECHAZADA' %}badge-danger{% elif rec.estado == 'EN_PROCESO' %}badge-info{% else %}badge-secondary{% endif %}">
+                                    {{ rec.get_estado_display|default:rec.estado|default:"-" }}
+                                </span>
+                            </td>
+                            <td class="text-end">${{ rec.monto_reclamado|default:"0.00"|floatformat:2|intcomma }}</td>
+                            <td class="actions">
+                                <div class="action-group">
+                                    {% if user_perms.can_view_reclamaciones %}<a href="{% url 'myapp:reclamacion_detail' rec.pk %}" class="action-icon" title="Ver Reclamación">👁️</a>{% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
                 <p>No hay reclamaciones asociadas a este contrato.</p>
-           {% endif %}
+        {% endif %}
 
            <h4 class="mt-3">💵 Facturas Asociadas ({{ total_facturas }})</h4>
            {% if facturas_asociadas %}
@@ -327,5 +341,84 @@
         console.error("Error parsing or displaying historial_cambios JSON:", e);
       }
     });
+
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Mapa de clases CSS para cada estado. ¡Asegúrate de que coincidan con tu CSS!
+    const statusClassMap = {
+        'PAGADA': 'badge badge-success',
+        'APROBADA': 'badge badge-success',
+        'RECHAZADA': 'badge badge-danger',
+        'ANULADA': 'badge badge-danger',
+        'EN_PROCESO': 'badge badge-info',
+        'ABIERTA': 'badge badge-secondary'
+    };
+
+    // Seleccionamos directamente los badges por su ID que empieza con "status-badge-"
+    const statusBadges = document.querySelectorAll('[id^="status-badge-"]');
+
+    if (statusBadges.length === 0) {
+        console.log('[Status Check] No se encontraron badges de estado de reclamación en la página.');
+        return;
+    }
+
+    console.log(`[Status Check] Verificando el estado de ${statusBadges.length} reclamaciones.`);
+
+    statusBadges.forEach(badge => {
+        const reclamacionId = badge.id.replace('status-badge-', '');
+        const apiUrl = `/api/reclamacion/${reclamacionId}/status/`;
+
+        // Hacemos la llamada a la API con un pequeño retardo para asegurar que la transacción se complete
+        setTimeout(() => {
+            fetch(apiUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        // Si la API falla, lo registramos pero no rompemos el script
+                        console.error(`Error en API para Reclamación #${reclamacionId}: ${response.statusText}`);
+                        return Promise.reject('API response not OK');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    const initialDisplayText = badge.textContent.trim();
+                    const freshDisplayText = data.estado_display.trim();
+
+                    // Comparamos el texto actual con el que viene de la API
+                    if (initialDisplayText !== freshDisplayText) {
+                        console.warn(`¡ACTUALIZANDO ESTADO! Reclamación #${reclamacionId}: de '${initialDisplayText}' a '${freshDisplayText}'`);
+
+                        // Actualizamos el texto del badge
+                        badge.textContent = freshDisplayText;
+                        
+                        // Actualizamos las clases CSS del badge
+                        badge.className = statusClassMap[data.estado_valor] || 'badge badge-secondary';
+
+                        // Efecto visual en la fila para que el usuario note el cambio
+                        const row = document.getElementById(`reclamacion-row-${reclamacionId}`);
+                        if (row) {
+                            row.style.transition = 'background-color 0.5s ease';
+                            row.style.backgroundColor = 'rgba(255, 235, 59, 0.3)'; // Amarillo pálido
+                            setTimeout(() => {
+                                row.style.backgroundColor = '';
+                            }, 2500);
+                        }
+                    } else {
+                        console.log(`[Status Check] Reclamación #${reclamacionId}: el estado '${initialDisplayText}' es correcto. No se necesita actualización.`);
+                    }
+                })
+                .catch(error => {
+                    // No hacemos nada si hay un error, para no confundir al usuario
+                    if (error !== 'API response not OK') {
+                        console.error(`Error en fetch para Reclamación #${reclamacionId}:`, error);
+                    }
+                });
+        }, 500); // 500ms de retardo
+    });
+});
+
 </script>
+
+
+
 {% endblock content %}

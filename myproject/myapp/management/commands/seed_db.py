@@ -417,8 +417,6 @@ class Command(BaseCommand):
                             fecha_app = fake.past_date(
                                 start_date="-3y")  # DateField
                             tipo_f = random.choice(possible_fraccionamientos)
-                            defaults = {'monto_anual': fake.pydecimal(left_digits=4, right_digits=2, positive=True, min_value=Decimal('50.00'), max_value=Decimal('9500.00')),
-                                        'comision_intermediario': fake.pydecimal(left_digits=2, right_digits=2, min_value=Decimal('1.00'), max_value=Decimal('30.00')), 'activo': fake.boolean(chance_of_getting_true=90)}
                             tarifa, _ = Tarifa.objects.update_or_create(
                                 ramo=ramo, rango_etario=rango, fecha_aplicacion=fecha_app, tipo_fraccionamiento=tipo_f, defaults=defaults)
                             if tarifa.pk not in tarifa_ids_created:
@@ -435,7 +433,7 @@ class Command(BaseCommand):
                     if not (tarifa_ids_created + tarifa_ids_db) and stats_m['requested'] > 0:
                         try:
                             emergency_tarifa = Tarifa.objects.create(ramo=CommonChoices.RAMO[0][0], rango_etario=CommonChoices.RANGO_ETARIO[0][0], fecha_aplicacion=date.today(
-                            ) - timedelta(days=30), monto_anual=Decimal("100.00"), comision_intermediario=Decimal("10.00"), activo=True)
+                            ) - timedelta(days=30), monto_anual=Decimal("100.00"), activo=True)
                             tarifa_ids_created.append(emergency_tarifa.pk)
                             stats_m['created'] += 1
                         except Exception as e:
@@ -825,9 +823,6 @@ class Command(BaseCommand):
                             fecha_emision_dt_aware_ci = self._get_aware_fake_datetime(
                                 fake, start_range_ci_aware, end_range_ci_aware)
                             periodo_meses = random.choice([6, 12, 18, 24])
-                            comision_anual_pct = fake.pydecimal(left_digits=2, right_digits=2, min_value=Decimal(
-                                '1.00'), max_value=Decimal('20.00')) if fake.boolean(chance_of_getting_true=75) else None
-
                             contrato_ind = ContratoIndividual(
                                 ramo=tarifa.ramo, forma_pago=random.choice(
                                     [c[0] for c in CommonChoices.FORMA_PAGO]),
@@ -839,7 +834,6 @@ class Command(BaseCommand):
                                 periodo_vigencia_meses=periodo_meses,
                                 intermediario=intermediario, tarifa_aplicada=tarifa, afiliado=afiliado,
                                 tipo_identificacion_contratante=afiliado.tipo_identificacion, contratante_cedula=afiliado.cedula,
-                                contratante_nombre=afiliado.nombre_completo, comision_anual=comision_anual_pct,
                                 activo=fake.boolean(chance_of_getting_true=95)
                             )
                             contrato_ind.save()

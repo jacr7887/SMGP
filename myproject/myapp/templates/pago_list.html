@@ -76,7 +76,7 @@
             <td role="cell">{{ pago.referencia_pago|escape|default:"-" }}</td>
             <td role="cell">{{ pago.fecha_notificacion_pago|date:"d/m/Y"|default:"-" }}</td>
             <td role="cell" title="{{ pago.observaciones_pago|escape|default:'' }}">{{ pago.observaciones_pago|escape|truncatechars:40|default:"-" }}</td>
-            <td role="cell">{% if pago.documentos_soporte_pago %}<a href="{{ pago.documentos_soporte_pago.url }}" target="_blank">📎 Ver</a>{% else %}-{% endif %}</td>
+            <td role="cell">{% if pago.documentos_soporte_pago %}<a href="{{ pago.documentos_soporte_pago.url }}"class="file-popup-trigger"data-popup-title="Soporte de Pago #{{ pago.pk }}">  📎 Ver</a>{% else %}-{% endif %}</td>
             <td role="cell">{% if pago.activo %}✅ Sí{% else %}🔴 No{% endif %}</td>
             <td role="cell">{{ pago.fecha_creacion|date:"d/m/y H:i"|default:"-" }}</td>
             <td role="cell">{{ pago.fecha_modificacion|date:"d/m/y H:i"|default:"-" }}</td>

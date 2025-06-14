@@ -763,8 +763,6 @@ class ContratoIndividualForm(AwareDateInputMixinVE, BaseModelForm):
                                       required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
     suma_asegurada = forms.DecimalField(label="Suma Asegurada / Monto Cobertura", max_digits=17, decimal_places=2, min_value=Decimal(
         '0.01'), widget=forms.NumberInput(attrs={'step': '0.01', 'min': '0.01', 'class': 'form-control'}), required=True)
-    comision_anual = forms.DecimalField(label="Comisión Anual (%)", max_digits=5, decimal_places=2, min_value=Decimal('0.00'), max_value=Decimal(
-        '100.00'), widget=forms.NumberInput(attrs={'step': '0.01', 'min': '0', 'max': '100', 'class': 'form-control'}), required=False)
     estatus_emision_recibo = forms.ChoiceField(label="Estatus de Emisión del Recibo", choices=CommonChoices.EMISION_RECIBO, widget=Select2Widget(
         attrs={'class': 'form-control'}), required=False)
     criterio_busqueda = forms.CharField(label="Criterio de Búsqueda", max_length=255,
@@ -787,7 +785,7 @@ class ContratoIndividualForm(AwareDateInputMixinVE, BaseModelForm):
             'telefono_contratante', 'email_contratante', 'afiliado', 'plan_contratado',
             'suma_asegurada', 'tarifa_aplicada',
             'fecha_inicio_vigencia_recibo', 'fecha_fin_vigencia_recibo',
-            'estatus_emision_recibo', 'comision_anual',
+            'estatus_emision_recibo',
             'criterio_busqueda', 'estatus_detalle', 'consultar_afiliados_activos',
         ]
         exclude = [
@@ -972,7 +970,8 @@ class ContratoColectivoForm(AwareDateInputMixinVE, BaseModelForm):
         attrs={'min': '1', 'class': 'form-control', 'id': 'id_periodo_vigencia_meses'}), required=False, help_text="Si se indica, la Fecha Fin se calcula.")
 
     monto_total = forms.DecimalField(
-        label="Monto Total del Contrato", max_digits=15, decimal_places=2, required=True,
+        required=False,
+        label="Monto Total del Contrato", max_digits=15, decimal_places=2,
         widget=forms.NumberInput(
             attrs={'class': 'form-control', 'id': 'id_monto_total', 'step': '0.01'})
     )
@@ -1003,7 +1002,7 @@ class ContratoColectivoForm(AwareDateInputMixinVE, BaseModelForm):
         fields = [
             'activo', 'ramo', 'forma_pago', 'estatus', 'estado_contrato',
             'fecha_emision', 'fecha_inicio_vigencia', 'fecha_fin_vigencia',
-            'periodo_vigencia_meses', 'monto_total', 'suma_asegurada',
+            'periodo_vigencia_meses', 'suma_asegurada',
             'intermediario', 'tarifa_aplicada', 'tipo_empresa', 'cantidad_empleados',
             'direccion_comercial', 'zona_postal', 'plan_contratado',
             'criterio_busqueda', 'afiliados_colectivos', 'consultar_afiliados_activos',
@@ -1013,7 +1012,7 @@ class ContratoColectivoForm(AwareDateInputMixinVE, BaseModelForm):
             'rif', 'razon_social', 'pagos_realizados', 'comision_recibo',
             'codigo_validacion', 'fecha_creacion', 'fecha_modificacion',
             'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido',
-            'historial_cambios',
+            'historial_cambios', 'monto_total'
         ]
         widgets = {
             'activo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
@@ -1303,48 +1302,43 @@ class ReclamacionForm(AwareDateInputMixinVE, BaseModelForm):
         cleaned_data = super().clean()
         contrato_individual = cleaned_data.get('contrato_individual')
         contrato_colectivo = cleaned_data.get('contrato_colectivo')
-
-        # Gracias al mixin, estos ya deberían ser objetos 'date' o None
         fecha_reclamo_obj = cleaned_data.get('fecha_reclamo')
         fecha_cierre_obj = cleaned_data.get('fecha_cierre_reclamo')
+        monto_reclamado_val = cleaned_data.get('monto_reclamado')
 
-        hoy_date = django_timezone.now().date()
+        # --- INICIO DE LA LÓGICA DE VALIDACIÓN CORRECTA ---
 
+        # 1. Validar que se haya seleccionado un contrato, pero no ambos.
         if not contrato_individual and not contrato_colectivo:
-            raise ValidationError(
-                "El pago debe estar asociado a una Factura o a una Reclamación.", code='missing_association')
-        if Factura and Reclamacion:  # Debería ser contrato_individual y contrato_colectivo
-            raise ValidationError(
-                "El pago no puede estar asociado a una Factura y a una Reclamación a la vez.", code='multiple_associations')
+            # Añade el error a un campo específico si es posible, o como non-field error.
+            self.add_error(
+                None, "La reclamación debe estar asociada a un Contrato Individual o Colectivo.")
 
+        if contrato_individual and contrato_colectivo:
+            self.add_error(
+                None, "No puede seleccionar un Contrato Individual y uno Colectivo a la vez.")
+
+        # 2. Validar fechas
         if fecha_reclamo_obj and fecha_cierre_obj and fecha_cierre_obj < fecha_reclamo_obj:
             self.add_error('fecha_cierre_reclamo',
                            "La fecha de cierre no puede ser anterior a la fecha del reclamo.")
 
-        if fecha_reclamo_obj and fecha_reclamo_obj > hoy_date:
+        if fecha_reclamo_obj and fecha_reclamo_obj > django_timezone.now().date():
             self.add_error('fecha_reclamo',
                            "La fecha del reclamo no puede ser futura.")
 
-        # Lógica de validación de monto_reclamado vs suma_asegurada del contrato
-        contrato = contrato_individual or contrato_colectivo
-        monto_reclamado_val = cleaned_data.get('monto_reclamado')
-
-        if contrato and monto_reclamado_val is not None:  # monto_reclamado es DecimalField, no necesita .value
-            if hasattr(contrato, 'suma_asegurada') and contrato.suma_asegurada is not None:
-                if monto_reclamado_val > contrato.suma_asegurada:
-                    self.add_error('monto_reclamado', ValidationError(
-                        f"Monto reclamado (${monto_reclamado_val:,.2f}) excede suma asegurada del contrato (${contrato.suma_asegurada:,.2f}).",
-                        code='monto_excede_cobertura'
-                    ))
-            # else:
-            #     logger.warning(f"Contrato {contrato.pk if contrato and contrato.pk else 'Nuevo'} sin suma asegurada para validar Reclamación.")
-
-        estado_reclamacion = cleaned_data.get('estado')
-        if estado_reclamacion == 'CERRADA' and not fecha_cierre_obj:
+        if cleaned_data.get('estado') == 'CERRADA' and not fecha_cierre_obj:
             self.add_error('fecha_cierre_reclamo',
                            "Debe indicar la fecha de cierre si el estado es 'CERRADA'.")
 
-        return cleaned_data
+        # 3. Validar monto contra la suma asegurada del contrato seleccionado
+        contrato_seleccionado = contrato_individual or contrato_colectivo
+        if contrato_seleccionado and monto_reclamado_val is not None:
+            if hasattr(contrato_seleccionado, 'suma_asegurada') and contrato_seleccionado.suma_asegurada is not None:
+                if monto_reclamado_val > contrato_seleccionado.suma_asegurada:
+                    self.add_error('monto_reclamado',
+                                   f"El monto reclamado (${monto_reclamado_val:,.2f}) excede la suma asegurada del contrato (${contrato_seleccionado.suma_asegurada:,.2f})."
+                                   )
 
 
 # ------------------------------
@@ -1558,16 +1552,6 @@ class TarifaForm(AwareDateInputMixinVE, BaseModelForm):  # Asegúrate que herede
         widget=forms.Select(attrs={'class': 'form-select'}),
         required=False  # Es blank=True, null=True en el modelo
     )
-    comision_intermediario = forms.DecimalField(
-        label="Comisión Intermediario (%)",
-        max_digits=5,
-        decimal_places=2,
-        widget=forms.NumberInput(
-            attrs={'step': '0.01', 'min': '0', 'max': '100', 'class': 'form-control'}),
-        required=False,
-        validators=[MinValueValidator(Decimal('0.00')), MaxValueValidator(
-            Decimal('100.00'))]  # Del modelo
-    )
     activo = forms.BooleanField(
         label="Tarifa Activa",
         required=False,
@@ -1579,7 +1563,7 @@ class TarifaForm(AwareDateInputMixinVE, BaseModelForm):  # Asegúrate que herede
     class Meta:
         model = Tarifa
         fields = ['ramo', 'rango_etario', 'fecha_aplicacion', 'monto_anual',
-                  'tipo_fraccionamiento', 'comision_intermediario', 'activo']
+                  'tipo_fraccionamiento', 'activo']
         # codigo_tarifa es editable=False en el modelo, se genera en save.
         # Los campos de ModeloBase se excluyen.
         exclude = ['codigo_tarifa', 'fecha_creacion', 'fecha_modificacion',
@@ -1616,14 +1600,6 @@ class TarifaForm(AwareDateInputMixinVE, BaseModelForm):  # Asegúrate que herede
         if monto is not None and monto <= Decimal('0.00'):
             raise ValidationError('El monto anual debe ser positivo.')
         return monto
-
-    def clean_comision_intermediario(self):  # Tu validación existente
-        comision = self.cleaned_data.get('comision_intermediario')
-        if comision is not None:
-            if not (Decimal('0.00') <= comision <= Decimal('100.00')):
-                raise ValidationError(
-                    'La comisión debe estar entre 0.00 y 100.00.')
-        return comision
 
     def clean_tipo_fraccionamiento(self):  # Tu validación existente
         tipo = self.cleaned_data.get('tipo_fraccionamiento')

@@ -337,26 +337,29 @@ def registrar_accion_auditoria(sender, instance, created, **kwargs):
 
 
 @receiver(pre_save, sender=Tarifa)
-# @prevent_recursion
 def validar_tarifa(sender, instance, **kwargs):
+    """
+    Valida los datos de una instancia de Tarifa antes de guardarla.
+    Ya no valida la comisión, ya que ese campo fue eliminado.
+    """
     error_dict = {}
-    # ... (tu lógica de validación existente) ...
     try:
+        # Validación de la fecha de aplicación
         if instance.fecha_aplicacion and instance.fecha_aplicacion > django_timezone.now().date():
             error_dict['fecha_aplicacion'] = "La fecha de aplicación no puede ser futura."
 
-        if instance.comision_intermediario is not None:
-            if not (0 <= instance.comision_intermediario <= 100):
-                error_dict['comision_intermediario'] = "La comisión debe estar entre 0 y 100."
-
+        # Validación del monto anual
         if instance.monto_anual is not None and instance.monto_anual <= 0:
             error_dict['monto_anual'] = "El monto anual debe ser un valor positivo."
 
+        # Si se encontraron errores, lanzar una única excepción de validación
         if error_dict:
             raise ValidationError(error_dict)
+
     except ValidationError as ve:
+        # Registrar el error de validación y relanzarlo para que el formulario lo capture
         logger.warning(
-            f"Validación pre_save fallida Tarifa (PK: {instance.pk}): {ve.message_dict}")
+            f"Validación pre_save fallida para Tarifa (PK: {instance.pk}): {ve.message_dict}")
         raise
 
 # =============================================================================
@@ -366,274 +369,210 @@ def validar_tarifa(sender, instance, **kwargs):
 
 @transaction.atomic
 def calcular_y_registrar_comisiones(pago_instance):
-    # Usar logger en lugar de print para mejor manejo en producción
+    """
+    Calcula y registra las comisiones (Directa y Override) basadas en un pago recibido.
+    La única fuente para los porcentajes de comisión es el modelo Intermediario.
+    """
     logger.info(
-        f"[SEÑAL COMISIONES] Iniciando para Pago PK: {pago_instance.pk}, Monto: {pago_instance.monto_pago}, Factura ID: {pago_instance.factura_id}")
+        f"[SEÑAL COMISIONES] Iniciando para Pago PK: {pago_instance.pk}, Monto: {pago_instance.monto_pago}")
 
+    # 1. Validar que el pago sea apto para generar comisiones
     if not pago_instance.factura_id:
         logger.info(
-            f"[SEÑAL COMISIONES] Pago {pago_instance.pk} no asociado a factura. No se calculan comisiones.")
+            f"[SEÑAL COMISIONES] Pago {pago_instance.pk} no está asociado a una factura. No se calculan comisiones.")
         return
 
+    monto_base_calculo = pago_instance.monto_pago
+    if not monto_base_calculo or monto_base_calculo <= Decimal('0.00'):
+        logger.info(
+            f"[SEÑAL COMISIONES] Monto base para comisión es cero o None para Pago {pago_instance.pk}. No se calculan comisiones.")
+        return
+
+    # 2. Obtener los objetos necesarios (Factura, Contrato, Intermediarios)
     try:
-        # Usar select_related para optimizar y traer los objetos relacionados en una sola consulta
         factura = Factura.objects.select_related(
-            # Para ContratoIndividual
             'contrato_individual__intermediario__intermediario_relacionado',
-            # Para ContratoIndividual
-            'contrato_individual__tarifa_aplicada',
-            # Para ContratoColectivo
-            'contrato_colectivo__intermediario__intermediario_relacionado',
-            # Para ContratoColectivo
-            'contrato_colectivo__tarifa_aplicada'
+            'contrato_colectivo__intermediario__intermediario_relacionado'
         ).get(pk=pago_instance.factura_id)
-        logger.info(f"[SEÑAL COMISIONES] Factura encontrada: {factura.pk}")
     except Factura.DoesNotExist:
         logger.error(
             f"[SEÑAL COMISIONES] ERROR: Factura {pago_instance.factura_id} no encontrada para Pago {pago_instance.pk}.")
         return
-    except Exception as e:  # Captura más genérica por si hay otros errores
-        logger.error(
-            f"[SEÑAL COMISIONES] ERROR obteniendo factura {pago_instance.factura_id}: {e}", exc_info=True)
-        return
 
     contrato = factura.contrato_individual or factura.contrato_colectivo
-    if not contrato:
-        logger.error(
-            f"[SEÑAL COMISIONES] ERROR: Factura {factura.pk} no tiene contrato asociado para Pago {pago_instance.pk}.")
+    if not contrato or not contrato.intermediario:
+        logger.info(
+            f"[SEÑAL COMISIONES] Factura {factura.pk} no tiene un contrato o intermediario asociado. No se calculan comisiones.")
         return
-    logger.info(
-        f"[SEÑAL COMISIONES] Contrato encontrado: {contrato.pk} (Tipo: {'Individual' if factura.contrato_individual else 'Colectivo'})")
 
     intermediario_venta = contrato.intermediario
-    if not intermediario_venta:
-        logger.info(
-            f"[SEÑAL COMISIONES] Contrato {contrato.pk} (ID: {contrato.id if contrato else 'N/A'}) no tiene intermediario de venta. No hay comisión directa ni override.")
-        return  # Salir si no hay intermediario vendedor
-
-    # Loguear datos del intermediario de venta
-    logger.info(f"[SEÑAL COMISIONES] Intermediario Venta: {intermediario_venta.nombre_completo} (PK: {intermediario_venta.pk}), "
-                f"%Comisión Directa (Campo Interm): {intermediario_venta.porcentaje_comision}, "
-                f"Intermediario Padre ID: {intermediario_venta.intermediario_relacionado_id}")
-
-    # --- INICIO DEL BLOQUE DE LÓGICA DE PRIORIDAD DE COMISIÓN DIRECTA ---
-    porcentaje_comision_directa = Decimal('0.00')
-    origen_comision_directa = "Ninguno (o todos los porcentajes aplicables son 0 o Nulos)"
-
-    # Prioridad 1: ContratoIndividual.comision_anual
-    # Es importante verificar que el campo no sea None ANTES de compararlo numéricamente.
-    if isinstance(contrato, ContratoIndividual) and \
-       contrato.comision_anual is not None and \
-       contrato.comision_anual > Decimal('0.00'):  # Comparar con Decimal
-        porcentaje_comision_directa = contrato.comision_anual
-        origen_comision_directa = f"ContratoIndividual.comision_anual ({contrato.comision_anual}%)"
-
-    # Prioridad 2: Intermediario.porcentaje_comision (del vendedor)
-    elif intermediario_venta.porcentaje_comision is not None and \
-            intermediario_venta.porcentaje_comision > Decimal('0.00'):  # Comparar con Decimal
-        porcentaje_comision_directa = intermediario_venta.porcentaje_comision
-        origen_comision_directa = f"Intermediario.porcentaje_comision ({intermediario_venta.porcentaje_comision}%)"
-
-    # Prioridad 3: Tarifa.comision_intermediario
-    # Asegurarse que contrato.tarifa_aplicada exista antes de acceder a sus atributos
-    elif contrato.tarifa_aplicada and \
-            contrato.tarifa_aplicada.comision_intermediario is not None and \
-            contrato.tarifa_aplicada.comision_intermediario > Decimal('0.00'):  # Comparar con Decimal
-        porcentaje_comision_directa = contrato.tarifa_aplicada.comision_intermediario
-        origen_comision_directa = f"Tarifa.comision_intermediario ({contrato.tarifa_aplicada.comision_intermediario}%)"
-
     logger.info(
-        f"[SEÑAL COMISIONES] Porcentaje Comisión Directa Aplicable: {porcentaje_comision_directa}% (Origen: {origen_comision_directa})")
-    # --- FIN DEL BLOQUE DE LÓGICA DE PRIORIDAD DE COMISIÓN DIRECTA ---
+        f"[SEÑAL COMISIONES] Venta por: {intermediario_venta.nombre_completo} (PK: {intermediario_venta.pk})")
 
-    monto_base_calculo_comision = pago_instance.monto_pago
-    # Comparar con Decimal
-    if monto_base_calculo_comision is None or monto_base_calculo_comision <= Decimal('0.00'):
-        logger.info(
-            f"[SEÑAL COMISIONES] Monto base para comisión es cero o None para Pago {pago_instance.pk}. No se calculan comisiones.")
-        return
-    logger.info(
-        f"[SEÑAL COMISIONES] Monto Base para Cálculo: {monto_base_calculo_comision}")
+    # 3. Calcular y registrar Comisión Directa
+    porcentaje_directa = intermediario_venta.porcentaje_comision or Decimal(
+        '0.00')
 
-    # 1. Calcular y registrar Comisión Directa
-    if porcentaje_comision_directa > Decimal('0.00'):  # Comparar con Decimal
-        monto_comision_directa = (
-            monto_base_calculo_comision * porcentaje_comision_directa) / Decimal('100.00')
-        monto_comision_directa = monto_comision_directa.quantize(
-            Decimal('0.01'), ROUND_HALF_UP)
-        logger.info(
-            f"[SEÑAL COMISIONES] Monto Comisión Directa Calculado: {monto_comision_directa}")
+    if porcentaje_directa > Decimal('0.00'):
+        monto_comision = (monto_base_calculo *
+                          porcentaje_directa) / Decimal('100.00')
 
-        if monto_comision_directa > Decimal('0.00'):  # Comparar con Decimal
-            try:
-                rc_directa, created = RegistroComision.objects.get_or_create(
-                    pago_cliente=pago_instance,
-                    intermediario=intermediario_venta,
-                    tipo_comision='DIRECTA',
-                    # Para hacer la combinación más única y evitar problemas si la señal se dispara múltiples veces
-                    # se podría añadir factura_origen a los campos de búsqueda si es necesario,
-                    # pero pago_cliente ya debería ser bastante único por ejecución.
-                    # Si intermediario_vendedor es parte de la unicidad para directas, añadirlo aquí:
-                    # intermediario_vendedor=intermediario_venta,
-                    defaults={
-                        'contrato_individual': factura.contrato_individual,
-                        'contrato_colectivo': factura.contrato_colectivo,
-                        'factura_origen': factura,
-                        'porcentaje_aplicado': porcentaje_comision_directa,
-                        'monto_base_calculo': monto_base_calculo_comision,
-                        'monto_comision': monto_comision_directa,
-                        # El vendedor es el mismo beneficiario
-                        'intermediario_vendedor': intermediario_venta
-                    }
-                )
-                if created:
-                    logger.info(
-                        f"[SEÑAL COMISIONES] ÉXITO: Comisión DIRECTA de {monto_comision_directa} registrada para {intermediario_venta.nombre_completo} (PK RC: {rc_directa.pk}).")
-                else:
-                    logger.info(
-                        f"[SEÑAL COMISIONES] Comisión DIRECTA para Pago {pago_instance.pk} e Intermediario {intermediario_venta.pk} ya existía (PK RC: {rc_directa.pk}). No se creó duplicado.")
-            except Exception as e_create_directa:
-                logger.error(
-                    f"[SEÑAL COMISIONES] ERROR creando RC Directa: {e_create_directa}", exc_info=True)
-        else:
+        # get_or_create para evitar duplicados si la señal se ejecuta varias veces
+        rc_directa, created = RegistroComision.objects.get_or_create(
+            pago_cliente=pago_instance,
+            intermediario=intermediario_venta,
+            tipo_comision='DIRECTA',
+            defaults={
+                'contrato_individual': factura.contrato_individual,
+                'contrato_colectivo': factura.contrato_colectivo,
+                'factura_origen': factura,
+                'porcentaje_aplicado': porcentaje_directa,
+                'monto_base_calculo': monto_base_calculo,
+                'monto_comision': monto_comision.quantize(Decimal('0.01'), ROUND_HALF_UP),
+                'intermediario_vendedor': intermediario_venta
+            }
+        )
+        if created:
             logger.info(
-                f"[SEÑAL COMISIONES] Monto comisión directa es <= 0 ({monto_comision_directa}), no se crea registro.")
+                f"[SEÑAL COMISIONES] ÉXITO: Comisión DIRECTA de {rc_directa.monto_comision} registrada para {intermediario_venta.nombre_completo}.")
+        else:
+            logger.warning(
+                f"[SEÑAL COMISIONES] Comisión DIRECTA para Pago {pago_instance.pk} ya existía. No se creó duplicado.")
     else:
         logger.info(
-            f"[SEÑAL COMISIONES] Porcentaje comisión directa es <= 0 ({porcentaje_comision_directa}), no se calcula comisión directa.")
+            f"[SEÑAL COMISIONES] Intermediario {intermediario_venta.nombre_completo} no tiene comisión directa (>0).")
 
-    # 2. Calcular y registrar Comisión de Override para el Padre
-    # intermediario_relacionado ya debería estar cargado por el select_related
+    # 4. Calcular y registrar Comisión de Override
     intermediario_padre = intermediario_venta.intermediario_relacionado
     if intermediario_padre:
-        logger.info(
-            f"[SEÑAL COMISIONES] Intermediario Venta ({intermediario_venta.nombre_completo}) tiene Padre: {intermediario_padre.nombre_completo} (PK: {intermediario_padre.pk}), %Override del Padre: {intermediario_padre.porcentaje_override}")
+        porcentaje_override = intermediario_padre.porcentaje_override or Decimal(
+            '0.00')
 
-        # Verificar que el porcentaje_override del padre no sea None y sea mayor a 0
-        if intermediario_padre.porcentaje_override is not None and \
-           intermediario_padre.porcentaje_override > Decimal('0.00'):  # Comparar con Decimal
+        if porcentaje_override > Decimal('0.00'):
+            monto_comision = (monto_base_calculo *
+                              porcentaje_override) / Decimal('100.00')
 
-            porcentaje_override_padre = intermediario_padre.porcentaje_override
-            monto_comision_override = (
-                monto_base_calculo_comision * porcentaje_override_padre) / Decimal('100.00')
-            monto_comision_override = monto_comision_override.quantize(
-                Decimal('0.01'), ROUND_HALF_UP)
-            logger.info(
-                f"[SEÑAL COMISIONES] Monto Comisión Override Calculado: {monto_comision_override}")
-
-            # Comparar con Decimal
-            if monto_comision_override > Decimal('0.00'):
-                try:
-                    rc_override, created = RegistroComision.objects.get_or_create(
-                        pago_cliente=pago_instance,
-                        intermediario=intermediario_padre,  # El beneficiario es el padre
-                        tipo_comision='OVERRIDE',
-                        intermediario_vendedor=intermediario_venta,  # Quién hizo la venta original
-                        defaults={
-                            'contrato_individual': factura.contrato_individual,
-                            'contrato_colectivo': factura.contrato_colectivo,
-                            'factura_origen': factura,
-                            'porcentaje_aplicado': porcentaje_override_padre,
-                            'monto_base_calculo': monto_base_calculo_comision,
-                            'monto_comision': monto_comision_override,
-                            # 'intermediario_vendedor' ya está en los campos de búsqueda
-                        }
-                    )
-                    if created:
-                        logger.info(
-                            f"[SEÑAL COMISIONES] ÉXITO: Comisión OVERRIDE de {monto_comision_override} registrada para PADRE {intermediario_padre.nombre_completo} (PK RC: {rc_override.pk}).")
-                    else:
-                        logger.info(
-                            f"[SEÑAL COMISIONES] Comisión OVERRIDE para Pago {pago_instance.pk}, Padre {intermediario_padre.pk} y Vendedor {intermediario_venta.pk} ya existía (PK RC: {rc_override.pk}). No se creó duplicado.")
-                except Exception as e_create_override:
-                    logger.error(
-                        f"[SEÑAL COMISIONES] ERROR creando RC Override: {e_create_override}", exc_info=True)
-            else:
+            rc_override, created = RegistroComision.objects.get_or_create(
+                pago_cliente=pago_instance,
+                intermediario=intermediario_padre,  # El beneficiario es el padre
+                tipo_comision='OVERRIDE',
+                intermediario_vendedor=intermediario_venta,
+                defaults={
+                    'contrato_individual': factura.contrato_individual,
+                    'contrato_colectivo': factura.contrato_colectivo,
+                    'factura_origen': factura,
+                    'porcentaje_aplicado': porcentaje_override,
+                    'monto_base_calculo': monto_base_calculo,
+                    'monto_comision': monto_comision.quantize(Decimal('0.01'), ROUND_HALF_UP),
+                }
+            )
+            if created:
                 logger.info(
-                    f"[SEÑAL COMISIONES] Monto comisión override es <= 0 ({monto_comision_override}), no se crea registro.")
+                    f"[SEÑAL COMISIONES] ÉXITO: Comisión OVERRIDE de {rc_override.monto_comision} registrada para PADRE {intermediario_padre.nombre_completo}.")
+            else:
+                logger.warning(
+                    f"[SEÑAL COMISIONES] Comisión OVERRIDE para Pago {pago_instance.pk} ya existía. No se creó duplicado.")
         else:
             logger.info(
-                f"[SEÑAL COMISIONES] Padre {intermediario_padre.nombre_completo} no tiene porcentaje_override > 0 o es Nulo.")
+                f"[SEÑAL COMISIONES] Intermediario Padre {intermediario_padre.nombre_completo} no tiene comisión de override (>0).")
     else:
         logger.info(
-            f"[SEÑAL COMISIONES] Intermediario Venta {intermediario_venta.nombre_completo} no tiene padre. No hay comisión de override.")
+            f"[SEÑAL COMISIONES] Intermediario {intermediario_venta.nombre_completo} no tiene padre. No hay override.")
 
     logger.info(
-        f"[SEÑAL COMISIONES] Finalizando para Pago PK: {pago_instance.pk}\n")
+        f"[SEÑAL COMISIONES] Finalizado para Pago PK: {pago_instance.pk}\n")
 
 
-@receiver(post_save, sender=Pago, dispatch_uid="pago_post_save_handler_myapp_FINAL_A")
+# @receiver(post_save, sender=Pago, dispatch_uid="pago_post_save_main_handler")
 @prevent_recursion
 def pago_post_save_handler(sender, instance, created, **kwargs):
-    logger.critical(
-        f"@@@ PAGO_POST_SAVE_HANDLER ENTERED for Pago PK: {instance.pk}, Created: {created} @@@")
-    logger.debug(
-        f"[Signal Pago post_save] Disparado para Pago PK: {instance.pk}, Creado: {created}, Activo: {instance.activo}")
+    """
+    Handler principal que se ejecuta después de guardar un Pago.
+    Orquesta todas las acciones necesarias:
+    1. Actualiza la Factura o Reclamación asociada.
+    2. Calcula y registra las comisiones.
+    3. Envía notificaciones.
+    """
+    logger.info(
+        f"--- SEÑAL POST_SAVE PARA PAGO PK: {instance.pk} (Creado: {created}, Activo: {instance.activo}) ---")
 
-    if instance.activo:
-        if instance.factura_id:
-            logger.info(
-                f"[Signal Pago post_save] Pago {instance.pk} asociado a Factura {instance.factura_id}. Llamando a helpers...")
-            actualizar_factura_post_pago(instance.factura_id)
-
-            # ----- LLAMADA A LA FUNCIÓN DE COMISIONES -----
-            logger.info(
-                f"DEBUG: ANTES de llamar a calcular_y_registrar_comisiones para Pago PK: {instance.pk}")
-            try:
-                calcular_y_registrar_comisiones(instance)
-                logger.info(
-                    f"DEBUG: LLAMADA a calcular_y_registrar_comisiones para Pago PK: {instance.pk} COMPLETADA.")
-            except Exception as e_comision_call:
-                logger.error(
-                    f"DEBUG: ERROR EXCEPCIONAL al intentar llamar o dentro de calcular_y_registrar_comisiones para Pago {instance.pk}: {e_comision_call}", exc_info=True)
-            # ---------------------------------------------
-
-        elif instance.reclamacion_id:
-            actualizar_reclamacion_post_pago(instance.reclamacion_id)
-            # No se suelen calcular comisiones sobre pagos de reclamaciones a clientes
-            logger.info(
-                f"[Signal Pago post_save] Pago {instance.pk} asociado a Reclamación. No se calculan comisiones por defecto.")
-
-    elif not instance.activo and not created:
+    if not instance.activo:
         logger.info(
-            f"Pago {instance.pk} inactivado. Reajustando saldos y considerando anulación de comisiones...")
+            "--> Pago está INACTIVO. Reajustando saldos y anulando comisiones pendientes.")
+        # Lógica para cuando un pago se inactiva
         if instance.factura_id:
             actualizar_factura_post_pago(instance.factura_id)
-            # Lógica para anular/revertir comisiones si un pago se inactiva
-            comisiones_a_anular = RegistroComision.objects.filter(
-                pago_cliente=instance, estatus_pago_comision='PENDIENTE')
-            updated_count = comisiones_a_anular.update(
-                estatus_pago_comision='ANULADA', fecha_pago_a_intermediario=None)
-            if updated_count > 0:
-                logger.info(
-                    f"{updated_count} comisiones pendientes asociadas al Pago {instance.pk} inactivado han sido ANULADAS.")
-        elif instance.reclamacion_id:
+        if instance.reclamacion_id:
             actualizar_reclamacion_post_pago(instance.reclamacion_id)
 
+        # Anular comisiones pendientes asociadas a este pago
+        comisiones_a_anular = RegistroComision.objects.filter(
+            pago_cliente=instance, estatus_pago_comision='PENDIENTE')
+        updated_count = comisiones_a_anular.update(
+            estatus_pago_comision='ANULADA', fecha_pago_a_intermediario=None)
+        if updated_count > 0:
+            logger.info(
+                f"--> {updated_count} comisiones pendientes ANULADAS para Pago {instance.pk}.")
+        return  # Termina la ejecución si el pago no está activo
 
-@receiver(post_delete, sender=Pago, dispatch_uid="pago_post_delete_handler_myapp_FINAL_B")
+    # --- El pago está ACTIVO ---
+
+    # Actualizar Factura o Reclamación
+    if instance.factura_id:
+        logger.info(
+            f"--> Pago asociado a Factura {instance.factura_id}. Actualizando factura y calculando comisiones.")
+        actualizar_factura_post_pago(instance.factura_id)
+        # Las comisiones solo se calculan para facturas
+        calcular_y_registrar_comisiones(instance)
+    elif instance.reclamacion_id:
+        logger.info(
+            f"--> Pago asociado a Reclamación {instance.reclamacion_id}. Actualizando reclamación.")
+        actualizar_reclamacion_post_pago(instance.reclamacion_id)
+
+    # Enviar notificación solo si es un pago nuevo y activo
+    if created:
+        logger.info(f"--> Es un pago nuevo. Enviando notificación.")
+        try:
+            enviar_notificacion_creacion_pago(instance)
+        except Exception as e:
+            logger.error(
+                f"Error al intentar enviar notificación para Pago {instance.pk}: {e}", exc_info=True)
+
+
+@receiver(post_delete, sender=Pago, dispatch_uid="pago_post_delete_main_handler")
 @prevent_recursion
 def pago_post_delete_handler(sender, instance, **kwargs):
-    logger.debug(
-        f"[Signal Pago post_delete] Disparado para Pago PK: {instance.pk}")
+    """
+    Handler que se ejecuta después de eliminar un Pago.
+    """
+    logger.info(f"--- SEÑAL POST_DELETE PARA PAGO PK: {instance.pk} ---")
 
-    # Anular o eliminar comisiones asociadas a este pago
-    # Es más seguro marcar como ANULADA que borrar, para mantener historial.
+    # Anular comisiones asociadas
     comisiones_afectadas = RegistroComision.objects.filter(
         pago_cliente=instance)
     updated_count = comisiones_afectadas.update(
         estatus_pago_comision='ANULADA', fecha_pago_a_intermediario=None)
     if updated_count > 0:
         logger.info(
-            f"{updated_count} comisiones asociadas al Pago {instance.pk} eliminado han sido ANULADAS.")
-    else:
-        logger.info(
-            f"No se encontraron comisiones para anular para el Pago {instance.pk} eliminado.")
+            f"--> {updated_count} comisiones ANULADAS para Pago eliminado {instance.pk}.")
 
+    # Reajustar saldos
     if instance.factura_id:
         actualizar_factura_post_pago(instance.factura_id)
     elif instance.reclamacion_id:
         actualizar_reclamacion_post_pago(instance.reclamacion_id)
+
+
+def enviar_notificacion_creacion_pago(pago):
+    """Función helper para crear y enviar notificaciones de pago."""
+    monto_pago_str = f"{pago.monto_pago:.2f}" if isinstance(
+        pago.monto_pago, Decimal) else str(pago.monto_pago or "0.00")
+    mensaje = f"Nuevo Pago Registrado (Ref: {pago.referencia_pago or pago.pk}) por ${monto_pago_str}. "
+
+    if pago.factura:
+        mensaje += f"Asociado a Factura '{pago.factura.numero_recibo or pago.factura.pk}'."
+    elif pago.reclamacion:
+        mensaje += f"Asociado a Reclamación #{pago.reclamacion.pk}."
 
 
 @transaction.atomic
@@ -736,73 +675,83 @@ def actualizar_factura_post_pago(factura_id):
             f"[Signal actualizar_factura] Error general para Factura ID {factura_id}: {e}")
 
 
+TOLERANCE = Decimal('0.01')
+
+
 @transaction.atomic
 def actualizar_reclamacion_post_pago(reclamacion_id):
+    """
+    Actualiza el estado de una Reclamación. VERSIÓN DE DEPURACIÓN FINAL.
+    """
     if not reclamacion_id:
         return
-    logger.debug(
-        f"[Signal actualizar_reclamacion] Iniciando para Reclamacion ID: {reclamacion_id}")
-    try:
-        ReclamacionModel = apps.get_model('myapp', 'Reclamacion')
-        PagoModel = apps.get_model('myapp', 'Pago')
 
-        reclamacion = ReclamacionModel.objects.select_for_update().get(pk=reclamacion_id)
-        logger.debug(
-            f"[Signal actualizar_reclamacion] Reclamación {reclamacion_id} obtenida. Estado actual: {reclamacion.estado}, Monto reclamado: {reclamacion.monto_reclamado}")
+    logger.info("=============================================================")
+    logger.info(
+        f"== INICIANDO ACTUALIZACIÓN PARA RECLAMACIÓN ID: {reclamacion_id} ==")
+    logger.info("=============================================================")
+
+    try:
+        reclamacion = Reclamacion.objects.select_for_update().get(pk=reclamacion_id)
 
         monto_reclamado = reclamacion.monto_reclamado or Decimal('0.00')
 
-        total_pagado_activo = PagoModel.objects.filter(
-            reclamacion_id=reclamacion_id, activo=True
-        ).aggregate(
-            total=Coalesce(Sum('monto_pago'), Decimal(
-                '0.00'), output_field=DecimalField())
+        # Vamos a ser explícitos con la consulta de pagos
+        pagos_activos = reclamacion.pagos.filter(activo=True)
+        total_pagado = pagos_activos.aggregate(
+            total=Coalesce(Sum('monto_pago'), Decimal('0.00'))
         )['total']
-        logger.debug(
-            f"[Signal actualizar_reclamacion] Reclamación {reclamacion_id}: Total pagado activo: {total_pagado_activo}")
 
-        update_fields_rec = {}
-        nuevo_estado = reclamacion.estado  # Por defecto, no cambia
-        TOLERANCE = getattr(PagoModel, 'TOLERANCE', Decimal(
-            '0.01'))  # Usar tolerancia del modelo Pago
+        # LOGGING DE DIAGNÓSTICO
+        logger.info(f"ESTADO ACTUAL: '{reclamacion.estado}'")
+        logger.info(f"MONTO RECLAMADO: {monto_reclamado}")
+        logger.info(f"PAGOS ACTIVOS ENCONTRADOS: {pagos_activos.count()}")
+        for p in pagos_activos:
+            logger.info(f"  -> Pago PK: {p.pk}, Monto: {p.monto_pago}")
+        logger.info(f"SUMA TOTAL PAGADA CALCULADA: {total_pagado}")
 
-        if reclamacion.estado == 'APROBADA' and total_pagado_activo >= monto_reclamado - TOLERANCE:
-            nuevo_estado = 'PAGADA'
-            if reclamacion.estado != nuevo_estado:
-                update_fields_rec['estado'] = nuevo_estado
-            if not reclamacion.fecha_cierre_reclamo:  # Solo actualizar si no tiene ya una fecha de cierre
-                update_fields_rec['fecha_cierre_reclamo'] = timezone.now(
-                ).date()
+        # Comprobación de la condición
+        condicion_cumplida = total_pagado >= monto_reclamado - TOLERANCE
+        logger.info(
+            f"¿Total pagado >= Monto reclamado? -> {condicion_cumplida}")
 
-        elif reclamacion.estado == 'PAGADA' and total_pagado_activo < monto_reclamado - TOLERANCE:
-            # Volver a aprobada si se eliminó/inactivó un pago que la completaba
-            nuevo_estado = 'APROBADA'
-            if reclamacion.estado != nuevo_estado:
-                update_fields_rec['estado'] = nuevo_estado
-            # Considerar si se debe limpiar fecha_cierre_reclamo aquí
-            # update_fields_rec['fecha_cierre_reclamo'] = None
-
-        logger.debug(
-            f"[Signal actualizar_reclamacion] Reclamación {reclamacion_id}: Nuevo estado calculado: {nuevo_estado}, Campos a actualizar: {update_fields_rec}")
-
-        if update_fields_rec:
-            ReclamacionModel.objects.filter(
-                pk=reclamacion_id).update(**update_fields_rec)
-            logger.info(
-                f"[Signal actualizar_reclamacion] Reclamación {reclamacion.pk} actualizada con: {update_fields_rec}")
+        if condicion_cumplida:
+            if reclamacion.estado not in ['PAGADA', 'CERRADA', 'ANULADA']:
+                logger.warning(
+                    f"¡CONDICIÓN CUMPLIDA! Actualizando estado a 'PAGADA'.")
+                reclamacion.estado = 'PAGADA'
+                reclamacion.fecha_cierre_reclamo = reclamacion.fecha_cierre_reclamo or timezone.now().date()
+                reclamacion.save(
+                    update_fields=['estado', 'fecha_cierre_reclamo'])
+                logger.warning(
+                    f"¡GUARDADO REALIZADO! El estado ahora debería ser 'PAGADA' en la BD.")
+            else:
+                logger.info(
+                    f"Condición cumplida, pero el estado actual '{reclamacion.estado}' ya es final. No se hacen cambios.")
         else:
-            logger.debug(
-                f"[Signal actualizar_reclamacion] Reclamación {reclamacion_id} no requirió actualización de estado.")
+            # Lógica de reversión si es necesario
+            if reclamacion.estado == 'PAGADA':
+                logger.warning(
+                    f"¡REVERSIÓN! El total pagado es menor. Revirtiendo estado a 'APROBADA'.")
+                reclamacion.estado = 'APROBADA'
+                reclamacion.fecha_cierre_reclamo = None
+                reclamacion.save(
+                    update_fields=['estado', 'fecha_cierre_reclamo'])
+            else:
+                logger.info(
+                    "Condición no cumplida y estado no es 'PAGADA'. No se hacen cambios.")
 
-    except ReclamacionModel.DoesNotExist:
+    except Reclamacion.DoesNotExist:
         logger.error(
-            f"[Signal actualizar_reclamacion] Reclamación {reclamacion_id} no encontrada.")
+            f"ERROR CRÍTICO: Reclamación con ID {reclamacion_id} no encontrada en la señal.")
     except Exception as e:
         logger.exception(
-            f"[Signal actualizar_reclamacion] Error actualizando Reclamación ID {reclamacion_id}: {e}")
+            f"ERROR INESPERADO en la señal para Reclamación ID {reclamacion_id}: {e}")
 
-
-_signal_stack = threading.local()
+    logger.info(
+        f"== FINALIZADA ACTUALIZACIÓN PARA RECLAMACIÓN ID: {reclamacion_id} ==")
+    logger.info(
+        "=============================================================\n")
 
 
 def prevent_recursion(signal_handler):
@@ -1105,38 +1054,6 @@ def notificar_creacion_reclamacion(sender, instance, created, **kwargs):
                 f"Error en señal de notificación para Reclamacion {instance.pk}: {e}", exc_info=True)
 
 # 10. Pago (El de comisiones ya está en pago_post_save_handler)
-# Esta señal es para notificar la creación del PAGO MISMO.
-# La lógica de comisiones está en 'pago_post_save_handler'
-
-
-# UID Diferente al de comisiones
-@receiver(post_save, sender=Pago, dispatch_uid="pago_creation_notification_signal")
-@prevent_recursion
-def notificar_creacion_pago_objeto(sender, instance, created, **kwargs):
-    if created and instance.activo:
-        try:
-            monto_pago_str = f"{instance.monto_pago:.2f}" if isinstance(
-                instance.monto_pago, Decimal) else str(instance.monto_pago or "0.00")
-            mensaje = f" Nuevo Pago Registrado (Ref: {instance.referencia_pago or instance.pk}) por {monto_pago_str} Bs. "
-            target_info = ""
-            if instance.factura:
-                target_info = f"para la Factura '{instance.factura.numero_recibo or instance.factura.pk}'"
-            elif instance.reclamacion:
-                target_info = f"para la Reclamación #{instance.reclamacion.pk}"
-            mensaje += target_info + "."
-
-            url = None
-            try:
-                url = reverse('myapp:pago_detail', args=[instance.pk])
-            except NoReverseMatch:
-                logger.warning(
-                    f"No se encontró URL 'myapp:pago_detail' para Pago {instance.pk}")
-
-            crear_notificacion_para_usuarios_relevantes(
-                mensaje=mensaje, tipo_notif='success', url_destino=url)
-        except Exception as e:
-            logger.error(
-                f"Error en señal de notificación para creación de Pago {instance.pk}: {e}", exc_info=True)
 
 
 # Usar un logger específico para señales si quieres

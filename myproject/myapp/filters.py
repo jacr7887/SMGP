@@ -105,13 +105,11 @@ class ContratoIndividualFilter(django_filters.FilterSet):
         field_name='fecha_fin_vigencia', widget=date_range_widget, label="Vigente Entre (Fin)")
     monto_total_range = NumericRangeFilter(
         field_name='monto_total', widget=numeric_range_widget, label="Monto Total Entre")
-    comision_anual_range = NumericRangeFilter(
-        field_name='comision_anual', widget=numeric_range_widget, label="Comisión Anual (%) Entre")
 
     class Meta:
         model = ContratoIndividual
         fields = ['primer_nombre', 'primer_apellido', 'ramo', 'forma_pago', 'estatus', 'numero_contrato', 'numero_poliza', 'intermediario', 'tarifa_aplicada', 'afiliado', 'contratante_cedula', 'contratante_nombre',
-                  'plan_contratado', 'numero_recibo', 'estatus_emision_recibo', 'activo', 'fecha_emision_range', 'fecha_vigencia_range', 'fecha_fin_vigencia_range', 'monto_total_range', 'certificado', 'comision_anual_range']
+                  'plan_contratado', 'numero_recibo', 'estatus_emision_recibo', 'activo', 'fecha_emision_range', 'fecha_vigencia_range', 'fecha_fin_vigencia_range', 'monto_total_range', 'certificado']
 
 
 class AfiliadoIndividualFilter(django_filters.FilterSet):
@@ -395,14 +393,11 @@ class TarifaFilter(django_filters.FilterSet):
         field_name='monto_anual', widget=numeric_range_widget, label="Monto Anual Entre")
     tipo_fraccionamiento = ChoiceFilter(
         choices=CommonChoices.FORMA_PAGO, label="Tipo Fraccionamiento", widget=Select2Widget)
-    comision_intermediario_range = NumericRangeFilter(
-        field_name='comision_intermediario', widget=numeric_range_widget, label="Comisión (%) Entre")
-    activo = BooleanFilter(field_name='activo', label="Tarifa Activa")
 
     class Meta:
         model = Tarifa
         fields = ['rango_etario', 'ramo', 'tipo_fraccionamiento', 'activo',
-                  'fecha_aplicacion_range', 'monto_anual_range', 'comision_intermediario_range']
+                  'fecha_aplicacion_range', 'monto_anual_range']
 
 
 class IntermediarioFilter(django_filters.FilterSet):

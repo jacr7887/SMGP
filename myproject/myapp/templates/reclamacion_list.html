@@ -90,7 +90,7 @@
             <td role="cell" title="{{ reclamacion.descripcion_reclamo|escape|default:'' }}">{{ reclamacion.descripcion_reclamo|escape|truncatechars:50|default:"-" }}</td>
             <td role="cell" title="{{ reclamacion.get_diagnostico_principal_display|escape|default:'' }}">{{ reclamacion.get_diagnostico_principal_display|escape|truncatechars:50|default:"-" }}</td>
             <td role="cell">{{ reclamacion.usuario_asignado.get_full_name|escape|default:"-" }}</td>
-            <td role="cell">{% if reclamacion.documentos_adjuntos %}<a href="{{ reclamacion.documentos_adjuntos.url }}" target="_blank">📎 Ver</a>{% else %}-{% endif %}</td>
+            <td role="cell">{% if reclamacion.documentos_adjuntos %}<a href="{{ reclamacion.documentos_adjuntos.url }}" class="file-popup-trigger" data-popup-title="Soporte de Reclamación #{{ reclamacion.numero_reclamacion|default:reclamacion.pk }}">📎 Ver</a>{% else %}-{% endif %}</td>
             <td role="cell" title="{{ reclamacion.observaciones_internas|escape|default:'' }}">{{ reclamacion.observaciones_internas|escape|truncatechars:40|default:"-" }}</td>
             <td role="cell" title="{{ reclamacion.observaciones_cliente|escape|default:'' }}">{{ reclamacion.observaciones_cliente|escape|truncatechars:40|default:"-" }}</td>
             <td role="cell">{{ reclamacion.fecha_creacion|date:"d/m/y H:i"|default:"-" }}</td>

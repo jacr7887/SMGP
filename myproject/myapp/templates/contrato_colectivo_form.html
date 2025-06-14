@@ -239,6 +239,19 @@
                  <div class="dark-group readonly-group"><label class="dark-label">✅ Pagos Realizados</label><input type="text" value="{{ form.instance.pagos_realizados|default:'0' }}" readonly class="dark-group-plaintext"></div>
             {% endif %}
         </div>
+        
+        <!-- INICIO DE LA SOLUCIÓN: VISTA PREVIA DEL MONTO -->
+        <div class="dark-group" style="grid-column: 1 / -1; margin-top: 1rem;">
+            <h4 class="dark-label" style="font-size: 1.1em; margin-bottom: 0.5rem;">Monto Total Estimado del Contrato:</h4>
+            <p style="font-size: 1.5em; margin: 0;">
+                <span id="monto-total-display" style="font-weight: bold; color: #28a745;">$0.00</span>
+            </p>
+            <small class="form-text text-muted">
+                Este monto es una vista previa y se calculará y guardará definitivamente en el servidor.
+            </small>
+        </div>
+        <!-- FIN DE LA SOLUCIÓN -->
+
       </fieldset>
 
       {% if 'afiliados_colectivos' in form.fields %} {# Movido aquí para mejor flujo visual #}
@@ -299,7 +312,7 @@
   </section>
 </div>
 {% comment %} 
-<!-- <style>
+<style>
   .readonly-group { margin-bottom: 0.8rem; }
   .dark-group-plaintext {
     display: block; width: 100%; padding: 0.375rem 0.1rem;
@@ -321,6 +334,6 @@
   .error-summary h4 { color: #e74c3c; margin-bottom: 0.5rem; font-size: 1.1em; }
   .error-summary ul { padding-left: 20px; margin-bottom: 0; }
   .error-summary li { color: #f1a097; }
-</style> -->
+</style>
 {% endcomment %}
 {% endblock content %}
