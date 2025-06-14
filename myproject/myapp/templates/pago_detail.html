@@ -84,11 +84,12 @@
                  <span class="dark-label">📎 Documentos de Soporte:</span>
                  <span>
                      {% if pago.documentos_soporte_pago %}
-                     <a href="{{ pago.documentos_soporte_pago.url }}" target="_blank" class="nav_link">
-                        📄 {{ pago.documentos_soporte_pago.name|cut:"documentos_pagos/" }} {# Mostrar nombre archivo sin ruta base #}
-                    </a>
-                    <small class="text-muted d-block">({{ pago.documentos_soporte_pago.size|filesizeformat }})</small> {# Tamaño legible #}
-                     {% else %}
+                    <a href="{{ pago.documentos_soporte_pago.url }}" 
+                    class="btn btn-info file-popup-trigger" 
+                    data-popup-title="Soporte de Pago #{{ pago.pk }}"
+                    target="_blank">
+                    📎 Ver Documento de Soporte
+                    </a>                     {% else %}
                          No adjuntado
                      {% endif %}
                  </span>

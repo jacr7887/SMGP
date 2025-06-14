@@ -158,19 +158,25 @@
                 <span class="dark-label">🗣️ Observaciones para Cliente:</span>
                  <p style="margin:0;">{{ object.observaciones_cliente|escape|linebreaksbr|default:"-" }}</p>
               </div>
-               <div class="dark-group">
-                 <span class="dark-label">📎 Documentos Adjuntos:</span>
-                 <span>
-                     {% if object.documentos_adjuntos and object.documentos_adjuntos.url %}
-                         <a href="{{ object.documentos_adjuntos.url }}" target="_blank" class="nav_link">
-                             📄 Ver/Descargar Documento
-                         </a>
-                         <small class="form-text text-muted" style="display:block; margin-top: 5px;">({{ object.documentos_adjuntos.name }})</small>
-                     {% else %}
-                         No adjuntado
-                     {% endif %}
-                 </span>
-             </div>
+           <div class="dark-group">
+             <span class="dark-label">📎 Documentos Adjuntos:</span>
+             <span>
+                {% if object.documentos_adjuntos and object.documentos_adjuntos.url %}
+                    <!-- INICIO DE LA CORRECCIÓN -->
+                    <a href="{{ object.documentos_adjuntos.url }}" 
+                    class="btn btn-info file-popup-trigger"                        
+                    data-popup-title="Documento de Reclamación #{{ object.pk }}" {# <-- Título para el popup #}
+                       target="_blank">
+                        📄 Ver Documento
+                    </a>
+                    <!-- FIN DE LA CORRECCIÓN -->
+                    <small class="form-text text-muted" style="display:block; margin-top: 5px;">({{ object.documentos_adjuntos.name }})</small>
+                {% else %}
+                    No adjuntado
+                {% endif %}
+             </span>
+         </div>
+
         </div>
       </fieldset>
 
