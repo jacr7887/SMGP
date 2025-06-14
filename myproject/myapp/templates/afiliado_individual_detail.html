@@ -179,7 +179,47 @@
     </div> {# Fin de form-main-container #}
 
     {# --- Sección Opcional para Relaciones --- #}
-    {# ... (Puedes añadir las tablas de contratos/reclamaciones aquí si quieres) ... #}
+    <div class="mt-4">
+        <fieldset class="dark-group">
+            <legend class="dark-label">📄 Contratos Asociados ({{ total_contratos }})</legend>
+            {% if contratos_asociados %}
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>N° Contrato</th>
+                                <th>Ramo</th>
+                                <th>Vigencia</th>
+                                <th class="text-end">Monto Total</th>
+                                <th>Estatus</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for contrato in contratos_asociados %}
+                            <tr>
+                                <td>{{ contrato.numero_contrato }}</td>
+                                <td>{{ contrato.get_ramo_display }}</td>
+                                <td>{{ contrato.fecha_inicio_vigencia|date:"d/m/y" }} - {{ contrato.fecha_fin_vigencia|date:"d/m/y" }}</td>
+                                <td class="text-end">${{ contrato.monto_total|floatformat:2|intcomma }}</td>
+                                <td><span class="badge status-{{ contrato.estatus|lower }}">{{ contrato.get_estatus_display }}</span></td>
+                                <td class="actions">
+                                    <div class="action-group">
+                                        {% if perms.myapp.view_contratoindividual %}
+                                            <a href="{% url 'myapp:contrato_individual_detail' contrato.pk %}" class="action-icon" title="Ver Detalle del Contrato">👁️</a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p>Este afiliado no tiene contratos asociados.</p>
+            {% endif %}
+        </fieldset>
+    </div>
 
   </section>
 </div>

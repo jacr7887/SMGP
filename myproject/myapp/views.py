@@ -2160,48 +2160,61 @@ class IntermediarioListView(BaseListView):
 
 class IntermediarioDetailView(BaseDetailView):
     model = Intermediario
-    model_manager_name = 'all_objects'
     template_name = 'intermediario_detail.html'
+    # La plantilla usa 'intermediario' y 'object'
     context_object_name = 'intermediario'
     permission_required = 'myapp.view_intermediario'
-
-    def get_queryset(self):
-        return super().get_queryset().select_related('intermediario_relacionado').prefetch_related(
-            Prefetch('contratoindividual_set',
-                     queryset=ContratoIndividual.objects.select_related('afiliado')),
-            Prefetch('contratos_colectivos', queryset=ContratoColectivo.objects.select_related(
-                'intermediario')),
-            Prefetch('usuarios', queryset=Usuario.objects.only(
-                'id', 'username', 'email'))
-        )
+    model_manager_name = 'all_objects'
 
     def get_context_data(self, **kwargs):
+        # Obtenemos el contexto base, que ya incluye el objeto 'intermediario'
         context = super().get_context_data(**kwargs)
         intermediario = self.object
-        contratos_individuales = list(
-            intermediario.contratoindividual_set.all())
-        contratos_colectivos = list(intermediario.contratos_colectivos.all())
-        usuarios_asociados = list(intermediario.usuarios.all())
-        monto_total_individual = sum(
-            c.monto_total for c in contratos_individuales if c.monto_total) or Decimal('0.0')
-        monto_total_colectivo = sum(
-            c.monto_total for c in contratos_colectivos if c.monto_total) or Decimal('0.0')
-        monto_total_contratos = monto_total_individual + monto_total_colectivo
-        comision_estimada = (monto_total_contratos * intermediario.porcentaje_comision /
-                             Decimal('100.0')) if intermediario.porcentaje_comision else Decimal('0.0')
 
-        context.update({
-            'intermediario_relacionado_obj': intermediario.intermediario_relacionado,
-            'contratos_individuales_asociados': contratos_individuales,
-            'contratos_colectivos_asociados': contratos_colectivos,
-            'usuarios_asociados': usuarios_asociados,
-            'total_contratos': len(contratos_individuales) + len(contratos_colectivos),
-            'total_contratos_individuales': len(contratos_individuales),
-            'total_contratos_colectivos': len(contratos_colectivos),
-            'monto_total_contratos': monto_total_contratos,
-            'comision_estimada_total': comision_estimada,
-            'active_tab': 'intermediarios_detail',
-        })
+        # --- LÓGICA DIRECTA Y CLARA PARA OBTENER COMISIONES ---
+
+        # 1. Obtenemos las comisiones pagadas para ESTE intermediario
+        comisiones_pagadas = RegistroComision.objects.filter(
+            intermediario=intermediario,
+            estatus_pago_comision='PAGADA'
+        ).select_related('factura_origen').order_by('-fecha_pago_a_intermediario')
+
+        # 2. Obtenemos las comisiones pendientes para ESTE intermediario
+        comisiones_pendientes = RegistroComision.objects.filter(
+            intermediario=intermediario,
+            estatus_pago_comision='PENDIENTE'
+        ).select_related('factura_origen').order_by('fecha_calculo')
+
+        # 3. Calculamos los totales a partir de estos querysets
+        total_pagado = comisiones_pagadas.aggregate(
+            total=Sum('monto_comision')
+        )['total'] or Decimal('0.00')
+
+        total_pendiente = comisiones_pendientes.aggregate(
+            total=Sum('monto_comision')
+        )['total'] or Decimal('0.00')
+
+        total_generado = total_pagado + total_pendiente
+
+        # --- PASAMOS TODO AL CONTEXTO ---
+        context['comisiones_pagadas'] = comisiones_pagadas
+        context['comisiones_pendientes'] = comisiones_pendientes
+        context['total_comisiones_generadas'] = total_generado
+        context['total_comisiones_pagadas'] = total_pagado
+        context['total_comisiones_pendientes'] = total_pendiente
+
+        # --- MANTENEMOS LA LÓGICA ORIGINAL PARA OTRAS RELACIONES ---
+        # (Si aún la necesitas en la plantilla)
+        context['contratos_individuales_asociados'] = intermediario.contratoindividual_set.all()
+        context['contratos_colectivos_asociados'] = intermediario.contratos_colectivos.all()
+        context['usuarios_asociados'] = intermediario.usuarios.all()
+
+        # Permisos para los enlaces de acciones en las tablas
+        context['user_perms'] = {
+            'can_view_comisiones': self.request.user.has_perm('myapp.view_registrocomision'),
+            'can_view_facturas': self.request.user.has_perm('myapp.view_factura'),
+        }
+
         return context
 
 
