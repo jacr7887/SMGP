@@ -41,7 +41,11 @@ class Command(BaseCommand):
     help = 'Populates the database with mock data.'
 
     def add_arguments(self, parser):
-        # ... (tus argumentos no cambian) ...
+        parser.add_argument(
+            '--clean',
+            action='store_true',
+            help='Borra los datos existentes antes de poblar la base de datos.'
+        )
         parser.add_argument('--users', type=int, default=30)  # Original: 10
         parser.add_argument('--intermediarios', type=int,
                             default=15)  # Original: 5
@@ -417,6 +421,11 @@ class Command(BaseCommand):
                             fecha_app = fake.past_date(
                                 start_date="-3y")  # DateField
                             tipo_f = random.choice(possible_fraccionamientos)
+                            defaults = {
+                                'monto_anual': fake.pydecimal(left_digits=6, right_digits=2, positive=True, min_value=Decimal('500.00'), max_value=Decimal('15000.00')),
+                                'activo': fake.boolean(chance_of_getting_true=95)
+                            }
+
                             tarifa, _ = Tarifa.objects.update_or_create(
                                 ramo=ramo, rango_etario=rango, fecha_aplicacion=fecha_app, tipo_fraccionamiento=tipo_f, defaults=defaults)
                             if tarifa.pk not in tarifa_ids_created:
@@ -751,16 +760,10 @@ class Command(BaseCommand):
                 available_tarifa_pks_ci = list(
                     set(tarifa_ids_created + tarifa_ids_db))
 
-                # ----- NUEVO LOGGING AQUÍ -----
                 logger.info(
-                    f"--- ContratoInd Seeder: available_afiliado_ind_pks_ci (len={len(available_afiliado_ind_pks_ci)}): {sorted(available_afiliado_ind_pks_ci)[:20]} ... (mostrando hasta 20) ---")
-                logger.info(
-                    f"--- ContratoInd Seeder: available_intermediario_pks_ci (len={len(available_intermediario_pks_ci)}): {sorted(available_intermediario_pks_ci)[:20]} ... (mostrando hasta 20) ---")
-                logger.info(
-                    f"--- ContratoInd Seeder: available_tarifa_pks_ci (len={len(available_tarifa_pks_ci)}): {sorted(available_tarifa_pks_ci)[:20]} ... (mostrando hasta 20) ---")
-                # -----------------------------
+                    f"--- ContratoInd Seeder: Inciando creación. Afiliados disponibles: {len(available_afiliado_ind_pks_ci)}, Intermediarios: {len(available_intermediario_pks_ci)}, Tarifas: {len(available_tarifa_pks_ci)} ---")
 
-                # Chequeo más robusto ANTES del bucle
+                # Chequeo robusto ANTES del bucle para evitar errores
                 if not all([available_afiliado_ind_pks_ci, available_intermediario_pks_ci, available_tarifa_pks_ci]):
                     missing_prereqs_log = []
                     if not available_afiliado_ind_pks_ci:
@@ -771,60 +774,38 @@ class Command(BaseCommand):
                         missing_prereqs_log.append("Tarifas")
 
                     self.stdout.write(self.style.WARNING(
-                        f"Skipping {model_name}: Missing prerequisites - no {', '.join(missing_prereqs_log)} disponibles."))
-                    # Marcar todos los solicitados como fallidos si no podemos crear ninguno
+                        f"Skipping {model_name}: Faltan prerrequisitos - no hay {', '.join(missing_prereqs_log)} disponibles."))
                     stats_m['failed'] = stats_m['requested']
                     stats_m['errors']['MissingPrerequisitesAtStart_ContInd'] = stats_m['requested']
                 else:
-                    # Añadir un contador 'i' para el log
                     for i in range(max(0, stats_m['requested'])):
                         contrato_ind = None
-                        # Inicializar para logs de error
                         afiliado_pk, tarifa_pk, intermediario_pk = None, None, None
                         try:
-                            # Asegurarse de que las listas no estén vacías antes de random.choice
-                            if not available_afiliado_ind_pks_ci:
-                                logger.warning(
-                                    f"--- ContratoInd Seeder (Iter {i+1}): Lista available_afiliado_ind_pks_ci VACÍA. Saltando.")
-                                # Forzar un error que podamos registrar mejor
-                                raise IndexError("Lista de afiliados vacía")
                             afiliado_pk = random.choice(
                                 available_afiliado_ind_pks_ci)
-
-                            if not available_tarifa_pks_ci:
-                                logger.warning(
-                                    f"--- ContratoInd Seeder (Iter {i+1}): Lista available_tarifa_pks_ci VACÍA. Saltando.")
-                                raise IndexError("Lista de tarifas vacía")
                             tarifa_pk = random.choice(available_tarifa_pks_ci)
-
-                            if not available_intermediario_pks_ci:
-                                logger.warning(
-                                    f"--- ContratoInd Seeder (Iter {i+1}): Lista available_intermediario_pks_ci VACÍA. Saltando.")
-                                raise IndexError(
-                                    "Lista de intermediarios vacía")
                             intermediario_pk = random.choice(
                                 available_intermediario_pks_ci)
 
-                            logger.info(
-                                f"--- ContratoInd Seeder (Iter {i+1}/{stats_m['requested']}): Intentando obtener Afiliado PK={afiliado_pk}, Tarifa PK={tarifa_pk}, Intermediario PK={intermediario_pk} ---")
-
                             afiliado = AfiliadoIndividual.objects.get(
                                 pk=afiliado_pk)
-                            # logger.info(f"--- ContratoInd Seeder: Afiliado {afiliado_pk} ENCONTRADO ---") # Mucho log, opcional
                             tarifa = Tarifa.objects.get(pk=tarifa_pk)
-                            # logger.info(f"--- ContratoInd Seeder: Tarifa {tarifa_pk} ENCONTRADA ---")
                             intermediario = Intermediario.objects.get(
                                 pk=intermediario_pk)
-                            # logger.info(f"--- ContratoInd Seeder: Intermediario {intermediario_pk} ENCONTRADO ---")
 
-                            # ... (tu lógica actual para crear ContratoIndividual)
                             start_range_ci_aware = timezone.now() - timedelta(days=365*2)
                             end_range_ci_aware = timezone.now() - timedelta(days=1)
                             fecha_emision_dt_aware_ci = self._get_aware_fake_datetime(
                                 fake, start_range_ci_aware, end_range_ci_aware)
+
                             periodo_meses = random.choice([6, 12, 18, 24])
+
+                            # --- CREACIÓN DE INSTANCIA CORREGIDA ---
+                            # No se incluye 'comision_anual' ya que fue eliminado del modelo.
                             contrato_ind = ContratoIndividual(
-                                ramo=tarifa.ramo, forma_pago=random.choice(
+                                ramo=tarifa.ramo,
+                                forma_pago=random.choice(
                                     [c[0] for c in CommonChoices.FORMA_PAGO]),
                                 estatus=random.choice(
                                     [c[0] for c in CommonChoices.ESTADOS_VIGENCIA]),
@@ -832,48 +813,52 @@ class Command(BaseCommand):
                                     '1000.00'), max_value=Decimal('500000.00')),
                                 fecha_emision=fecha_emision_dt_aware_ci,
                                 periodo_vigencia_meses=periodo_meses,
-                                intermediario=intermediario, tarifa_aplicada=tarifa, afiliado=afiliado,
-                                tipo_identificacion_contratante=afiliado.tipo_identificacion, contratante_cedula=afiliado.cedula,
+                                intermediario=intermediario,
+                                tarifa_aplicada=tarifa,
+                                afiliado=afiliado,
+                                tipo_identificacion_contratante=afiliado.tipo_identificacion,
+                                contratante_cedula=afiliado.cedula,
+                                # Usar el nombre completo del afiliado como contratante
+                                contratante_nombre=afiliado.nombre_completo,
                                 activo=fake.boolean(chance_of_getting_true=95)
                             )
+
+                            # El método save() del modelo se encargará de calcular el monto_total
                             contrato_ind.save()
+
                             stats_m['created'] += 1
                             if contrato_ind.pk not in contrato_ind_ids_created:
                                 contrato_ind_ids_created.append(
                                     contrato_ind.pk)
 
-                        except IndexError as e_idx:  # Capturar IndexError de random.choice en lista vacía
-                            # exc_info=False para no llenar el log con el traceback de IndexError
+                        except IndexError as e_idx:
                             logger.error(
-                                f"--- ContratoInd Seeder (Iter {i+1}): IndexError al seleccionar PKs (lista vacía?). PKs intentados: Afiliado={afiliado_pk}, Tarifa={tarifa_pk}, Intermediario={intermediario_pk}. Error: {e_idx} ---", exc_info=False)
+                                f"ContratoInd Seeder (Iter {i+1}): IndexError al seleccionar PKs (lista vacía?). Error: {e_idx}", exc_info=False)
                             stats_m['failed'] += 1
                             stats_m['errors']['IndexError_ContInd_PrereqListEmpty'] += 1
-                            continue  # Salta a la siguiente iteración del bucle
+                            continue
 
                         except ObjectDoesNotExist as e_dne:
                             logger.error(
-                                f"--- ContratoInd Seeder (Iter {i+1}): ObjectDoesNotExist al intentar obtener prerrequisitos. PKs intentados: Afiliado={afiliado_pk}, Tarifa={tarifa_pk}, Intermediario={intermediario_pk}. Error: {e_dne} ---", exc_info=True)
+                                f"ContratoInd Seeder (Iter {i+1}): ObjectDoesNotExist. PKs: Afiliado={afiliado_pk}, Tarifa={tarifa_pk}, Intermediario={intermediario_pk}. Error: {e_dne}", exc_info=True)
                             stats_m['failed'] += 1
                             stats_m['errors']['DoesNotExist_ContInd_Prereq'] += 1
                             continue
-                        except (IntegrityError, ValidationError) as e_ci_val_int:  # Agrupado
+
+                        except (IntegrityError, ValidationError) as e_val_int:
                             stats_m['failed'] += 1
-                            # Nombre de error más específico
-                            stats_m['errors'][e_ci_val_int.__class__.__name__ +
+                            stats_m['errors'][e_val_int.__class__.__name__ +
                                               "_ContInd"] += 1
                             logger.warning(
-                                f"Error (Valid/Integrity) creando ContratoIndividual (Iter {i+1}): {e_ci_val_int}")
-                        except TypeError as e_type_ci:
-                            stats_m['failed'] += 1
-                            stats_m['errors']['TypeError_ContInd_Date'] += 1
-                            logger.error(
-                                f"TypeError creando ContratoIndividual (Iter {i+1}, fecha_emision?): {e_type_ci}", exc_info=True)
-                        except Exception as e_ci_gen:  # Captura general
+                                f"Error (Valid/Integrity) creando ContratoIndividual (Iter {i+1}): {e_val_int}")
+
+                        except Exception as e_ci_gen:
                             stats_m['failed'] += 1
                             stats_m['errors'][e_ci_gen.__class__.__name__ +
                                               "_ContInd_Gen"] += 1
                             logger.error(
                                 f"Error GENERAL creando ContratoIndividual (Iter {i+1}): {e_ci_gen}", exc_info=True)
+
                 # --- 8. Contratos Colectivos ---
                 model_name = 'ContratoColectivo'
                 stats_m = stats[model_name]
