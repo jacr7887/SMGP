@@ -925,14 +925,11 @@ class Command(BaseCommand):
                             if not contrato_obj_rec.fecha_inicio_vigencia:
                                 continue
 
-                            # >>> INICIO DE LA CORRECCIÓN DE LÓGICA DE FECHAS <<<
-                            # 1. La fecha de la reclamación debe ser entre el inicio del contrato y HOY.
-                            #    Esto evita el error de "fecha de reclamación no puede ser futura".
+                            # >>> CORRECCIÓN DE LÓGICA DE FECHAS <<<
                             fecha_inicio_valida = contrato_obj_rec.fecha_inicio_vigencia
                             fecha_fin_valida = date.today()
 
                             if fecha_inicio_valida > fecha_fin_valida:
-                                # Si el contrato empieza en el futuro, no se puede crear una reclamación hoy.
                                 continue
 
                             fecha_reclamo_val = fake.date_between_dates(
@@ -944,8 +941,6 @@ class Command(BaseCommand):
                                 [c[0] for c in CommonChoices.ESTADO_RECLAMACION])
                             fecha_cierre_rec = None
 
-                            # 2. La fecha de cierre debe ser entre la fecha de la reclamación y HOY.
-                            #    Esto evita el error de "empty range in randrange".
                             estados_que_implican_cierre = [
                                 'CERRADA', 'PAGADA', 'RECHAZADA', 'APROBADA']
                             if estado_actual_rec in estados_que_implican_cierre:
@@ -953,7 +948,6 @@ class Command(BaseCommand):
                                     date_start=fecha_reclamo_val,
                                     date_end=date.today()
                                 )
-                            # >>> FIN DE LA CORRECCIÓN DE LÓGICA DE FECHAS <<<
 
                             suma_asegurada_contrato = contrato_obj_rec.suma_asegurada or Decimal(
                                 '1000.00')
@@ -1002,7 +996,7 @@ class Command(BaseCommand):
                 stats_m = stats[model_name]
 
                 facturas_pagables = Factura.objects.filter(
-                    pk__in=factura_ids_created, monto_pendiente__gt=Decimal('0.01'), activo=True)
+                    pk__in=factura_ids_created)
 
                 if not facturas_pagables.exists():
                     self.stdout.write(self.style.WARNING(
@@ -1020,20 +1014,15 @@ class Command(BaseCommand):
                             pendiente = factura_a_pagar.monto_pendiente
                             fecha_ref = factura_a_pagar.vigencia_recibo_desde
 
-                            # >>> INICIO DE LA CORRECCIÓN DE LÓGICA DE FECHAS <<<
                             fecha_hoy = date.today()
                             if fecha_ref > fecha_hoy:
-                                # Esto no debería ocurrir con la corrección en Facturas, pero es una salvaguarda.
-                                # El pago se realiza en un rango futuro válido.
                                 fecha_pago = fake.date_between_dates(
                                     date_start=fecha_ref, date_end=fecha_ref + timedelta(days=30))
                             else:
-                                # El caso normal: la factura es del pasado, el pago se hace entre esa fecha y hoy.
                                 fecha_pago = fake.date_between_dates(
                                     date_start=fecha_ref, date_end=fecha_hoy)
-                            # >>> FIN DE LA CORRECCIÓN DE LÓGICA DE FECHAS <<<
 
-                            es_parcial = random.random() < (options.get('pago_parcial_chance', 40) / 100.0)
+                            es_parcial = random.random() < (pago_parcial_chance / 100.0)
                             monto_pago = (pendiente * Decimal(random.uniform(0.2, 0.8))
                                           ).quantize(Decimal('0.01')) if es_parcial else pendiente
                             monto_pago = max(Decimal('0.01'), monto_pago)
@@ -1058,8 +1047,71 @@ class Command(BaseCommand):
                             stats_m['errors'][e_p.__class__.__name__] += 1
                             logger.error(
                                 f"Error creando Pago: {e_p}", exc_info=True)
+                # --- 12. Registro de Comisiones ---
+                model_name = 'RegistroComision'
+                stats_m = stats[model_name]
 
-                # --- 12. Notificaciones ---
+                pagos_validos_para_comision = Pago.objects.filter(
+                    pk__in=pago_ids_created, factura__isnull=False)
+
+                if not pagos_validos_para_comision.exists():
+                    self.stdout.write(self.style.WARNING(
+                        f"Skipping {model_name}: No valid Payments with Invoices were created in this run."))
+                else:
+                    self.stdout.write(
+                        f"--- Creating Comisiones for {pagos_validos_para_comision.count()} valid payments ---")
+                    for pago in pagos_validos_para_comision.select_related('factura__intermediario__intermediario_relacionado'):
+                        try:
+                            if not pago.factura or not pago.factura.intermediario:
+                                continue
+
+                            intermediario_directo = pago.factura.intermediario
+
+                            # 1. Crear comisión DIRECTA
+                            if intermediario_directo.porcentaje_comision > 0:
+                                monto_comision = pago.monto_pago * \
+                                    (intermediario_directo.porcentaje_comision / Decimal(100))
+                                RegistroComision.objects.create(
+                                    intermediario=intermediario_directo,
+                                    pago_cliente=pago,
+                                    factura_origen=pago.factura,
+                                    contrato_individual=pago.factura.contrato_individual,
+                                    contrato_colectivo=pago.factura.contrato_colectivo,
+                                    tipo_comision='DIRECTA',
+                                    porcentaje_aplicado=intermediario_directo.porcentaje_comision,
+                                    monto_base_calculo=pago.monto_pago,
+                                    monto_comision=monto_comision.quantize(
+                                        Decimal('0.01'))
+                                )
+                                stats_m['created'] += 1
+
+                            # 2. Crear comisión de OVERRIDE si aplica
+                            intermediario_padre = intermediario_directo.intermediario_relacionado
+                            if intermediario_padre and intermediario_padre.porcentaje_override > 0:
+                                monto_override = pago.monto_pago * \
+                                    (intermediario_padre.porcentaje_override / Decimal(100))
+                                RegistroComision.objects.create(
+                                    intermediario=intermediario_padre,
+                                    pago_cliente=pago,
+                                    factura_origen=pago.factura,
+                                    contrato_individual=pago.factura.contrato_individual,
+                                    contrato_colectivo=pago.factura.contrato_colectivo,
+                                    tipo_comision='OVERRIDE',
+                                    porcentaje_aplicado=intermediario_padre.porcentaje_override,
+                                    monto_base_calculo=pago.monto_pago,
+                                    monto_comision=monto_override.quantize(
+                                        Decimal('0.01')),
+                                    intermediario_vendedor=intermediario_directo
+                                )
+                                stats_m['created'] += 1
+
+                        except Exception as e_rc:
+                            stats_m['failed'] += 1
+                            stats_m['errors'][e_rc.__class__.__name__] += 1
+                            logger.error(
+                                f"Error creando RegistroComision para Pago PK {pago.pk}: {e_rc}", exc_info=True)
+
+                # --- 13. Notificaciones ---
                 # (Sin cambios, fecha_creacion es DateTimeField con auto_now_add=True, que usa timezone.now())
                 model_name = 'Notificacion'
                 stats_m = stats[model_name]

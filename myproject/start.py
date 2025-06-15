@@ -26,7 +26,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'myproject.settings')
 # --- PASO 2: Crear el archivo .env si no existe ---
 # (Tu lógica original, sin cambios)
 DEFAULT_ENV_CONTENT = """# .env - Creado automáticamente.
-SECRET_KEY='django-insecure-DEFAULT-KEY-CHANGE-ME-12345!@#$%'
+SECRET_KEY='Xgfei34531#$&/$234fGHYtfhuY&6%$33rf#FfHUu7854fd"S3F%6HrR2dfdgG%6(5##3rfDfv-t4342345F$26fd6/%$#)'
 DEBUG=False
 ALLOWED_HOSTS=*
 DATABASE_URL=postgres://postgres:7319@localhost:5432/smgp
