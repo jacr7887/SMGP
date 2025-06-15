@@ -183,9 +183,6 @@
 {% block extra_scripts %}
     {{ block.super }}
 
-    {# Asumiendo que jQuery se carga en base.html o aquí si es necesario #}
-    {# <script src="{% static 'vendor/jquery/jquery.min.js' %}"></script> #}
-
     {% if form.media %}
         {{ form.media.css }}
         {{ form.media.js }} {# Esto debería cargar los JS de Select2Widget #}

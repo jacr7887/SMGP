@@ -3821,30 +3821,31 @@ def marcar_comisiones_pagadas_view(request):
     return redirect('myapp:liquidacion_comisiones')
 
 
-# Nota el nombre diferente
+@login_required
+@require_POST
 def marcar_comision_individual_pagada_view(request, pk):
-    if request.method == 'POST':
-        comision = get_object_or_404(RegistroComision, pk=pk)
-        if comision.estatus_pago_comision == 'PENDIENTE':
-            comision.estatus_pago_comision = 'PAGADA'
-            comision.fecha_pago_a_intermediario = django_timezone.now().date()
-            # No necesitas el campo fecha_pago_efectiva aquí a menos que quieras añadirlo
-            comision.save(
-                update_fields=['estatus_pago_comision', 'fecha_pago_a_intermediario'])
-            messages.success(
-                request, f"Comisión #{comision.pk} marcada como pagada.")
-        else:
-            messages.warning(
-                request, f"Comisión #{comision.pk} no estaba pendiente o ya fue procesada.")
+    comision = get_object_or_404(RegistroComision, pk=pk)
+    if comision.estatus_pago_comision == 'PENDIENTE':
+        comision.estatus_pago_comision = 'PAGADA'
+        comision.fecha_pago_a_intermediario = django_timezone.now().date()
+        comision.save(
+            update_fields=['estatus_pago_comision', 'fecha_pago_a_intermediario'])
+        messages.success(
+            request, f"Comisión #{comision.pk} marcada como pagada.")
+    else:
+        messages.warning(
+            request, f"Comisión #{comision.pk} no estaba pendiente o ya fue procesada.")
 
-        # Redirigir a donde sea apropiado, quizás a la misma página de detalle o a la lista
-        next_url = request.POST.get('next', reverse(
-            'myapp:registro_comision_detail', args=[comision.pk]))
+    # >>> INICIO DE LA CORRECCIÓN DE SEGURIDAD <<<
+    next_url = request.POST.get('next')
+    # Validar que la URL es segura y pertenece a nuestro sitio
+    if next_url and url_has_allowed_host_and_scheme(url=next_url, allowed_hosts={request.get_host()}):
         return redirect(next_url)
 
-    messages.error(request, "Acción no permitida.")
-    # Volver al detalle si no es POST
-    return redirect('myapp:registro_comision_detail', pk=pk)
+    # Si no es segura o no existe, redirigir a un lugar seguro por defecto
+    return redirect('myapp:registro_comision_detail', pk=comision.pk)
+    # >>> FIN DE LA CORRECCIÓN DE SEGURIDAD <<<
+
 
 # ==========================
 # Usuario Vistas
@@ -6123,24 +6124,18 @@ class FacturaPdfView(LoginRequiredMixin, PermissionRequiredMixin, View):
 
     def get(self, request, pk, *args, **kwargs):
         try:
-            # Obtener la factura con relaciones optimizadas
             factura = get_object_or_404(
                 Factura.objects.select_related(
-                    'contrato_individual__afiliado',  # Para nombre y CI
-                    'contrato_colectivo',            # Para razón social y RIF
-                    'intermediario'                  # Para datos del intermediario
+                    'contrato_individual__afiliado',
+                    'contrato_colectivo',
+                    'intermediario'
                 ),
                 pk=pk
             )
 
-            # Verificar permisos adicionales si es necesario (ej. solo ver propias facturas?)
-            # if not request.user.is_superuser and factura.propietario != request.user:
-            #     raise PermissionDenied
-
-            # --- Preparar contexto para el template PDF ---
+            # ... (toda tu lógica para preparar el context está bien) ...
             monto_prima = factura.monto or Decimal('0.00')
-            total_a_pagar = monto_prima  # Asumiendo exento de IVA/IGTF para el PDF de factura
-
+            total_a_pagar = monto_prima
             context = {
                 'factura': factura,
                 'contrato_asociado': factura.contrato_individual or factura.contrato_colectivo,
@@ -6148,83 +6143,62 @@ class FacturaPdfView(LoginRequiredMixin, PermissionRequiredMixin, View):
                 'total_a_pagar': total_a_pagar,
                 'cliente_nombre': "(No identificado)",
                 'cliente_doc': "N/A",
-                'intermediario_factura': factura.intermediario  # Pasar objeto completo
+                'intermediario_factura': factura.intermediario
             }
-
-            # Obtener datos del cliente final
             if factura.contrato_individual and factura.contrato_individual.afiliado:
                 afiliado = factura.contrato_individual.afiliado
-                context['cliente_nombre'] = afiliado.get_full_name() if hasattr(
-                    afiliado, 'get_full_name') else f"{afiliado.primer_nombre} {afiliado.primer_apellido}".strip()
-                context['cliente_doc'] = f"C.I.: {afiliado.cedula}" if hasattr(
-                    afiliado, 'cedula') else "C.I. N/A"
+                context['cliente_nombre'] = afiliado.get_full_name()
+                context['cliente_doc'] = f"C.I.: {afiliado.cedula}"
             elif factura.contrato_colectivo:
                 colectivo = factura.contrato_colectivo
-                context['cliente_nombre'] = colectivo.razon_social if hasattr(
-                    colectivo, 'razon_social') else "(Colectivo)"
-                context['cliente_doc'] = f"RIF: {colectivo.rif}" if hasattr(
-                    colectivo, 'rif') and colectivo.rif else "RIF N/A"
+                context['cliente_nombre'] = colectivo.razon_social
+                context['cliente_doc'] = f"RIF: {colectivo.rif}"
 
-            # --- Renderizar HTML ---
-            try:
-                template = get_template(self.template_name)
-                html = template.render(context)
-                if not isinstance(html, str):
-                    raise TypeError(
-                        "El renderizado del template no devolvió un string.")
-            except Exception as render_error:
-                logger.error(
-                    f"Error renderizando template PDF para factura {pk}: {render_error}", exc_info=True)
-                self._create_audit_log(
-                    request, 'ERROR', pk, f"Error render template: {render_error}")
-                return HttpResponseServerError("Error interno generando contenido del PDF.")
+            template = get_template(self.template_name)
+            html = template.render(context)
 
-            # --- Generar PDF ---
             result = BytesIO()
             pdf_status = pisa.pisaDocument(
-                BytesIO(html.encode('UTF-8')),  # Codificar HTML a bytes
+                BytesIO(html.encode('UTF-8')),
                 result,
                 encoding='UTF-8',
-                link_callback=self.link_callback  # Usar el método de la instancia
+                link_callback=self.link_callback
             )
 
+            # >>> INICIO DE LA CORRECCIÓN DE SEGURIDAD <<<
             if pdf_status.err:
-                error_detail = f"xhtml2pdf error: {pdf_status.err}"
-                logger.error(
-                    f"Error generando PDF para factura {pk}: {error_detail}")
-                self._create_audit_log(request, 'ERROR', pk, error_detail)
-                return HttpResponse(f"Error al generar el PDF ({pdf_status.err}). Por favor, contacte soporte.", status=500)
+                # Logueamos el error detallado para nosotros
+                error_detail = f"xhtml2pdf error code {pdf_status.err}: Problema generando PDF para factura {pk}."
+                logger.error(error_detail)
+                self._create_audit_log(
+                    request, 'ERROR', pk, "Fallo en pisaDocument")
+                # Mostramos un mensaje genérico al usuario
+                return HttpResponse("Error al generar el PDF. Por favor, contacte a soporte.", status=500)
+            # >>> FIN DE LA CORRECCIÓN DE SEGURIDAD <<<
 
-            # --- Respuesta HTTP con el PDF ---
             response = HttpResponse(
                 result.getvalue(), content_type='application/pdf')
             filename = f"factura_{factura.numero_recibo or factura.pk}.pdf"
-            # 'inline' para ver en navegador, 'attachment' para descargar
             response['Content-Disposition'] = f'inline; filename="{filename}"'
-
-            # --- Auditoría Éxito ---
             self._create_audit_log(request, 'EXITO', pk,
                                    "PDF generado/visualizado")
-
             return response
 
         except Http404:
             logger.warning(
                 f"Intento de acceso a PDF de Factura inexistente: PK={pk}")
-            raise  # Dejar que Django maneje el 404 estándar
+            raise
         except PermissionDenied as e:
             logger.warning(
                 f"Acceso denegado a PDF Factura PK={pk} por usuario {request.user.email}: {e}")
-            # Podrías redirigir a una página de 'acceso denegado' o mostrar un mensaje
             messages.error(
                 request, "No tiene permiso para ver este documento.")
-            return redirect('myapp:home')  # O a donde sea apropiado
+            return redirect('myapp:home')
         except Exception as e:
             logger.error(
                 f"Error inesperado en FacturaPdfView (pk={pk}): {e}", exc_info=True)
             self._create_audit_log(request, 'ERROR', pk,
                                    f"Error inesperado: {e}")
-            # Devolver un error 500 genérico al usuario
             return HttpResponseServerError("Ocurrió un error inesperado al intentar generar el documento PDF.")
 
 
