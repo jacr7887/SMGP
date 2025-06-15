@@ -756,7 +756,7 @@ class Command(BaseCommand):
 
                 if not all([AfiliadoIndividual.objects.exists(), Intermediario.objects.exists(), Tarifa.objects.exists()]):
                     self.stdout.write(self.style.WARNING(
-                        f"Skipping {model_name}: Faltan prerrequisitos (Afiliados, Intermediarios o Tarifas)."))
+                        f"Skipping {model_name}: Faltan prerrequisitos."))
                     stats_m['failed'] = stats_m['requested']
                     stats_m['errors']['MissingPrerequisitesAtStart_ContInd'] = stats_m['requested']
                 else:
@@ -768,19 +768,41 @@ class Command(BaseCommand):
                             intermediario = Intermediario.objects.order_by(
                                 '?').first()
 
-                            fecha_emision_dt_aware_ci = self._get_aware_fake_datetime(
-                                fake, end_date_aware=timezone.now() - timedelta(days=30))
+                            # >>> INICIO DE LA LÓGICA DE ESCENARIOS DE FECHA CORREGIDA <<<
+                            scenario = random.choice(
+                                ['VENCIDO', 'VIGENTE', 'VIGENTE', 'FUTURO'])
+
+                            if scenario == 'VENCIDO':
+                                fecha_fin = fake.date_between(
+                                    start_date="-3y", end_date="-45d")
+                                fecha_inicio = fecha_fin - timedelta(days=365)
+                                estatus = 'VENCIDO'
+                            elif scenario == 'FUTURO':
+                                fecha_inicio = fake.date_between(
+                                    start_date="+45d", end_date="+2y")
+                                fecha_fin = fecha_inicio + timedelta(days=365)
+                                # CORRECCIÓN: Usar el valor correcto de tus choices
+                                estatus = 'NO_VIGENTE_AUN'
+                            else:  # VIGENTE
+                                fecha_inicio = fake.date_between(
+                                    start_date="-2y", end_date="-45d")
+                                fecha_fin = fecha_inicio + timedelta(days=365)
+                                estatus = 'VIGENTE'
+
+                            fecha_emision_dt_aware = timezone.make_aware(
+                                datetime.combine(fecha_inicio, datetime.min.time()))
+                            # >>> FIN DE LA LÓGICA DE ESCENARIOS DE FECHA <<<
 
                             contrato_ind = ContratoIndividual(
                                 ramo=tarifa.ramo,
                                 forma_pago=random.choice(
                                     [c[0] for c in CommonChoices.FORMA_PAGO]),
-                                estatus='VIGENTE',
-                                # >>> LÍNEA AÑADIDA/CORREGIDA <<<
+                                estatus=estatus,
                                 suma_asegurada=fake.pydecimal(
                                     left_digits=6, right_digits=2, positive=True, min_value=Decimal('5000.00')),
-                                fecha_emision=fecha_emision_dt_aware_ci,
-                                periodo_vigencia_meses=12,
+                                fecha_emision=fecha_emision_dt_aware,
+                                fecha_inicio_vigencia=fecha_inicio,
+                                fecha_fin_vigencia=fecha_fin,
                                 intermediario=intermediario,
                                 tarifa_aplicada=tarifa,
                                 afiliado=afiliado,
@@ -816,19 +838,38 @@ class Command(BaseCommand):
                             intermediario_cc = Intermediario.objects.order_by(
                                 '?').first()
 
-                            fecha_emision_dt_aware_cc = self._get_aware_fake_datetime(
-                                fake, end_date_aware=timezone.now() - timedelta(days=30))
+                            scenario = random.choice(
+                                ['VENCIDO', 'VIGENTE', 'VIGENTE', 'FUTURO'])
+                            if scenario == 'VENCIDO':
+                                fecha_fin = fake.date_between(
+                                    start_date="-3y", end_date="-45d")
+                                fecha_inicio = fecha_fin - timedelta(days=365)
+                                estatus = 'VENCIDO'
+                            elif scenario == 'FUTURO':
+                                fecha_inicio = fake.date_between(
+                                    start_date="+45d", end_date="+2y")
+                                fecha_fin = fecha_inicio + timedelta(days=365)
+                                # CORRECCIÓN: Usar el valor correcto de tus choices
+                                estatus = 'NO_VIGENTE_AUN'
+                            else:  # VIGENTE
+                                fecha_inicio = fake.date_between(
+                                    start_date="-2y", end_date="-45d")
+                                fecha_fin = fecha_inicio + timedelta(days=365)
+                                estatus = 'VIGENTE'
+
+                            fecha_emision_dt_aware_cc = timezone.make_aware(
+                                datetime.combine(fecha_inicio, datetime.min.time()))
 
                             contrato_col = ContratoColectivo(
                                 ramo=tarifa_cc.ramo,
                                 forma_pago=random.choice(
                                     [c[0] for c in CommonChoices.FORMA_PAGO]),
-                                estatus='VIGENTE',
-                                # >>> LÍNEA AÑADIDA/CORREGIDA <<<
+                                estatus=estatus,
                                 suma_asegurada=fake.pydecimal(
                                     left_digits=7, right_digits=2, positive=True, min_value=Decimal('50000.00')),
                                 fecha_emision=fecha_emision_dt_aware_cc,
-                                periodo_vigencia_meses=12,
+                                fecha_inicio_vigencia=fecha_inicio,
+                                fecha_fin_vigencia=fecha_fin,
                                 intermediario=intermediario_cc,
                                 tarifa_aplicada=tarifa_cc,
                                 razon_social=af_col_principal.razon_social,
@@ -851,42 +892,49 @@ class Command(BaseCommand):
                 # --- 9. Facturas ---
                 model_name = 'Factura'
                 stats_m = stats[model_name]
-                current_contrato_ind_pks = list(
-                    set(contrato_ind_ids_created + contrato_ind_ids_db))
-                current_contrato_col_pks = list(
-                    set(contrato_col_ids_created + contrato_col_ids_db))
 
-                contratos_facturables = list(ContratoIndividual.objects.filter(pk__in=current_contrato_ind_pks)) + \
+                # >>> CORRECCIÓN: Filtrar ANTES para asegurar que tenemos contratos válidos <<<
+                contratos_facturables = list(ContratoIndividual.objects.filter(estatus__in=['VIGENTE', 'VENCIDO'])) + \
                     list(ContratoColectivo.objects.filter(
-                        pk__in=current_contrato_col_pks))
+                        estatus__in=['VIGENTE', 'VENCIDO']))
 
                 if not contratos_facturables:
                     self.stdout.write(self.style.WARNING(
-                        f"Skipping {model_name}: No hay Contratos para crear Facturas."))
+                        f"Skipping {model_name}: No hay Contratos VIGENTES o VENCIDOS para crear Facturas."))
                     stats_m['failed'] = stats_m['requested']
                     stats_m['errors']['NoContractsForFacturas'] = stats_m['requested']
                 else:
                     for _ in range(max(0, stats_m['requested'])):
                         try:
+                            # Ahora cada elección es garantizada de un contrato válido
                             contrato_obj_fact = random.choice(
                                 contratos_facturables)
 
-                            # Ahora esta lógica es segura porque los contratos son del pasado
-                            vigencia_desde_fact = contrato_obj_fact.fecha_inicio_vigencia
-                            vigencia_hasta_fact = vigencia_desde_fact + \
-                                timedelta(days=29)
+                            es_vencida = contrato_obj_fact.estatus == 'VENCIDO'
+
+                            if es_vencida:
+                                fecha_inicio_vigencia = contrato_obj_fact.fecha_inicio_vigencia
+                                fecha_fin_vigencia = contrato_obj_fact.fecha_fin_vigencia
+                                estatus_factura = 'VENCIDA'
+                            else:
+                                fecha_inicio_vigencia = fake.date_between(
+                                    start_date=contrato_obj_fact.fecha_inicio_vigencia, end_date=date.today())
+                                fecha_fin_vigencia = fecha_inicio_vigencia + \
+                                    timedelta(days=29)
+                                estatus_factura = 'GENERADA'
 
                             factura_instance = Factura(
                                 contrato_individual=contrato_obj_fact if isinstance(
                                     contrato_obj_fact, ContratoIndividual) else None,
                                 contrato_colectivo=contrato_obj_fact if isinstance(
                                     contrato_obj_fact, ContratoColectivo) else None,
-                                vigencia_recibo_desde=vigencia_desde_fact,
-                                vigencia_recibo_hasta=vigencia_hasta_fact,
+                                vigencia_recibo_desde=fecha_inicio_vigencia,
+                                vigencia_recibo_hasta=fecha_fin_vigencia,
                                 intermediario=contrato_obj_fact.intermediario,
                                 monto=contrato_obj_fact.monto_cuota_estimada or Decimal(
                                     '100.00'),
                                 dias_periodo_cobro=30,
+                                estatus_factura=estatus_factura,
                                 activo=True
                             )
                             factura_instance.save()
@@ -898,39 +946,42 @@ class Command(BaseCommand):
                             stats_m['errors'][e_f.__class__.__name__] += 1
                             logger.error(
                                 f"Error creando Factura: {e_f}", exc_info=True)
+
                 # --- 10. Reclamaciones ---
                 model_name = 'Reclamacion'
                 stats_m = stats[model_name]
 
-                current_contrato_ind_pks = list(
-                    set(contrato_ind_ids_created + contrato_ind_ids_db))
-                current_contrato_col_pks = list(
-                    set(contrato_col_ids_created + contrato_col_ids_db))
-
-                contratos_reclamables = list(ContratoIndividual.objects.filter(pk__in=current_contrato_ind_pks)) + \
+                # >>> CORRECCIÓN: Filtrar ANTES para asegurar que tenemos contratos válidos <<<
+                contratos_reclamables = list(ContratoIndividual.objects.filter(estatus__in=['VIGENTE', 'VENCIDO'])) + \
                     list(ContratoColectivo.objects.filter(
-                        pk__in=current_contrato_col_pks))
+                        estatus__in=['VIGENTE', 'VENCIDO']))
 
                 if not contratos_reclamables:
                     self.stdout.write(self.style.WARNING(
-                        f"Skipping {model_name}: No Contratos para Reclamaciones."))
+                        f"Skipping {model_name}: No Contratos VIGENTES o VENCIDOS para Reclamaciones."))
                     stats_m['failed'] = stats_m['requested']
                     stats_m['errors']['NoContractsForReclamaciones'] = stats_m['requested']
                 else:
                     for i_rec in range(max(0, stats_m['requested'])):
                         try:
+                            # Ahora cada elección es garantizada de un contrato válido
                             contrato_obj_rec = random.choice(
                                 contratos_reclamables)
 
-                            if not contrato_obj_rec.fecha_inicio_vigencia:
-                                continue
-
-                            # >>> CORRECCIÓN DE LÓGICA DE FECHAS <<<
                             fecha_inicio_valida = contrato_obj_rec.fecha_inicio_vigencia
-                            fecha_fin_valida = date.today()
+                            fecha_fin_valida = min(
+                                date.today(), contrato_obj_rec.fecha_fin_vigencia)
 
                             if fecha_inicio_valida > fecha_fin_valida:
-                                continue
+                                # Si por alguna razón el contrato vigente tiene un inicio en el futuro (no debería pasar con el filtro)
+                                # o si el vencido es tan reciente que el rango es inválido, reintentamos con otro contrato.
+                                contrato_obj_rec = random.choice(
+                                    contratos_reclamables)
+                                fecha_inicio_valida = contrato_obj_rec.fecha_inicio_vigencia
+                                fecha_fin_valida = min(
+                                    date.today(), contrato_obj_rec.fecha_fin_vigencia)
+                                if fecha_inicio_valida > fecha_fin_valida:
+                                    continue  # Saltamos esta iteración si sigue fallando
 
                             fecha_reclamo_val = fake.date_between_dates(
                                 date_start=fecha_inicio_valida,
@@ -994,6 +1045,8 @@ class Command(BaseCommand):
                 # --- 11. Pagos ---
                 model_name = 'Pago'
                 stats_m = stats[model_name]
+                # Recuperar la probabilidad
+                igtf_chance = options.get('igtf_chance', 20)
 
                 facturas_pagables = Factura.objects.filter(
                     pk__in=factura_ids_created)
@@ -1027,6 +1080,10 @@ class Command(BaseCommand):
                                           ).quantize(Decimal('0.01')) if es_parcial else pendiente
                             monto_pago = max(Decimal('0.01'), monto_pago)
 
+                            # >>> INICIO DE LA CORRECCIÓN PARA IGTF <<<
+                            aplica_igtf = random.random() < (igtf_chance / 100.0)
+                            # >>> FIN DE LA CORRECCIÓN <<<
+
                             pago = Pago.objects.create(
                                 factura=factura_a_pagar,
                                 monto_pago=monto_pago,
@@ -1035,6 +1092,7 @@ class Command(BaseCommand):
                                     [c[0] for c in CommonChoices.FORMA_PAGO_RECLAMACION]),
                                 referencia_pago=fake.bothify(
                                     text='REF-?#?#?#?#'),
+                                aplica_igtf_pago=aplica_igtf,  # Asignar el valor de IGTF
                                 activo=True
                             )
 
@@ -1051,6 +1109,7 @@ class Command(BaseCommand):
                 model_name = 'RegistroComision'
                 stats_m = stats[model_name]
 
+                # Usamos los pagos que se crearon exitosamente en esta ejecución
                 pagos_validos_para_comision = Pago.objects.filter(
                     pk__in=pago_ids_created, factura__isnull=False)
 
