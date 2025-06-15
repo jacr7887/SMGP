@@ -12,6 +12,7 @@ from django.db.models import Count, Case, When, Q, IntegerField, Sum, Avg, Subqu
 from django.db.models.functions import ExtractYear, TruncMonth  # TruncMonth añadido
 from plotly.offline import plot
 import plotly.express as px
+from django.utils.http import url_has_allowed_host_and_scheme
 import plotly.graph_objects as go
 import pandas as pd
 # Renombrado para evitar conflicto
