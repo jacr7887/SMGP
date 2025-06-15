@@ -753,105 +753,47 @@ class Command(BaseCommand):
                 # --- 7. Contratos Individuales ---
                 model_name = 'ContratoIndividual'
                 stats_m = stats[model_name]
-                available_afiliado_ind_pks_ci = list(
-                    set(afiliado_ind_ids_created + afiliado_ind_ids_db))
-                available_intermediario_pks_ci = list(
-                    set(intermediario_ids_created + intermediario_ids_db))
-                available_tarifa_pks_ci = list(
-                    set(tarifa_ids_created + tarifa_ids_db))
 
-                logger.info(
-                    f"--- ContratoInd Seeder: Inciando creación. Afiliados disponibles: {len(available_afiliado_ind_pks_ci)}, Intermediarios: {len(available_intermediario_pks_ci)}, Tarifas: {len(available_tarifa_pks_ci)} ---")
-
-                # Chequeo robusto ANTES del bucle para evitar errores
-                if not all([available_afiliado_ind_pks_ci, available_intermediario_pks_ci, available_tarifa_pks_ci]):
-                    missing_prereqs_log = []
-                    if not available_afiliado_ind_pks_ci:
-                        missing_prereqs_log.append("Afiliados Individuales")
-                    if not available_intermediario_pks_ci:
-                        missing_prereqs_log.append("Intermediarios")
-                    if not available_tarifa_pks_ci:
-                        missing_prereqs_log.append("Tarifas")
-
+                if not all([AfiliadoIndividual.objects.exists(), Intermediario.objects.exists(), Tarifa.objects.exists()]):
                     self.stdout.write(self.style.WARNING(
-                        f"Skipping {model_name}: Faltan prerrequisitos - no hay {', '.join(missing_prereqs_log)} disponibles."))
+                        f"Skipping {model_name}: Faltan prerrequisitos (Afiliados, Intermediarios o Tarifas)."))
                     stats_m['failed'] = stats_m['requested']
                     stats_m['errors']['MissingPrerequisitesAtStart_ContInd'] = stats_m['requested']
                 else:
                     for i in range(max(0, stats_m['requested'])):
-                        contrato_ind = None
-                        afiliado_pk, tarifa_pk, intermediario_pk = None, None, None
                         try:
-                            afiliado_pk = random.choice(
-                                available_afiliado_ind_pks_ci)
-                            tarifa_pk = random.choice(available_tarifa_pks_ci)
-                            intermediario_pk = random.choice(
-                                available_intermediario_pks_ci)
+                            afiliado = AfiliadoIndividual.objects.order_by(
+                                '?').first()
+                            tarifa = Tarifa.objects.order_by('?').first()
+                            intermediario = Intermediario.objects.order_by(
+                                '?').first()
 
-                            afiliado = AfiliadoIndividual.objects.get(
-                                pk=afiliado_pk)
-                            tarifa = Tarifa.objects.get(pk=tarifa_pk)
-                            intermediario = Intermediario.objects.get(
-                                pk=intermediario_pk)
-
-                            start_range_ci_aware = timezone.now() - timedelta(days=365*2)
-                            end_range_ci_aware = timezone.now() - timedelta(days=1)
                             fecha_emision_dt_aware_ci = self._get_aware_fake_datetime(
-                                fake, start_range_ci_aware, end_range_ci_aware)
+                                fake, end_date_aware=timezone.now() - timedelta(days=30))
 
-                            periodo_meses = random.choice([6, 12, 18, 24])
-
-                            # --- CREACIÓN DE INSTANCIA CORREGIDA ---
-                            # No se incluye 'comision_anual' ya que fue eliminado del modelo.
                             contrato_ind = ContratoIndividual(
                                 ramo=tarifa.ramo,
                                 forma_pago=random.choice(
                                     [c[0] for c in CommonChoices.FORMA_PAGO]),
-                                estatus=random.choice(
-                                    [c[0] for c in CommonChoices.ESTADOS_VIGENCIA]),
-                                suma_asegurada=fake.pydecimal(left_digits=6, right_digits=2, positive=True, min_value=Decimal(
-                                    '1000.00'), max_value=Decimal('500000.00')),
+                                estatus='VIGENTE',
+                                # >>> LÍNEA AÑADIDA/CORREGIDA <<<
+                                suma_asegurada=fake.pydecimal(
+                                    left_digits=6, right_digits=2, positive=True, min_value=Decimal('5000.00')),
                                 fecha_emision=fecha_emision_dt_aware_ci,
-                                periodo_vigencia_meses=periodo_meses,
+                                periodo_vigencia_meses=12,
                                 intermediario=intermediario,
                                 tarifa_aplicada=tarifa,
                                 afiliado=afiliado,
                                 tipo_identificacion_contratante=afiliado.tipo_identificacion,
                                 contratante_cedula=afiliado.cedula,
-                                # Usar el nombre completo del afiliado como contratante
                                 contratante_nombre=afiliado.nombre_completo,
-                                activo=fake.boolean(chance_of_getting_true=95)
+                                activo=True
                             )
-
-                            # El método save() del modelo se encargará de calcular el monto_total
                             contrato_ind.save()
-
                             stats_m['created'] += 1
                             if contrato_ind.pk not in contrato_ind_ids_created:
                                 contrato_ind_ids_created.append(
                                     contrato_ind.pk)
-
-                        except IndexError as e_idx:
-                            logger.error(
-                                f"ContratoInd Seeder (Iter {i+1}): IndexError al seleccionar PKs (lista vacía?). Error: {e_idx}", exc_info=False)
-                            stats_m['failed'] += 1
-                            stats_m['errors']['IndexError_ContInd_PrereqListEmpty'] += 1
-                            continue
-
-                        except ObjectDoesNotExist as e_dne:
-                            logger.error(
-                                f"ContratoInd Seeder (Iter {i+1}): ObjectDoesNotExist. PKs: Afiliado={afiliado_pk}, Tarifa={tarifa_pk}, Intermediario={intermediario_pk}. Error: {e_dne}", exc_info=True)
-                            stats_m['failed'] += 1
-                            stats_m['errors']['DoesNotExist_ContInd_Prereq'] += 1
-                            continue
-
-                        except (IntegrityError, ValidationError) as e_val_int:
-                            stats_m['failed'] += 1
-                            stats_m['errors'][e_val_int.__class__.__name__ +
-                                              "_ContInd"] += 1
-                            logger.warning(
-                                f"Error (Valid/Integrity) creando ContratoIndividual (Iter {i+1}): {e_val_int}")
-
                         except Exception as e_ci_gen:
                             stats_m['failed'] += 1
                             stats_m['errors'][e_ci_gen.__class__.__name__ +
@@ -862,475 +804,250 @@ class Command(BaseCommand):
                 # --- 8. Contratos Colectivos ---
                 model_name = 'ContratoColectivo'
                 stats_m = stats[model_name]
-                available_afiliado_col_pks_cc = list(
-                    set(afiliado_col_ids_created + afiliado_col_ids_db))
-
-                if not available_afiliado_col_pks_cc or not available_intermediario_pks_ci or not available_tarifa_pks_ci:  # Reusar pks_ci
+                if not all([AfiliadoColectivo.objects.exists(), Intermediario.objects.exists(), Tarifa.objects.exists()]):
                     self.stdout.write(self.style.WARNING(
                         f"Skipping {model_name}: Missing prerequisites."))
                 else:
                     for _ in range(max(0, stats_m['requested'])):
-                        contrato_col = None
                         try:
-                            af_col_principal = AfiliadoColectivo.objects.filter(
-                                pk__in=available_afiliado_col_pks_cc).order_by('?').first()
-                            tarifa_cc = Tarifa.objects.filter(
-                                pk__in=available_tarifa_pks_ci).order_by('?').first()
-                            intermediario_cc = Intermediario.objects.filter(
-                                pk__in=available_intermediario_pks_ci).order_by('?').first()
+                            af_col_principal = AfiliadoColectivo.objects.order_by(
+                                '?').first()
+                            tarifa_cc = Tarifa.objects.order_by('?').first()
+                            intermediario_cc = Intermediario.objects.order_by(
+                                '?').first()
 
-                            if not (af_col_principal and tarifa_cc and intermediario_cc):
-                                stats_m['failed'] += 1
-                                stats_m['errors']['MissingPrereq_ContCol_Robust'] += 1
-                                continue
-
-                            start_range_cc_aware = timezone.now() - timedelta(days=365*2)
-                            end_range_cc_aware = timezone.now() - timedelta(days=1)
-                            # Usa la función auxiliar
                             fecha_emision_dt_aware_cc = self._get_aware_fake_datetime(
-                                fake, start_range_cc_aware, end_range_cc_aware)
-
-                            periodo_meses_cc = random.choice([12, 24, 36])
-                            cantidad_emp_cc = random.randint(5, 200)
+                                fake, end_date_aware=timezone.now() - timedelta(days=30))
 
                             contrato_col = ContratoColectivo(
-                                ramo=tarifa_cc.ramo, forma_pago=random.choice(
+                                ramo=tarifa_cc.ramo,
+                                forma_pago=random.choice(
                                     [c[0] for c in CommonChoices.FORMA_PAGO]),
-                                estatus=random.choice(
-                                    [c[0] for c in CommonChoices.ESTADOS_VIGENCIA]),
-                                fecha_emision=fecha_emision_dt_aware_cc,  # YA ES AWARE
-                                periodo_vigencia_meses=periodo_meses_cc,
-                                intermediario=intermediario_cc, tarifa_aplicada=tarifa_cc,
-                                razon_social=af_col_principal.razon_social, rif=af_col_principal.rif, cantidad_empleados=cantidad_emp_cc,
-                                activo=fake.boolean(chance_of_getting_true=95)
+                                estatus='VIGENTE',
+                                # >>> LÍNEA AÑADIDA/CORREGIDA <<<
+                                suma_asegurada=fake.pydecimal(
+                                    left_digits=7, right_digits=2, positive=True, min_value=Decimal('50000.00')),
+                                fecha_emision=fecha_emision_dt_aware_cc,
+                                periodo_vigencia_meses=12,
+                                intermediario=intermediario_cc,
+                                tarifa_aplicada=tarifa_cc,
+                                razon_social=af_col_principal.razon_social,
+                                rif=af_col_principal.rif,
+                                cantidad_empleados=random.randint(5, 200),
+                                activo=True
                             )
                             contrato_col.save()
+                            contrato_col.afiliados_colectivos.add(
+                                af_col_principal)
                             stats_m['created'] += 1
                             if contrato_col.pk not in contrato_col_ids_created:
                                 contrato_col_ids_created.append(
                                     contrato_col.pk)
-
-                            k_m2m_cc = random.randint(
-                                1, min(3, len(available_afiliado_col_pks_cc)))
-                            selected_af_col_pks_m2m_cc = set()
-                            if af_col_principal.pk in available_afiliado_col_pks_cc:
-                                selected_af_col_pks_m2m_cc.add(
-                                    af_col_principal.pk)
-                            other_afiliados_pks_cc = [
-                                pk for pk in available_afiliado_col_pks_cc if pk != af_col_principal.pk]
-                            if k_m2m_cc > len(selected_af_col_pks_m2m_cc) and other_afiliados_pks_cc:
-                                num_to_add_cc = k_m2m_cc - \
-                                    len(selected_af_col_pks_m2m_cc)
-                                selected_af_col_pks_m2m_cc.update(random.sample(
-                                    other_afiliados_pks_cc, k=min(num_to_add_cc, len(other_afiliados_pks_cc))))
-                            if selected_af_col_pks_m2m_cc:
-                                af_colectivos_existentes_cc = AfiliadoColectivo.objects.filter(
-                                    pk__in=list(selected_af_col_pks_m2m_cc))
-                                contrato_col.afiliados_colectivos.set(
-                                    af_colectivos_existentes_cc)
-                        except ObjectDoesNotExist:
-                            stats_m['failed'] += 1
-                            stats_m['errors']['DoesNotExist_ContCol_Prereq'] += 1
-                            continue
-                        except (IntegrityError, ValidationError) as e_cc:
-                            stats_m['failed'] += 1
-                            stats_m['errors'][e_cc.__class__.__name__] += 1
-                            logger.warning(
-                                f"Error creando ContratoColectivo: {e_cc}")
-                        except TypeError as e_type_cc:
-                            stats_m['failed'] += 1
-                            stats_m['errors']['TypeError_ContCol_Date'] += 1
-                            logger.error(
-                                f"TypeError creando ContratoColectivo (fecha_emision): {e_type_cc}", exc_info=True)
                         except Exception as e_cc:
                             stats_m['failed'] += 1
                             stats_m['errors'][e_cc.__class__.__name__] += 1
                             logger.error(
                                 f"Error creando ContratoColectivo: {e_cc}", exc_info=True)
-
-                # Actualizar listas de contratos disponibles DESPUÉS de crearlos todos
+                # --- 9. Facturas ---
+                model_name = 'Factura'
+                stats_m = stats[model_name]
                 current_contrato_ind_pks = list(
                     set(contrato_ind_ids_created + contrato_ind_ids_db))
                 current_contrato_col_pks = list(
                     set(contrato_col_ids_created + contrato_col_ids_db))
 
-                # --- 9. Facturas ---
-                model_name = 'Factura'
-                stats_m = stats[model_name]
+                contratos_facturables = list(ContratoIndividual.objects.filter(pk__in=current_contrato_ind_pks)) + \
+                    list(ContratoColectivo.objects.filter(
+                        pk__in=current_contrato_col_pks))
 
-                # Obtener contratos activos a los que se les puede facturar
-                qs_contratos_ind_fact = ContratoIndividual.objects.filter(
-                    pk__in=current_contrato_ind_pks, activo=True)
-                qs_contratos_col_fact = ContratoColectivo.objects.filter(
-                    pk__in=current_contrato_col_pks, activo=True)
-
-                if not qs_contratos_ind_fact.exists() and not qs_contratos_col_fact.exists():
+                if not contratos_facturables:
                     self.stdout.write(self.style.WARNING(
-                        f"Skipping {model_name}: No hay Contratos activos para crear Facturas."))
+                        f"Skipping {model_name}: No hay Contratos para crear Facturas."))
+                    stats_m['failed'] = stats_m['requested']
+                    stats_m['errors']['NoContractsForFacturas'] = stats_m['requested']
                 else:
-                    for i_f in range(max(0, stats_m['requested'])):
-                        factura_instance = None
-                        contrato_obj_fact = None
+                    for _ in range(max(0, stats_m['requested'])):
                         try:
-                            # Decidir si la factura será para un contrato individual o colectivo
-                            use_individual = (qs_contratos_ind_fact.exists() and (
-                                not qs_contratos_col_fact.exists() or random.random() < 0.7))
+                            contrato_obj_fact = random.choice(
+                                contratos_facturables)
 
-                            if use_individual:
-                                contrato_obj_fact = qs_contratos_ind_fact.order_by(
-                                    '?').first()
-                            elif qs_contratos_col_fact.exists():
-                                contrato_obj_fact = qs_contratos_col_fact.order_by(
-                                    '?').first()
-                            else:
-                                continue  # No hay contratos disponibles
-
-                            if not contrato_obj_fact or not contrato_obj_fact.fecha_inicio_vigencia or not contrato_obj_fact.fecha_fin_vigencia:
-                                continue
-
-                            # --- Lógica para forzar facturas vencidas ---
-                            # 30% de probabilidad de crear una factura antigua
-                            if random.random() < 0.3:
-                                # Vigencia que terminó hace más de 30 días (para que esté vencida)
-                                vigencia_hasta_fact = date.today() - timedelta(days=random.randint(35, 120))
-                                vigencia_desde_fact = vigencia_hasta_fact - \
-                                    timedelta(days=29)
-                            else:
-                                # Lógica para facturas recientes
-                                start_contract = contrato_obj_fact.fecha_inicio_vigencia
-                                end_contract = contrato_obj_fact.fecha_fin_vigencia
-                                if start_contract >= end_contract:
-                                    continue
-
-                                # Generar una fecha de inicio aleatoria dentro de la vigencia del contrato
-                                max_offset = (
-                                    end_contract - start_contract).days - 30
-                                if max_offset < 0:
-                                    max_offset = 0
-                                vigencia_desde_fact = start_contract + \
-                                    timedelta(
-                                        days=random.randint(0, max_offset))
-                                vigencia_hasta_fact = vigencia_desde_fact + \
-                                    timedelta(days=29)
-
-                            dias_cobro_fact = (
-                                vigencia_hasta_fact - vigencia_desde_fact).days + 1
-
-                            # Calcular monto de la factura basado en la cuota estimada del contrato
-                            monto_factura_val = contrato_obj_fact.monto_cuota_estimada or Decimal(
-                                random.uniform(50.0, 500.0)).quantize(Decimal('0.01'))
-                            if monto_factura_val <= 0:
-                                monto_factura_val = Decimal('50.00')
+                            # Ahora esta lógica es segura porque los contratos son del pasado
+                            vigencia_desde_fact = contrato_obj_fact.fecha_inicio_vigencia
+                            vigencia_hasta_fact = vigencia_desde_fact + \
+                                timedelta(days=29)
 
                             factura_instance = Factura(
-                                contrato_individual=contrato_obj_fact if use_individual else None,
-                                contrato_colectivo=contrato_obj_fact if not use_individual else None,
+                                contrato_individual=contrato_obj_fact if isinstance(
+                                    contrato_obj_fact, ContratoIndividual) else None,
+                                contrato_colectivo=contrato_obj_fact if isinstance(
+                                    contrato_obj_fact, ContratoColectivo) else None,
                                 vigencia_recibo_desde=vigencia_desde_fact,
                                 vigencia_recibo_hasta=vigencia_hasta_fact,
                                 intermediario=contrato_obj_fact.intermediario,
-                                monto=monto_factura_val,
-                                dias_periodo_cobro=dias_cobro_fact,
+                                monto=contrato_obj_fact.monto_cuota_estimada or Decimal(
+                                    '100.00'),
+                                dias_periodo_cobro=30,
                                 activo=True
                             )
-                            factura_instance.save()  # La señal post_save de Factura se encargará del estatus
-
+                            factura_instance.save()
                             stats_m['created'] += 1
                             if factura_instance.pk not in factura_ids_created:
                                 factura_ids_created.append(factura_instance.pk)
-
                         except Exception as e_f:
                             stats_m['failed'] += 1
                             stats_m['errors'][e_f.__class__.__name__] += 1
                             logger.error(
                                 f"Error creando Factura: {e_f}", exc_info=True)
-
                 # --- 10. Reclamaciones ---
                 model_name = 'Reclamacion'
                 stats_m = stats[model_name]
-                qs_contratos_ind_rec = ContratoIndividual.objects.filter(
-                    pk__in=current_contrato_ind_pks)
-                if hasattr(ContratoIndividual, 'activo'):
-                    qs_contratos_ind_rec = qs_contratos_ind_rec.filter(
-                        activo=True)
-                qs_contratos_col_rec = ContratoColectivo.objects.filter(
-                    pk__in=current_contrato_col_pks)
-                if hasattr(ContratoColectivo, 'activo'):
-                    qs_contratos_col_rec = qs_contratos_col_rec.filter(
-                        activo=True)
 
-                if not qs_contratos_ind_rec.exists() and not qs_contratos_col_rec.exists():
+                current_contrato_ind_pks = list(
+                    set(contrato_ind_ids_created + contrato_ind_ids_db))
+                current_contrato_col_pks = list(
+                    set(contrato_col_ids_created + contrato_col_ids_db))
+
+                contratos_reclamables = list(ContratoIndividual.objects.filter(pk__in=current_contrato_ind_pks)) + \
+                    list(ContratoColectivo.objects.filter(
+                        pk__in=current_contrato_col_pks))
+
+                if not contratos_reclamables:
                     self.stdout.write(self.style.WARNING(
-                        f"Skipping {model_name}: No Contratos activos para Reclamaciones."))
+                        f"Skipping {model_name}: No Contratos para Reclamaciones."))
                     stats_m['failed'] = stats_m['requested']
-                    stats_m['errors']['NoContractsForReclamaciones_AtStart'] = stats_m['requested']
+                    stats_m['errors']['NoContractsForReclamaciones'] = stats_m['requested']
                 else:
-                    diagnosticos_validos = [d[0]
-                                            for d in CommonChoices.DIAGNOSTICOS if d[0]]
-                    tipos_validos_rec = [t[0]
-                                         for t in CommonChoices.TIPO_RECLAMACION]
-                    estados_validos_rec = [e[0]
-                                           for e in CommonChoices.ESTADO_RECLAMACION]
-                    available_user_pks_rec = list(
-                        set(user_ids_created + user_ids_db))
-
-                    num_reclamaciones_solicitadas = stats_m['requested']
-
-                    num_medicas_cerradas_target = 0
-                    if num_reclamaciones_solicitadas > 0:
-                        num_medicas_cerradas_target = min(max(
-                            3, num_reclamaciones_solicitadas // 4), num_reclamaciones_solicitadas)
-                        if 'MEDICA' not in tipos_validos_rec:
-                            logger.warning(
-                                "Tipo 'MEDICA' no en CommonChoices.TIPO_RECLAMACION. No se forzarán para grafico_05.")
-                            num_medicas_cerradas_target = 0
-
-                    num_total_cerradas_target = num_reclamaciones_solicitadas // 2
-
-                    estados_que_implican_cierre = [s for s in [
-                        'APROBADA', 'PAGADA', 'CERRADA', 'RECHAZADA'] if s in estados_validos_rec]
-                    if not estados_que_implican_cierre:
-                        logger.warning(
-                            "No hay estados que impliquen cierre en CommonChoices.ESTADO_RECLAMACION. Gráficos de duración podrían no tener datos.")
-                        num_medicas_cerradas_target = 0
-                        num_total_cerradas_target = 0
-
-                    logger.info(
-                        f"--- Reclamacion Seeder: Solicitadas={num_reclamaciones_solicitadas}, Médicas Cerradas Target={num_medicas_cerradas_target}, Total Cerradas Target={num_total_cerradas_target} ---")
-
-                    medicas_cerradas_creadas_count = 0
-                    total_cerradas_creadas_count = 0
-
-                    for i_rec in range(max(0, num_reclamaciones_solicitadas)):
-                        reclamacion_instance = None
-                        contrato_obj_rec = None
-                        contrato_ind_fk_rec = None
-                        contrato_col_fk_rec = None
-
+                    for i_rec in range(max(0, stats_m['requested'])):
                         try:
-                            use_individual_rec = False
-                            can_use_ind_rec = qs_contratos_ind_rec.exists()
-                            can_use_col_rec = qs_contratos_col_rec.exists()
-                            if can_use_ind_rec and can_use_col_rec:
-                                use_individual_rec = random.choice(
-                                    [True, False])
-                            elif can_use_ind_rec:
-                                use_individual_rec = True
-                            elif can_use_col_rec:
-                                use_individual_rec = False
-                            else:
-                                if i_rec == 0:
-                                    self.stdout.write(self.style.ERROR(
-                                        f"  {model_name}: No contratos activos para iteración {i_rec+1}."))
-                                stats_m['failed'] += (
-                                    num_reclamaciones_solicitadas - i_rec)
-                                stats_m['errors']['NoContractsForReclamaciones_InLoop'] += (
-                                    num_reclamaciones_solicitadas - i_rec)
-                                break
+                            contrato_obj_rec = random.choice(
+                                contratos_reclamables)
 
-                            if use_individual_rec:
-                                contrato_obj_rec = qs_contratos_ind_rec.order_by(
-                                    '?').first()
-                            else:
-                                contrato_obj_rec = qs_contratos_col_rec.order_by(
-                                    '?').first()
-
-                            if not contrato_obj_rec:
-                                stats_m['failed'] += 1
-                                stats_m['errors']['NoValidContractSelected_Rec'] += 1
-                                logger.warning(
-                                    f"--- Reclamacion Seeder (Iter {i_rec+1}): No se pudo seleccionar un contrato válido. Saltando.")
+                            if not contrato_obj_rec.fecha_inicio_vigencia:
                                 continue
 
-                            if use_individual_rec:
-                                contrato_ind_fk_rec = contrato_obj_rec
-                            else:
-                                contrato_col_fk_rec = contrato_obj_rec
+                            # >>> INICIO DE LA CORRECCIÓN DE LÓGICA DE FECHAS <<<
+                            # 1. La fecha de la reclamación debe ser entre el inicio del contrato y HOY.
+                            #    Esto evita el error de "fecha de reclamación no puede ser futura".
+                            fecha_inicio_valida = contrato_obj_rec.fecha_inicio_vigencia
+                            fecha_fin_valida = date.today()
 
-                            if not contrato_obj_rec.fecha_inicio_vigencia or \
-                               not contrato_obj_rec.fecha_fin_vigencia or \
-                               contrato_obj_rec.fecha_inicio_vigencia > contrato_obj_rec.fecha_fin_vigencia:
-                                stats_m['failed'] += 1
-                                stats_m['errors']['InvalidContractDatesForReclamacion'] += 1
-                                logger.warning(
-                                    f"--- Reclamacion Seeder (Iter {i_rec+1}): Fechas de contrato inválidas para Contrato PK {contrato_obj_rec.pk}. Saltando.")
+                            if fecha_inicio_valida > fecha_fin_valida:
+                                # Si el contrato empieza en el futuro, no se puede crear una reclamación hoy.
                                 continue
 
-                            fecha_evento_rec = fake.date_between_dates(
-                                date_start=contrato_obj_rec.fecha_inicio_vigencia,
-                                date_end=contrato_obj_rec.fecha_fin_vigencia
-                            )
-                            fecha_rec_val = min(
-                                fecha_evento_rec + timedelta(days=random.randint(1, 30)), date.today())
-
-                            monto_rec_val = fake.pydecimal(left_digits=5, right_digits=2, positive=True, min_value=Decimal(
-                                '10.00'), max_value=Decimal('5000.00'))
-                            if contrato_obj_rec.suma_asegurada and \
-                               isinstance(contrato_obj_rec.suma_asegurada, Decimal) and \
-                               contrato_obj_rec.suma_asegurada > 0 and \
-                               monto_rec_val > contrato_obj_rec.suma_asegurada:
-                                monto_rec_val = (contrato_obj_rec.suma_asegurada * Decimal(
-                                    random.uniform(0.1, 0.9))).quantize(Decimal("0.01"), ROUND_HALF_UP)
-
-                            if monto_rec_val <= 0:
-                                monto_rec_val = Decimal('10.00')
-
-                            usuario_asignado_rec_id = get_random_pk_from_lists(
-                                available_user_pks_rec, [], allow_none=True, model_name_for_error="Usuario para Reclamacion"
+                            fecha_reclamo_val = fake.date_between_dates(
+                                date_start=fecha_inicio_valida,
+                                date_end=fecha_fin_valida
                             )
 
-                            tipo_actual_rec = random.choice(
-                                tipos_validos_rec) if tipos_validos_rec else 'OTRA'
                             estado_actual_rec = random.choice(
-                                estados_validos_rec) if estados_validos_rec else 'ABIERTA'
+                                [c[0] for c in CommonChoices.ESTADO_RECLAMACION])
                             fecha_cierre_rec = None
 
-                            # --- INICIO CORRECCIÓN NameError ---
-                            if medicas_cerradas_creadas_count < num_medicas_cerradas_target and \
-                               'MEDICA' in tipos_validos_rec and estados_que_implican_cierre:
-                                tipo_actual_rec = 'MEDICA'
-                                estado_actual_rec = random.choice(
-                                    estados_que_implican_cierre)
-                                logger.info(
-                                    f"--- Reclamacion Seeder (Iter {i_rec+1}): Forzando MEDICA y estado de CIERRE: {estado_actual_rec} para grafico_05 ---")
-                            elif total_cerradas_creadas_count < num_total_cerradas_target and \
-                                    not (tipo_actual_rec == 'MEDICA' and
-                                         estado_actual_rec in estados_que_implican_cierre and
-                                         medicas_cerradas_creadas_count < num_medicas_cerradas_target) and \
-                                    estados_que_implican_cierre:
-                                estado_actual_rec = random.choice(
-                                    estados_que_implican_cierre)
-                                logger.info(
-                                    f"--- Reclamacion Seeder (Iter {i_rec+1}): Forzando estado de CIERRE: {estado_actual_rec} para grafico_11 ---")
-                            # --- FIN CORRECCIÓN NameError ---
-
+                            # 2. La fecha de cierre debe ser entre la fecha de la reclamación y HOY.
+                            #    Esto evita el error de "empty range in randrange".
+                            estados_que_implican_cierre = [
+                                'CERRADA', 'PAGADA', 'RECHAZADA', 'APROBADA']
                             if estado_actual_rec in estados_que_implican_cierre:
-                                fecha_cierre_rec = min(
-                                    fecha_rec_val + timedelta(days=random.randint(5, 90)), date.today())
-                                if fecha_cierre_rec < fecha_rec_val:
-                                    fecha_cierre_rec = fecha_rec_val + \
-                                        timedelta(days=random.randint(1, 5))
-                                total_cerradas_creadas_count += 1
-                                if tipo_actual_rec == 'MEDICA':
-                                    medicas_cerradas_creadas_count += 1
+                                fecha_cierre_rec = fake.date_between_dates(
+                                    date_start=fecha_reclamo_val,
+                                    date_end=date.today()
+                                )
+                            # >>> FIN DE LA CORRECCIÓN DE LÓGICA DE FECHAS <<<
+
+                            suma_asegurada_contrato = contrato_obj_rec.suma_asegurada or Decimal(
+                                '1000.00')
+                            monto_reclamado_val = fake.pydecimal(
+                                left_digits=int(len(str(int(suma_asegurada_contrato)))) - 1 if len(
+                                    str(int(suma_asegurada_contrato))) > 1 else 1,
+                                right_digits=2,
+                                positive=True,
+                                min_value=Decimal('50.00')
+                            )
+                            if monto_reclamado_val >= suma_asegurada_contrato:
+                                monto_reclamado_val = suma_asegurada_contrato * \
+                                    Decimal('0.5')
 
                             reclamacion_instance = Reclamacion(
-                                contrato_individual=contrato_ind_fk_rec,
-                                contrato_colectivo=contrato_col_fk_rec,
-                                tipo_reclamacion=tipo_actual_rec,
-                                diagnostico_principal=random.choice(
-                                    diagnosticos_validos) if diagnosticos_validos else None,
+                                contrato_individual=contrato_obj_rec if isinstance(
+                                    contrato_obj_rec, ContratoIndividual) else None,
+                                contrato_colectivo=contrato_obj_rec if isinstance(
+                                    contrato_obj_rec, ContratoColectivo) else None,
+                                tipo_reclamacion=random.choice(
+                                    [c[0] for c in CommonChoices.TIPO_RECLAMACION]),
                                 estado=estado_actual_rec,
                                 descripcion_reclamo=fake.paragraph(
-                                    nb_sentences=random.randint(2, 5)),
-                                monto_reclamado=monto_rec_val,
-                                fecha_reclamo=fecha_rec_val,
+                                    nb_sentences=3),
+                                monto_reclamado=monto_reclamado_val.quantize(
+                                    Decimal('0.01')),
+                                fecha_reclamo=fecha_reclamo_val,
                                 fecha_cierre_reclamo=fecha_cierre_rec,
-                                usuario_asignado_id=usuario_asignado_rec_id,
-                                activo=fake.boolean(chance_of_getting_true=95),
-                                primer_nombre=f"Reclamo Cont.",
-                                primer_apellido=f"{contrato_obj_rec.numero_contrato or contrato_obj_rec.pk}-{fecha_rec_val.strftime('%d%m%y')}"
+                                primer_nombre=f"Reclamo para Contrato",
+                                primer_apellido=f"{contrato_obj_rec.numero_contrato or contrato_obj_rec.pk}"
                             )
                             reclamacion_instance.full_clean()
                             reclamacion_instance.save()
-
-                            logger.info(
-                                f"--- Reclamacion CREADA: PK={reclamacion_instance.pk}, Tipo={reclamacion_instance.tipo_reclamacion}, Estado={reclamacion_instance.estado}, Cierre={reclamacion_instance.fecha_cierre_reclamo} ---")
                             stats_m['created'] += 1
                             if reclamacion_instance.pk not in reclamacion_ids_created:
                                 reclamacion_ids_created.append(
                                     reclamacion_instance.pk)
-
-                        except ObjectDoesNotExist as e_dne_rec:
-                            logger.error(
-                                f"--- Reclamacion Seeder (Iter {i_rec+1}): ObjectDoesNotExist. Error: {e_dne_rec} ---", exc_info=True)
+                        except Exception as e_r_gen:
                             stats_m['failed'] += 1
-                            stats_m['errors']['DoesNotExist_Reclamacion_Prereq'] += 1
-                            continue
-                        except IndexError as e_idx_rec:
-                            logger.error(
-                                f"--- Reclamacion Seeder (Iter {i_rec+1}): IndexError. Error: {e_idx_rec} ---", exc_info=True)
-                            stats_m['failed'] += 1
-                            stats_m['errors']['IndexError_Reclamacion_PrereqListEmpty'] += 1
-                            continue
-                        except (IntegrityError, ValidationError) as e_r_val_int:
-                            stats_m['failed'] += 1
-                            stats_m['errors'][e_r_val_int.__class__.__name__ +
-                                              "_Reclamacion"] += 1
-                            logger.warning(
-                                f"Error (Valid/Integrity) creando Reclamacion (Iter {i_rec+1}): {e_r_val_int}")
-                        except Exception as e_r_gen:  # Captura general para otros errores, incluyendo NameError si persistiera
-                            stats_m['failed'] += 1
-                            stats_m['errors'][e_r_gen.__class__.__name__ +
-                                              "_Reclamacion_Gen"] += 1
+                            stats_m['errors'][e_r_gen.__class__.__name__] += 1
                             logger.error(
                                 f"Error GENERAL creando Reclamacion (Iter {i_rec+1}): {e_r_gen}", exc_info=True)
+
                 # --- 11. Pagos ---
                 model_name = 'Pago'
                 stats_m = stats[model_name]
 
-                # Obtener listas de facturas y reclamaciones pagables
                 facturas_pagables = Factura.objects.filter(
-                    monto_pendiente__gt=Decimal('0.01'), activo=True
-                ).select_related('contrato_individual__intermediario', 'contrato_colectivo__intermediario')
+                    pk__in=factura_ids_created, monto_pendiente__gt=Decimal('0.01'), activo=True)
 
-                reclamaciones_pagables = Reclamacion.objects.filter(
-                    estado='APROBADA', activo=True
-                ).annotate(
-                    total_pagado=Coalesce(
-                        Sum('pagos__monto_pago', filter=Q(pagos__activo=True)), Decimal('0.00'))
-                ).filter(monto_reclamado__gt=F('total_pagado'))
-
-                if not facturas_pagables.exists() and not reclamaciones_pagables.exists():
+                if not facturas_pagables.exists():
                     self.stdout.write(self.style.WARNING(
-                        f"Skipping {model_name}: No hay facturas o reclamaciones aprobadas para pagar."))
+                        f"Skipping {model_name}: No hay facturas pagables creadas en esta ejecución."))
+                    stats_m['failed'] = stats_m['requested']
+                    stats_m['errors']['NoPayableInvoicesFound'] = stats_m['requested']
                 else:
                     for _ in range(max(0, stats_m['requested'])):
                         try:
-                            target_obj = None
-                            # 75% de probabilidad de pagar una factura, 25% una reclamación
-                            if random.random() < 0.75 and facturas_pagables.exists():
-                                target_obj = facturas_pagables.order_by(
-                                    '?').first()
-                            elif reclamaciones_pagables.exists():
-                                target_obj = reclamaciones_pagables.order_by(
-                                    '?').first()
-                            elif facturas_pagables.exists():  # Fallback
-                                target_obj = facturas_pagables.order_by(
-                                    '?').first()
-                            else:
-                                break  # No hay más objetivos
-
-                            if not target_obj:
+                            factura_a_pagar = facturas_pagables.order_by(
+                                '?').first()
+                            if not factura_a_pagar:
                                 continue
 
-                            # Determinar si es factura o reclamación y calcular pendiente
-                            if isinstance(target_obj, Factura):
-                                pendiente = target_obj.monto_pendiente
-                                fecha_ref = target_obj.fecha_creacion.date()
-                            else:  # Es Reclamacion
-                                pendiente = target_obj.monto_reclamado - target_obj.total_pagado
-                                fecha_ref = target_obj.fecha_reclamo
+                            pendiente = factura_a_pagar.monto_pendiente
+                            fecha_ref = factura_a_pagar.vigencia_recibo_desde
 
-                            # Decidir si el pago es parcial
-                            es_parcial = random.random() < (pago_parcial_chance / 100.0)
+                            # >>> INICIO DE LA CORRECCIÓN DE LÓGICA DE FECHAS <<<
+                            fecha_hoy = date.today()
+                            if fecha_ref > fecha_hoy:
+                                # Esto no debería ocurrir con la corrección en Facturas, pero es una salvaguarda.
+                                # El pago se realiza en un rango futuro válido.
+                                fecha_pago = fake.date_between_dates(
+                                    date_start=fecha_ref, date_end=fecha_ref + timedelta(days=30))
+                            else:
+                                # El caso normal: la factura es del pasado, el pago se hace entre esa fecha y hoy.
+                                fecha_pago = fake.date_between_dates(
+                                    date_start=fecha_ref, date_end=fecha_hoy)
+                            # >>> FIN DE LA CORRECCIÓN DE LÓGICA DE FECHAS <<<
+
+                            es_parcial = random.random() < (options.get('pago_parcial_chance', 40) / 100.0)
                             monto_pago = (pendiente * Decimal(random.uniform(0.2, 0.8))
                                           ).quantize(Decimal('0.01')) if es_parcial else pendiente
                             monto_pago = max(Decimal('0.01'), monto_pago)
 
-                            fecha_pago = fake.date_between_dates(
-                                date_start=fecha_ref, date_end=date.today())
-
-                            pago_data = {
-                                'factura': target_obj if isinstance(target_obj, Factura) else None,
-                                'reclamacion': target_obj if isinstance(target_obj, Reclamacion) else None,
-                                'monto_pago': monto_pago,
-                                'fecha_pago': fecha_pago,
-                                'forma_pago': random.choice([c[0] for c in CommonChoices.FORMA_PAGO_RECLAMACION]),
-                                'referencia_pago': fake.bothify(text='REF-?#?#?#?#'),
-                                'activo': True
-                            }
-
-                            pago = Pago.objects.create(**pago_data)
+                            pago = Pago.objects.create(
+                                factura=factura_a_pagar,
+                                monto_pago=monto_pago,
+                                fecha_pago=fecha_pago,
+                                forma_pago=random.choice(
+                                    [c[0] for c in CommonChoices.FORMA_PAGO_RECLAMACION]),
+                                referencia_pago=fake.bothify(
+                                    text='REF-?#?#?#?#'),
+                                activo=True
+                            )
 
                             stats_m['created'] += 1
                             if pago.pk not in pago_ids_created:
