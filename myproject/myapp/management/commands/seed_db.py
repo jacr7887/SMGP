@@ -957,143 +957,92 @@ class Command(BaseCommand):
                 # --- 9. Facturas ---
                 model_name = 'Factura'
                 stats_m = stats[model_name]
+
+                # Obtener contratos activos a los que se les puede facturar
                 qs_contratos_ind_fact = ContratoIndividual.objects.filter(
-                    pk__in=current_contrato_ind_pks)
-                if hasattr(ContratoIndividual, 'activo'):
-                    qs_contratos_ind_fact = qs_contratos_ind_fact.filter(
-                        activo=True)
+                    pk__in=current_contrato_ind_pks, activo=True)
                 qs_contratos_col_fact = ContratoColectivo.objects.filter(
-                    pk__in=current_contrato_col_pks)
-                if hasattr(ContratoColectivo, 'activo'):
-                    qs_contratos_col_fact = qs_contratos_col_fact.filter(
-                        activo=True)
+                    pk__in=current_contrato_col_pks, activo=True)
 
                 if not qs_contratos_ind_fact.exists() and not qs_contratos_col_fact.exists():
                     self.stdout.write(self.style.WARNING(
-                        f"Skipping {model_name}: No Contratos activos para Facturas."))
+                        f"Skipping {model_name}: No hay Contratos activos para crear Facturas."))
                 else:
                     for i_f in range(max(0, stats_m['requested'])):
                         factura_instance = None
                         contrato_obj_fact = None
-                        contrato_ind_fk_fact = None
-                        contrato_col_fk_fact = None
                         try:
-                            use_individual_fact = False
-                            can_use_ind_fact = qs_contratos_ind_fact.exists()
-                            can_use_col_fact = qs_contratos_col_fact.exists()
-                            if can_use_ind_fact and can_use_col_fact:
-                                use_individual_fact = random.choice(
-                                    [True, False])
-                            elif can_use_ind_fact:
-                                use_individual_fact = True
-                            elif can_use_col_fact:
-                                use_individual_fact = False
-                            else:
-                                if i_f == 0:
-                                    self.stdout.write(self.style.ERROR(
-                                        f"  {model_name}: No contratos activos para iteración {i_f+1}."))
-                                break
+                            # Decidir si la factura será para un contrato individual o colectivo
+                            use_individual = (qs_contratos_ind_fact.exists() and (
+                                not qs_contratos_col_fact.exists() or random.random() < 0.7))
 
-                            if use_individual_fact:
-                                contrato_obj_fact = qs_contratos_ind_fact.select_related(
-                                    'intermediario', 'tarifa_aplicada').order_by('?').first()
+                            if use_individual:
+                                contrato_obj_fact = qs_contratos_ind_fact.order_by(
+                                    '?').first()
+                            elif qs_contratos_col_fact.exists():
+                                contrato_obj_fact = qs_contratos_col_fact.order_by(
+                                    '?').first()
                             else:
-                                contrato_obj_fact = qs_contratos_col_fact.select_related(
-                                    'intermediario', 'tarifa_aplicada').order_by('?').first()
+                                continue  # No hay contratos disponibles
 
-                            if not contrato_obj_fact:
-                                stats_m['failed'] += 1
-                                stats_m['errors']['NoValidContractSelected_Fact'] += 1
-                                continue
-                            if use_individual_fact:
-                                contrato_ind_fk_fact = contrato_obj_fact
-                            else:
-                                contrato_col_fk_fact = contrato_obj_fact
-
-                            if not contrato_obj_fact.fecha_inicio_vigencia or not contrato_obj_fact.fecha_fin_vigencia or contrato_obj_fact.fecha_inicio_vigencia > contrato_obj_fact.fecha_fin_vigencia:
-                                stats_m['failed'] += 1
-                                stats_m['errors']['InvalidContractDatesForFactura'] += 1
+                            if not contrato_obj_fact or not contrato_obj_fact.fecha_inicio_vigencia or not contrato_obj_fact.fecha_fin_vigencia:
                                 continue
 
-                            start_contract_fact = contrato_obj_fact.fecha_inicio_vigencia  # DateField
-                            end_contract_fact = contrato_obj_fact.fecha_fin_vigencia  # DateField
-                            if start_contract_fact > end_contract_fact:
-                                stats_m['failed'] += 1
-                                stats_m['errors']['ContractDatesInconsistent_Fact'] += 1
-                                continue
-                            max_days_offset_fact = (
-                                end_contract_fact - start_contract_fact).days
-                            days_offset_fact = random.randint(
-                                0, max_days_offset_fact) if max_days_offset_fact >= 0 else 0
-                            vigencia_desde_fact = start_contract_fact + \
-                                timedelta(days=days_offset_fact)  # DateField
+                            # --- Lógica para forzar facturas vencidas ---
+                            # 30% de probabilidad de crear una factura antigua
+                            if random.random() < 0.3:
+                                # Vigencia que terminó hace más de 30 días (para que esté vencida)
+                                vigencia_hasta_fact = date.today() - timedelta(days=random.randint(35, 120))
+                                vigencia_desde_fact = vigencia_hasta_fact - \
+                                    timedelta(days=29)
+                            else:
+                                # Lógica para facturas recientes
+                                start_contract = contrato_obj_fact.fecha_inicio_vigencia
+                                end_contract = contrato_obj_fact.fecha_fin_vigencia
+                                if start_contract >= end_contract:
+                                    continue
 
-                            period_delta_fact_days = 30
-                            if contrato_obj_fact.forma_pago == 'MENSUAL':
-                                period_delta_fact_days = 30
-                            elif contrato_obj_fact.forma_pago == 'TRIMESTRAL':
-                                period_delta_fact_days = 90
-                            elif contrato_obj_fact.forma_pago == 'SEMESTRAL':
-                                period_delta_fact_days = 180
-                            elif contrato_obj_fact.forma_pago == 'ANUAL':
-                                period_delta_fact_days = 365
-                            elif contrato_obj_fact.forma_pago == 'CONTADO' or not contrato_obj_fact.forma_pago:
-                                remaining_days_fact = (
-                                    end_contract_fact - vigencia_desde_fact).days + 1
-                                period_delta_fact_days = max(
-                                    1, remaining_days_fact)
+                                # Generar una fecha de inicio aleatoria dentro de la vigencia del contrato
+                                max_offset = (
+                                    end_contract - start_contract).days - 30
+                                if max_offset < 0:
+                                    max_offset = 0
+                                vigencia_desde_fact = start_contract + \
+                                    timedelta(
+                                        days=random.randint(0, max_offset))
+                                vigencia_hasta_fact = vigencia_desde_fact + \
+                                    timedelta(days=29)
 
-                            vigencia_hasta_fact = min(
-                                # DateField
-                                vigencia_desde_fact + timedelta(days=period_delta_fact_days - 1), end_contract_fact)
-                            if vigencia_hasta_fact < vigencia_desde_fact:
-                                vigencia_hasta_fact = vigencia_desde_fact
                             dias_cobro_fact = (
                                 vigencia_hasta_fact - vigencia_desde_fact).days + 1
 
-                            monto_factura_val = Decimal('0.00')
-                            if hasattr(contrato_obj_fact, 'monto_cuota_estimada') and isinstance(contrato_obj_fact.monto_cuota_estimada, Decimal) and contrato_obj_fact.monto_cuota_estimada > Decimal('0.00'):
-                                monto_factura_val = contrato_obj_fact.monto_cuota_estimada
-                            elif contrato_obj_fact.monto_total and contrato_obj_fact.monto_total > Decimal('0.00') and hasattr(contrato_obj_fact, 'cantidad_cuotas_estimadas') and contrato_obj_fact.cantidad_cuotas_estimadas and contrato_obj_fact.cantidad_cuotas_estimadas > 0:
-                                try:
-                                    monto_factura_val = (contrato_obj_fact.monto_total / Decimal(
-                                        contrato_obj_fact.cantidad_cuotas_estimadas)).quantize(Decimal("0.01"), ROUND_HALF_UP)
-                                except (TypeError, InvalidOperation):
-                                    monto_factura_val = Decimal('0.00')
+                            # Calcular monto de la factura basado en la cuota estimada del contrato
+                            monto_factura_val = contrato_obj_fact.monto_cuota_estimada or Decimal(
+                                random.uniform(50.0, 500.0)).quantize(Decimal('0.01'))
+                            if monto_factura_val <= 0:
+                                monto_factura_val = Decimal('50.00')
 
-                            if monto_factura_val <= Decimal('0.00'):
-                                min_val_f, max_val_f = (Decimal('50.00'), Decimal('1500.00')) if isinstance(
-                                    contrato_obj_fact, ContratoIndividual) else (Decimal('500.00'), Decimal('15000.00'))
-                                num_digits_f = len(
-                                    str(int(max_val_f))) if max_val_f >= 1 else 3
-                                monto_factura_val = fake.pydecimal(left_digits=max(
-                                    1, num_digits_f - 2 if num_digits_f > 2 else 1), right_digits=2, positive=True, min_value=min_val_f, max_value=max_val_f)
+                            factura_instance = Factura(
+                                contrato_individual=contrato_obj_fact if use_individual else None,
+                                contrato_colectivo=contrato_obj_fact if not use_individual else None,
+                                vigencia_recibo_desde=vigencia_desde_fact,
+                                vigencia_recibo_hasta=vigencia_hasta_fact,
+                                intermediario=contrato_obj_fact.intermediario,
+                                monto=monto_factura_val,
+                                dias_periodo_cobro=dias_cobro_fact,
+                                activo=True
+                            )
+                            factura_instance.save()  # La señal post_save de Factura se encargará del estatus
 
-                            factura_instance = Factura(contrato_individual=contrato_ind_fk_fact, contrato_colectivo=contrato_col_fk_fact, vigencia_recibo_desde=vigencia_desde_fact, vigencia_recibo_hasta=vigencia_hasta_fact,
-                                                       intermediario=contrato_obj_fact.intermediario, monto=monto_factura_val, estatus_emision=random.choice(
-                                                           [c[0] for c in CommonChoices.EMISION_RECIBO]),
-                                                       aplica_igtf=fake.boolean(chance_of_getting_true=igtf_chance), dias_periodo_cobro=dias_cobro_fact, activo=fake.boolean(chance_of_getting_true=95),
-                                                       primer_nombre=f"Factura {contrato_obj_fact.numero_contrato or contrato_obj_fact.pk}", primer_apellido=f"Per. {vigencia_desde_fact.strftime('%d%m%y')}-{vigencia_hasta_fact.strftime('%d%m%y')}")
-                            factura_instance.save()
                             stats_m['created'] += 1
                             if factura_instance.pk not in factura_ids_created:
                                 factura_ids_created.append(factura_instance.pk)
-                        except ObjectDoesNotExist:
-                            stats_m['failed'] += 1
-                            stats_m['errors']['DoesNotExist_Factura_Prereq'] += 1
-                            continue
-                        except (IntegrityError, ValidationError) as e_f:
-                            stats_m['failed'] += 1
-                            stats_m['errors'][e_f.__class__.__name__] += 1
-                            logger.warning(f"Error creando Factura: {e_f}")
+
                         except Exception as e_f:
                             stats_m['failed'] += 1
                             stats_m['errors'][e_f.__class__.__name__] += 1
                             logger.error(
                                 f"Error creando Factura: {e_f}", exc_info=True)
-
-# myapp/management/commands/seed_db.py
-# ... (código anterior sin cambios) ...
 
                 # --- 10. Reclamaciones ---
                 model_name = 'Reclamacion'
@@ -1317,199 +1266,81 @@ class Command(BaseCommand):
                                 f"Error GENERAL creando Reclamacion (Iter {i_rec+1}): {e_r_gen}", exc_info=True)
                 # --- 11. Pagos ---
                 model_name = 'Pago'
-                # Asumo que stats es un diccionario que llevas
                 stats_m = stats[model_name]
 
-                # Obtener IDs de facturas y reclamaciones creadas o existentes
-                # (Esta lógica ya la tenías y parece correcta para obtener los PKs)
-                current_factura_pks_for_pago = list(
-                    set(factura_ids_created + factura_ids_db))
-                current_reclamacion_pks_for_pago = list(
-                    set(reclamacion_ids_created + reclamacion_ids_db))
+                # Obtener listas de facturas y reclamaciones pagables
+                facturas_pagables = Factura.objects.filter(
+                    monto_pendiente__gt=Decimal('0.01'), activo=True
+                ).select_related('contrato_individual__intermediario', 'contrato_colectivo__intermediario')
 
-                if not current_factura_pks_for_pago and not current_reclamacion_pks_for_pago:
+                reclamaciones_pagables = Reclamacion.objects.filter(
+                    estado='APROBADA', activo=True
+                ).annotate(
+                    total_pagado=Coalesce(
+                        Sum('pagos__monto_pago', filter=Q(pagos__activo=True)), Decimal('0.00'))
+                ).filter(monto_reclamado__gt=F('total_pagado'))
+
+                if not facturas_pagables.exists() and not reclamaciones_pagables.exists():
                     self.stdout.write(self.style.WARNING(
-                        f"Skipping {model_name}: No Facturas or Reclamaciones disponibles para Pagos."))
+                        f"Skipping {model_name}: No hay facturas o reclamaciones aprobadas para pagar."))
                 else:
-                    pagos_creados_count = 0
-                    # Aumentar un poco los intentos si es necesario, pero tu lógica de break es buena
-                    max_attempts_find_target_pago = stats_m.get(
-                        'requested', 0) * 5 + 10
-
-                    # Lista para bulk_create si decides usarlo (opcional, por ahora usamos .save())
-                    # pagos_a_crear_lista = []
-
-                    for attempt_pago in range(max_attempts_find_target_pago):
-                        if pagos_creados_count >= stats_m.get('requested', 0):
-                            break
-
-                        target_obj_pago = None
-                        target_factura_id_pago = None
-                        target_reclamacion_id_pago = None
-                        pendiente_pago = Decimal('0.00')
-                        fecha_ref_pago_val = date.today()
-                        target_found_pago = False
-
+                    for _ in range(max(0, stats_m['requested'])):
                         try:
-                            # Lógica para seleccionar si buscar factura o reclamación primero
-                            search_factura_first_pago = random.choice([True, False]) if (
-                                current_factura_pks_for_pago and current_reclamacion_pks_for_pago) else bool(current_factura_pks_for_pago)
-
-                            if search_factura_first_pago and current_factura_pks_for_pago:
-                                target_obj_pago = Factura.objects.filter(
-                                    monto_pendiente__gt=Factura.TOLERANCE, activo=True, pk__in=current_factura_pks_for_pago
-                                ).order_by('?').first()
-                                if target_obj_pago:
-                                    target_factura_id_pago = target_obj_pago.pk
-                                    pendiente_pago = target_obj_pago.monto_pendiente
-                                    fecha_ref_pago_val = target_obj_pago.fecha_creacion.date() if isinstance(
-                                        target_obj_pago.fecha_creacion, datetime
-                                    ) else (target_obj_pago.fecha_creacion or date.today())
-                                    target_found_pago = True
-
-                            if not target_found_pago and current_reclamacion_pks_for_pago:
-                                # Anotación para calcular total pagado a la reclamación
-                                reclamaciones_pendientes = Reclamacion.objects.annotate(
-                                    total_pagado_activo=Coalesce(
-                                        Sum('pagos__monto_pago', filter=Q(
-                                            pagos__activo=True)),
-                                        Decimal('0.00'),
-                                        output_field=DecimalField()
-                                    )
-                                ).filter(
-                                    estado='APROBADA',
-                                    activo=True,
-                                    monto_reclamado__gt=F(
-                                        'total_pagado_activo') + Pago.TOLERANCE,
-                                    pk__in=current_reclamacion_pks_for_pago
-                                )
-                                target_obj_pago = reclamaciones_pendientes.order_by(
+                            target_obj = None
+                            # 75% de probabilidad de pagar una factura, 25% una reclamación
+                            if random.random() < 0.75 and facturas_pagables.exists():
+                                target_obj = facturas_pagables.order_by(
                                     '?').first()
-                                if target_obj_pago:
-                                    target_reclamacion_id_pago = target_obj_pago.pk
-                                    pendiente_pago = max(Decimal('0.00'), (target_obj_pago.monto_reclamado or Decimal(
-                                        '0.00')) - target_obj_pago.total_pagado_activo)
-                                    fecha_ref_pago_val = target_obj_pago.fecha_reclamo or date.today()
-                                    target_found_pago = True
+                            elif reclamaciones_pagables.exists():
+                                target_obj = reclamaciones_pagables.order_by(
+                                    '?').first()
+                            elif facturas_pagables.exists():  # Fallback
+                                target_obj = facturas_pagables.order_by(
+                                    '?').first()
+                            else:
+                                break  # No hay más objetivos
 
-                            # Segundo intento para factura si el primero fue para reclamación y no encontró, o viceversa
-                            if not target_found_pago and not search_factura_first_pago and current_factura_pks_for_pago:
-                                target_obj_pago = Factura.objects.filter(
-                                    monto_pendiente__gt=Factura.TOLERANCE, activo=True, pk__in=current_factura_pks_for_pago
-                                ).order_by('?').first()
-                                if target_obj_pago:
-                                    target_factura_id_pago = target_obj_pago.pk
-                                    pendiente_pago = target_obj_pago.monto_pendiente
-                                    fecha_ref_pago_val = target_obj_pago.fecha_creacion.date() if isinstance(
-                                        target_obj_pago.fecha_creacion, datetime
-                                    ) else (target_obj_pago.fecha_creacion or date.today())
-                                    target_found_pago = True
-
-                            if not target_found_pago or not target_obj_pago:
-                                # Lógica de logging para cuando no se encuentran más objetivos
-                                if attempt_pago > stats_m.get('requested', 0) * 2 and pagos_creados_count < stats_m.get('requested', 0):
-                                    self.stdout.write(self.style.NOTICE(
-                                        f"  Pago: No más objetivos después de {pagos_creados_count} creados (intento {attempt_pago + 1}/{max_attempts_find_target_pago})."))
-                                if attempt_pago >= max_attempts_find_target_pago - 1 and pagos_creados_count < stats_m.get('requested', 0):
-                                    self.stdout.write(self.style.WARNING(
-                                        f"  Pago: Agotados intentos para encontrar objetivos para Pagos. Creados: {pagos_creados_count}/{stats_m.get('requested', 0)}."))
-                                break  # Salir del bucle de intentos si no hay más objetivos
-
-                            # Si el pendiente es muy bajo, buscar otro objetivo
-                            if pendiente_pago <= (Pago.TOLERANCE if target_reclamacion_id_pago else Factura.TOLERANCE):
+                            if not target_obj:
                                 continue
 
-                            # Determinar monto del pago (parcial o total)
-                            pago_parcial_chance = 0.3  # Ejemplo: 30% de chance de pago parcial
-                            is_partial_pago = random.random() < pago_parcial_chance
+                            # Determinar si es factura o reclamación y calcular pendiente
+                            if isinstance(target_obj, Factura):
+                                pendiente = target_obj.monto_pendiente
+                                fecha_ref = target_obj.fecha_creacion.date()
+                            else:  # Es Reclamacion
+                                pendiente = target_obj.monto_reclamado - target_obj.total_pagado
+                                fecha_ref = target_obj.fecha_reclamo
 
-                            monto_pag_val = (pendiente_pago * Decimal(random.uniform(0.1, 0.8))).quantize(
-                                Decimal("0.01"), ROUND_HALF_UP) if is_partial_pago else pendiente_pago
-                            monto_pag_val = max(Decimal('0.01'), min(
-                                monto_pag_val, pendiente_pago))
+                            # Decidir si el pago es parcial
+                            es_parcial = random.random() < (pago_parcial_chance / 100.0)
+                            monto_pago = (pendiente * Decimal(random.uniform(0.2, 0.8))
+                                          ).quantize(Decimal('0.01')) if es_parcial else pendiente
+                            monto_pago = max(Decimal('0.01'), monto_pago)
 
-                            # Determinar fecha_pago
-                            # Asegurar que start_date no sea hoy para evitar error con fake
-                            start_date_pay = min(
-                                fecha_ref_pago_val, date.today() - timezone.timedelta(days=1))
-                            end_date_pay = date.today()
-                            if start_date_pay > end_date_pay:  # Si fecha_ref_pago_val es futura
-                                start_date_pay = end_date_pay - \
-                                    timezone.timedelta(days=1)
-                                # Limitar a un año atrás
-                                if start_date_pay < (date.today() - timezone.timedelta(days=365)):
-                                    start_date_pay = date.today() - timezone.timedelta(days=365)
+                            fecha_pago = fake.date_between_dates(
+                                date_start=fecha_ref, date_end=date.today())
 
-                            try:
-                                fecha_pag_val = fake.date_between_dates(
-                                    date_start=start_date_pay, date_end=end_date_pay)
-                            except ValueError:  # Fallback si las fechas son problemáticas para faker
-                                fecha_pag_val = end_date_pay
-
-                            # === ASIGNACIÓN DE fecha_notificacion_pago ===
-                            # Opción 1: Igual a fecha_pago (simple para datos de prueba)
-                            fecha_notificacion_val_seeder = fecha_pag_val
-
-                            # Opción 2: Fecha actual del seeder
-                            # fecha_notificacion_val_seeder = timezone.now().date()
-
-                            igtf_chance = 0.1  # Ejemplo: 10% de chance de aplicar IGTF
-                            aplica_igtf_para_este_pago = random.random() < igtf_chance
-
-                            # Crear la instancia de Pago
-                            pago_instance_data = {
-                                'factura_id': target_factura_id_pago,
-                                'reclamacion_id': target_reclamacion_id_pago,
+                            pago_data = {
+                                'factura': target_obj if isinstance(target_obj, Factura) else None,
+                                'reclamacion': target_obj if isinstance(target_obj, Reclamacion) else None,
+                                'monto_pago': monto_pago,
+                                'fecha_pago': fecha_pago,
                                 'forma_pago': random.choice([c[0] for c in CommonChoices.FORMA_PAGO_RECLAMACION]),
-                                'fecha_pago': fecha_pag_val,
-                                'monto_pago': monto_pag_val,
-                                'aplica_igtf_pago': aplica_igtf_para_este_pago,
-                                'referencia_pago': fake.bothify(text='Ref-#####-???'),
-                                'fecha_notificacion_pago': fecha_notificacion_val_seeder,  # <--- CORRECCIÓN AQUÍ
-                                'activo': True,
-                                'primer_nombre': f"Pago Ref.",  # Para ModeloBase
-                                # Para ModeloBase
-                                'primer_apellido': f"{target_obj_pago.pk if target_obj_pago else 'N/A'}-{fecha_pag_val.strftime('%d%m%y')}"
+                                'referencia_pago': fake.bothify(text='REF-?#?#?#?#'),
+                                'activo': True
                             }
 
-                            # Si quieres añadir observaciones aleatorias:
-                            if random.random() < 0.2:  # 20% de chance de tener observaciones
-                                pago_instance_data['observaciones_pago'] = fake.sentence(
-                                    nb_words=random.randint(5, 15))
+                            pago = Pago.objects.create(**pago_data)
 
-                            pago_instance = Pago(**pago_instance_data)
+                            stats_m['created'] += 1
+                            if pago.pk not in pago_ids_created:
+                                pago_ids_created.append(pago.pk)
 
-                            # logger.info(f"--- SEEDER: PREPARANDO PARA GUARDAR Pago para target {target_obj_pago.pk if target_obj_pago else 'N/A'} (IGTF: {aplica_igtf_para_este_pago}) ---")
-                            pago_instance.save()  # Esto llamará al save() del modelo Pago
-                            # logger.info(f"--- SEEDER: Pago PK {pago_instance.pk} GUARDADO ---")
-
-                            stats_m['created'] = stats_m.get('created', 0) + 1
-                            # Asumo que pago_ids_created es una lista
-                            pago_ids_created.append(pago_instance.pk)
-                            pagos_creados_count += 1
-
-                        except ObjectDoesNotExist:
-                            stats_m['failed'] = stats_m.get('failed', 0) + 1
-                            stats_m['errors']['DoesNotExist_Pago_Target'] = stats_m['errors'].get(
-                                'DoesNotExist_Pago_Target', 0) + 1
-                            # No es necesario 'continue' aquí si el error se maneja y el bucle sigue
-                        except (IntegrityError, InvalidOperation, ValidationError) as e_p:
-                            stats_m['failed'] = stats_m.get('failed', 0) + 1
-                            stats_m['errors'][e_p.__class__.__name__] = stats_m['errors'].get(
-                                e_p.__class__.__name__, 0) + 1
-                            # exc_info=False para no llenar tanto el log
+                        except Exception as e_p:
+                            stats_m['failed'] += 1
+                            stats_m['errors'][e_p.__class__.__name__] += 1
                             logger.error(
-                                f"Error creando Pago: {e_p}", exc_info=False)
-                        except Exception as e_p:  # Captura general para otros errores inesperados
-                            stats_m['failed'] = stats_m.get('failed', 0) + 1
-                            stats_m['errors'][e_p.__class__.__name__] = stats_m['errors'].get(
-                                e_p.__class__.__name__, 0) + 1
-                            logger.error(
-                                f"Error inesperado creando Pago: {e_p}", exc_info=True)
-
-                    if pagos_creados_count < stats_m.get('requested', 0):
-                        self.stdout.write(self.style.WARNING(
-                            f"  Pago: Solo se crearon {pagos_creados_count} de {stats_m.get('requested', 0)} solicitados."))
+                                f"Error creando Pago: {e_p}", exc_info=True)
 
                 # --- 12. Notificaciones ---
                 # (Sin cambios, fecha_creacion es DateTimeField con auto_now_add=True, que usa timezone.now())
