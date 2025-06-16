@@ -46,26 +46,28 @@ class Command(BaseCommand):
             action='store_true',
             help='Borra los datos existentes antes de poblar la base de datos.'
         )
-        parser.add_argument('--users', type=int, default=30)  # Original: 10
+        # Valores multiplicados por 5
+        parser.add_argument('--users', type=int, default=150)  # Original: 30
         parser.add_argument('--intermediarios', type=int,
-                            default=15)  # Original: 5
+                            default=75)   # Original: 15
         parser.add_argument('--afiliados_ind', type=int,
-                            default=30)  # Original: 10
+                            default=150)  # Original: 30
         parser.add_argument('--afiliados_col', type=int,
-                            default=15)  # Original: 5
-        parser.add_argument('--tarifas', type=int, default=30)  # Original: 10
+                            default=75)   # Original: 15
+        parser.add_argument('--tarifas', type=int, default=150)  # Original: 30
         parser.add_argument('--contratos_ind', type=int,
-                            default=24)  # Original: 8
+                            default=120)  # Original: 24
         parser.add_argument('--contratos_col', type=int,
-                            default=12)  # Original: 4
-        parser.add_argument('--facturas', type=int, default=60)  # Original: 20
+                            default=60)   # Original: 12
+        parser.add_argument('--facturas', type=int,
+                            default=300)  # Original: 60
         parser.add_argument('--reclamaciones', type=int,
-                            default=30)  # Original: 10
-        parser.add_argument('--pagos', type=int, default=45)  # Original: 15
+                            default=150)  # Original: 30
+        parser.add_argument('--pagos', type=int, default=225)  # Original: 45
         parser.add_argument('--notificaciones', type=int,
-                            default=60)  # Original: 20
+                            default=300)  # Original: 60
         parser.add_argument('--auditorias', type=int,
-                            default=60)  # Original: 20
+                            default=300)  # Original: 60
 
         parser.add_argument('--igtf_chance', type=int, default=20,
                             choices=range(0, 101), metavar="[0-100]")
@@ -75,26 +77,24 @@ class Command(BaseCommand):
     def _initialize_stats(self, options):
         stats = collections.defaultdict(
             lambda: {'requested': 0, 'created': 0, 'failed': 0, 'errors': collections.Counter()})
-        stats['LicenseInfo']['requested'] = 1  # Siempre se solicita 1
-        # Usar .get() con los mismos defaults que en add_arguments
-        stats['Tarifa']['requested'] = options.get('tarifas', 10)
-        stats['User']['requested'] = options.get('users', 10)
-        stats['Intermediario']['requested'] = options.get('intermediarios', 5)
-        stats['AfiliadoIndividual']['requested'] = options.get(
-            'afiliados_ind', 10)
-        stats['AfiliadoColectivo']['requested'] = options.get(
-            'afiliados_col', 5)
-        stats['ContratoIndividual']['requested'] = options.get(
-            'contratos_ind', 8)
-        stats['ContratoColectivo']['requested'] = options.get(
-            'contratos_col', 4)
-        stats['Factura']['requested'] = options.get('facturas', 20)
-        stats['Reclamacion']['requested'] = options.get('reclamaciones', 10)
-        stats['Pago']['requested'] = options.get('pagos', 15)
-        stats['Notificacion']['requested'] = options.get('notificaciones', 20)
-        stats['AuditoriaSistema']['requested'] = options.get('auditorias', 20)
-        # No se solicita por argumento
-        stats['RegistroComision']['requested'] = 0
+        stats['LicenseInfo']['requested'] = 1
+
+        stats['Tarifa']['requested'] = options.get('tarifas')
+        stats['User']['requested'] = options.get('users')
+        stats['Intermediario']['requested'] = options.get('intermediarios')
+        stats['AfiliadoIndividual']['requested'] = options.get('afiliados_ind')
+        stats['AfiliadoColectivo']['requested'] = options.get('afiliados_col')
+        stats['ContratoIndividual']['requested'] = options.get('contratos_ind')
+        stats['ContratoColectivo']['requested'] = options.get('contratos_col')
+        stats['Factura']['requested'] = options.get('facturas')
+        stats['Reclamacion']['requested'] = options.get('reclamaciones')
+        stats['Pago']['requested'] = options.get('pagos')
+        stats['Notificacion']['requested'] = options.get('notificaciones')
+        stats['AuditoriaSistema']['requested'] = options.get('auditorias')
+
+        # CORRECCIÓN FINAL: Aseguramos que se soliciten comisiones
+        stats['RegistroComision']['requested'] = options.get('pagos')
+
         return stats
 
     def _disconnect_signals_for_clean(self):
