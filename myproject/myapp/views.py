@@ -3854,112 +3854,91 @@ def marcar_comision_individual_pagada_view(request, pk):
 
 # --- VISTAS DE USUARIO ---
 
-
 @method_decorator(csrf_protect, name='dispatch')
 class UsuarioListView(BaseListView):
-    model = Usuariomodel_manager_name = 'objects'
+    model = Usuario
     template_name = 'usuario_list.html'
     context_object_name = 'object_list'
     filterset_class = UsuarioFilter
     permission_required = 'myapp.view_usuario'
+    paginate_by = ITEMS_PER_PAGE  # Asegúrate de que ITEMS_PER_PAGE esté definido
+
+    # Los campos para búsqueda y ordenamiento se mantienen igual
     search_fields = [
-        'email',
-        'primer_nombre',
-        'segundo_nombre',
-        'primer_apellido',
-        'segundo_apellido',
-        'username',
-        'intermediario__nombre_completo',
-        'intermediario__codigo',
-        'telefono'
+        'email', 'primer_nombre', 'segundo_nombre', 'primer_apellido',
+        'segundo_apellido', 'username', 'intermediario__nombre_completo',
+        'intermediario__codigo', 'telefono'
     ]
     ordering_fields = [
-        'primer_apellido', 'primer_nombre', 'email', 'username',
-        'tipo_usuario', 'nivel_acceso', 'departamento',
-        'intermediario__nombre_completo',
-        'is_active', 'is_staff', 'is_superuser',  # Estados de Django User
-        'activo',  # Tu campo activo personalizado
-        'date_joined', 'last_login',  # Fechas de Django User
-        'fecha_creacion', 'fecha_modificacion'  # Fechas de ModeloBase
+        'primer_apellido', 'primer_nombre', 'email', 'username', 'tipo_usuario',
+        'nivel_acceso', 'departamento', 'intermediario__nombre_completo',
+        'is_active', 'is_staff', 'is_superuser', 'activo', 'date_joined',
+        'last_login', 'fecha_creacion', 'fecha_modificacion'
     ]
-    ordering = ['-date_joined']
+    ordering = ['-date_joined']  # Orden por defecto
 
     def get_queryset(self):
-        # El queryset base (todos o activos)
+        # 1. Empezar con el queryset base correcto
         if self.request.user.is_superuser:
-            base_qs = Usuario.all_objects.all()  # Superuser ve todos, incluyendo inactivos
+            queryset = Usuario.all_objects.all()
         else:
-            base_qs = Usuario.objects.all()  # Otros ven solo activos (por defecto del manager)
+            queryset = Usuario.objects.all()
 
-        if self.request.user.is_superuser:
-            initial_queryset = Usuario.all_objects.all()
-        else:
-            initial_queryset = Usuario.objects.all()  # Manager por defecto (activos)
-
-        # Aplicar filtros de filterset_class
-        if self.filterset_class:
-            self.filterset = self.filterset_class(
-                self.request.GET, queryset=initial_queryset, request=self.request)
-            processed_queryset = self.filterset.qs
-        else:
-            processed_queryset = initial_queryset
-
-        # Aplicar búsqueda general (si BaseListView no lo hizo ya con el filterset)
-        search_query = self.request.GET.get('q', '').strip()
-        if search_query and self.search_fields:
-            # Si search_fields está definido y hay 'q', aplicamos la búsqueda
-            # Esta lógica debería estar idealmente en BaseListView para reutilizar
-            q_objects = [Q(**{f"{field}__icontains": search_query})
-                         for field in self.search_fields]
-            if q_objects:
-                processed_queryset = processed_queryset.filter(
-                    reduce(operator.or_, q_objects))
-
-        # Aplicar filtro de seguridad de nivel
+        # 2. Aplicar filtro de seguridad de nivel
         if not self.request.user.is_superuser:
-            processed_queryset = processed_queryset.filter(
+            queryset = queryset.filter(
                 Q(nivel_acceso__lte=self.request.user.nivel_acceso) | Q(
                     pk=self.request.user.pk)
             )
 
-        # Aplicar ordenación
-        ordering = self.get_ordering()
-        if ordering:
-            if isinstance(ordering, str):
-                ordering = (ordering,)
-            processed_queryset = processed_queryset.order_by(*ordering)
+        # 3. Aplicar búsqueda general (usando 'search' como en la plantilla)
+        search_query = self.request.GET.get('search', '').strip()
+        if search_query:
+            q_objects = [Q(**{f"{field}__icontains": search_query})
+                         for field in self.search_fields]
+            if q_objects:
+                queryset = queryset.filter(reduce(operator.or_, q_objects))
 
-        return processed_queryset.select_related('intermediario').prefetch_related('groups')
+        # 4. Aplicar filtros avanzados de django-filter
+        self.filterset = self.filterset_class(
+            self.request.GET, queryset=queryset, request=self.request)
+        queryset = self.filterset.qs
+
+        # 5. Aplicar ordenamiento
+        sort_param = self.request.GET.get('sort', self.ordering[0].lstrip('-'))
+        order_param = self.request.GET.get(
+            'order', 'desc' if self.ordering[0].startswith('-') else 'asc')
+
+        if sort_param in self.ordering_fields:
+            prefix = '-' if order_param == 'desc' else ''
+            queryset = queryset.order_by(f"{prefix}{sort_param}")
+        else:
+            queryset = queryset.order_by(*self.ordering)
+
+        # Optimizar consulta al final
+        return queryset.select_related('intermediario').prefetch_related('groups')
 
     def get_context_data(self, **kwargs):
+        # Llama a la lógica de paginación de ListView
         context = super().get_context_data(**kwargs)
-        # self.object_list ya es la página actual del queryset final
 
-        # Para estadísticas, usar el queryset antes de la paginación
-        # El queryset final de get_queryset() es el que queremos para stats
-        # Esto re-ejecuta la query, no ideal.
+        # Usar el queryset ya filtrado y ordenado (antes de paginar) para las estadísticas
         qs_for_stats = self.get_queryset()
-        # Mejor si BaseListView expone el queryset filtrado no paginado.
-        # O si el filterset está disponible y es sobre el queryset correcto.
-
-        # Simplificación: si el filterset se aplicó sobre el queryset correcto, usarlo.
-        if hasattr(self, 'filterset') and self.filterset:
-            qs_for_stats = self.filterset.qs
-            # Aplicar filtro de nivel aquí de nuevo si el filterset no lo hizo
-            if not self.request.user.is_superuser:
-                qs_for_stats = qs_for_stats.filter(
-                    Q(nivel_acceso__lte=self.request.user.nivel_acceso) | Q(pk=self.request.user.pk))
-        else:  # Fallback (puede no ser el queryset completo filtrado)
-            # Solo la página actual, no ideal para stats totales
-            qs_for_stats = self.object_list
 
         stats = qs_for_stats.aggregate(
             total_usuarios=Count('id'),
-            usuarios_activos=Count(
-                Case(When(activo=True, then=Value(1)), output_field=models.IntegerField())),
+            usuarios_activos=Count(Case(When(activo=True, then=1)))
         )
         context['total_usuarios'] = stats.get('total_usuarios', 0)
         context['usuarios_activos'] = stats.get('usuarios_activos', 0)
+
+        # Pasar parámetros actuales a la plantilla para la UI
+        context['search_query'] = self.request.GET.get('search', '')
+        context['current_sort'] = self.request.GET.get(
+            'sort', self.ordering[0].lstrip('-'))
+        context['current_order'] = self.request.GET.get(
+            'order', 'desc' if self.ordering[0].startswith('-') else 'asc')
+
         context['active_tab'] = 'usuarios'
         return context
 

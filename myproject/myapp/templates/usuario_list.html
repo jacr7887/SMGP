@@ -1,7 +1,6 @@
 {% extends "home.html" %}
-{% load static %}
+{% load static humanize %}
 {% load querystring_tags %} {# ¡Esencial para que la ordenación y paginación funcionen! #}
-{% load humanize %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
@@ -11,7 +10,7 @@
     <div class="header-actions">
       {% if perms.myapp.add_usuario %}
       <a href="{% url 'myapp:usuario_create' %}" class="nav_link" aria-label="Agregar nuevo usuario del sistema">
-        ➕ Nuevo Usuario
+        <i class="fas fa-plus-circle me-1"></i> Nuevo Usuario
       </a>
       {% endif %}
     </div>
