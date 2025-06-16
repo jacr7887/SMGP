@@ -6165,17 +6165,14 @@ class FacturaPdfView(LoginRequiredMixin, PermissionRequiredMixin, View):
                 encoding='UTF-8',
                 link_callback=self.link_callback
             )
-
-            # >>> INICIO DE LA CORRECCIÓN DE SEGURIDAD <<<
             if pdf_status.err:
                 # Logueamos el error detallado para nosotros
-                error_detail = f"xhtml2pdf error code {pdf_status.err}: Problema generando PDF para factura {pk}."
+                error_detail = f"xhtml2pdf error code {pdf_status.err}: Problema generando PDF para pago {pk}."
                 logger.error(error_detail)
                 self._create_audit_log(
                     request, 'ERROR', pk, "Fallo en pisaDocument")
-                # Mostramos un mensaje genérico al usuario
+                # Mostramos un mensaje genérico y seguro al usuario
                 return HttpResponse("Error al generar el PDF. Por favor, contacte a soporte.", status=500)
-            # >>> FIN DE LA CORRECCIÓN DE SEGURIDAD <<<
 
             response = HttpResponse(
                 result.getvalue(), content_type='application/pdf')

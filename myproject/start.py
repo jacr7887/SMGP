@@ -112,7 +112,7 @@ def main():
     from django.core.wsgi import get_wsgi_application
 
     application = get_wsgi_application()
-    host = '127.0.0.1'
+    host = '0.0.0.0'
     port = 8000
 
     print(f"\nIniciando servidor Waitress en http://{host}:{port}", flush=True)
