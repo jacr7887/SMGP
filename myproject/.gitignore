@@ -70,7 +70,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-
+staticfiles_collected_for_pyinstaller/
+local_app_data_smgp/
 # PyInstaller
 *.manifest
 *.spec
