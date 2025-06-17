@@ -6604,11 +6604,10 @@ def marcar_comision_pagada_ajax_view(request):
         if not comision_id_str:
             return JsonResponse({'status': 'error', 'message': 'ID de comisión no proporcionado.'}, status=400)
 
-        comision_id = int(comision_id_str)  # Convertir a int
-        comision = get_object_or_404(RegistroComision.objects.select_related(
-            'intermediario'), pk=comision_id)  # Añadir select_related
+        comision_id = int(comision_id_str)
+        comision = get_object_or_404(
+            RegistroComision.objects.select_related('intermediario'), pk=comision_id)
 
-        # CORRECCIÓN: Asegúrate que el campo ForeignKey a Intermediario en RegistroComision se llama 'intermediario'
         intermediario_obj = comision.intermediario
 
         if comision.estatus_pago_comision == 'PAGADA':
@@ -6626,18 +6625,16 @@ def marcar_comision_pagada_ajax_view(request):
             })
 
         comision.estatus_pago_comision = 'PAGADA'
-        comision.fecha_pago_a_intermediario = django_timezone.now().date()  # Usar timezone.now()
+        comision.fecha_pago_a_intermediario = django_timezone.now().date()
         comision.usuario_que_liquido = request.user
         comision.save(update_fields=[
                       'estatus_pago_comision', 'fecha_pago_a_intermediario', 'usuario_que_liquido'])
         logger.info(
             f"Comisión ID {comision.id} marcada como PAGADA (AJAX) por {request.user.username}")
 
-        # Calcular totales DESPUÉS de guardar
         nuevos_totales_despues_pago = calcular_totales_pendientes_intermediario(
             intermediario_obj)
 
-        # *** CREAR NOTIFICACIÓN EN EL BACKEND ***
         mensaje_notif_backend = (
             f"Liquidaste (AJAX) la comisión ID {comision.id} "
             f"por {comision.monto_comision:.2f} Bs. "
@@ -6663,14 +6660,18 @@ def marcar_comision_pagada_ajax_view(request):
             'nuevos_totales': nuevos_totales_despues_pago
         })
 
-    except ValueError:  # Para el int(comision_id_str)
+    except ValueError:
         return JsonResponse({'status': 'error', 'message': 'ID de comisión inválido.'}, status=400)
     except RegistroComision.DoesNotExist:
         return JsonResponse({'status': 'error', 'message': 'Comisión no encontrada.'}, status=404)
     except Exception as e:
+        # >>> INICIO DE LA CORRECCIÓN DE SEGURIDAD <<<
+        # Logueamos el error detallado para nosotros
         logger.error(
             f"Error en marcar_comision_pagada_ajax_view: {e}", exc_info=True)
-        return JsonResponse({'status': 'error', 'message': f'Error interno del servidor: {str(e)}'}, status=500)
+        # Devolvemos un mensaje genérico y seguro al cliente
+        return JsonResponse({'status': 'error', 'message': 'Ocurrió un error interno en el servidor.'}, status=500)
+        # >>> FIN DE LA CORRECCIÓN DE SEGURIDAD <<<
 
 
 def calcular_totales_pendientes_intermediario(intermediario):
