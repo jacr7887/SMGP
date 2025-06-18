@@ -4722,9 +4722,6 @@ def generar_figura_sin_datos_plotly(mensaje="No hay datos disponibles"):
     return fig
 
 
-# En tu archivo de vistas
-# ... (importaciones existentes) ...
-
 # Nuevo nombre para la nueva lógica
 def generar_grafico_total_primas_ramo_barras(data_ignorada=None):
     try:
@@ -5336,40 +5333,23 @@ class ReporteGeneralView(LoginRequiredMixin, TemplateView):
         context['active_tab'] = 'reportes'
         context['page_title'] = 'Reporte General del Sistema SMGP'
 
-        # Inicialización de KPIs y placeholders
-        kpi_counts = ['kpi_total_contratos', 'kpi_total_afiliados_ind', 'kpi_total_afiliados_col',
-                      'kpi_total_reclamaciones', 'kpi_total_facturas', 'kpi_total_pagos',
-                      'kpi_facturas_vencidas_conteo', 'kpi_comisiones_pendientes_conteo',
-                      'kpi_total_contratos_individuales_count', 'kpi_total_contratos_colectivos_count']
-        for kpi in kpi_counts:
-            context[kpi] = 0
-        kpi_decimals = ['kpi_monto_total_contratos', 'kpi_monto_total_pagado_facturas',
-                        'kpi_monto_pendiente_facturas', 'kpi_total_igtf_recaudado',
-                        'kpi_facturas_vencidas_monto', 'kpi_comisiones_pendientes_monto']
-        for kpi in kpi_decimals:
-            context[kpi] = Decimal('0.00')
+        # ---- INICIALIZACIÓN COMPLETA DE TODAS LAS VARIABLES DEL CONTEXTO ----
+        kpi_keys_int = ['kpi_total_contratos', 'kpi_total_contratos_individuales_count', 'kpi_total_contratos_colectivos_count', 'kpi_total_afiliados_ind',
+                        'kpi_total_afiliados_col', 'kpi_total_reclamaciones', 'kpi_facturas_vencidas_conteo', 'kpi_comisiones_pendientes_conteo', 'kpi_tiempo_promedio_resolucion']
+        kpi_keys_decimal = ['kpi_monto_total_contratos', 'kpi_total_comisiones_generadas', 'kpi_ganancia_neta_pool', 'kpi_monto_total_pagado_facturas',
+                            'kpi_facturas_vencidas_monto', 'kpi_comisiones_pendientes_monto', 'kpi_total_igtf_recaudado', 'kpi_total_siniestros_incurridos', 'kpi_ratio_siniestralidad']
+        for key in kpi_keys_int:
+            context[key] = 0
+        for key in kpi_keys_decimal:
+            context[key] = Decimal('0.00')
 
-        graficas_context_names = [
-            'plotly_contratos_estado_html', 'plotly_reclamaciones_estado_html',
-            'plotly_ramos_monto_html', 'plotly_resolucion_gauge_html',
-            'plotly_impuestos_categoria_html', 'plotly_rentabilidad_intermediario_html'
-        ]
+        graficas_context_names = ['plotly_contratos_estado_html', 'plotly_reclamaciones_estado_html', 'plotly_ramos_monto_html',
+                                  'plotly_resolucion_gauge_html', 'plotly_impuestos_categoria_html', 'plotly_rentabilidad_intermediario_html']
         for g_ctx_name in graficas_context_names:
-            context[g_ctx_name] = generar_figura_sin_datos_plotly(
-                "Cargando...")
+            context[g_ctx_name] = ""
 
-        context['datos_tabla_comisiones'] = {}
-        context['table_top_tipos_reclamacion'] = []
-        context['table_facturas_antiguas'] = []
-        context['table_top_intermediarios'] = []
-        context['url_lista_facturas_vencidas'] = '#'
-        context['url_liquidacion_comisiones'] = '#'
-        try:
-            context['url_historial_liquidaciones'] = reverse(
-                'myapp:historial_liquidaciones_list')
-        except NoReverseMatch:
-            context['url_historial_liquidaciones'] = '#'
-        context['error'] = None
+        context.update({'datos_tabla_comisiones': {}, 'table_top_tipos_reclamacion': [], 'table_facturas_antiguas': [
+        ], 'table_top_intermediarios': [], 'table_resumen_por_ramo': [], 'error': None})
 
         hoy = py_date.today()
         ramo_map = dict(CommonChoices.RAMO)
@@ -5377,8 +5357,14 @@ class ReporteGeneralView(LoginRequiredMixin, TemplateView):
         tipo_rec_map = dict(CommonChoices.TIPO_RECLAMACION)
 
         try:
-            # --- Cálculo de KPIs ---
+            # ================================================================
+            # INICIO: CÁLCULO COMPLETO
+            # ================================================================
+
+            # --- FASE 1: KPIs ---
             logger_rgv.debug("Calculando KPIs...")
+
+            # Conteos operativos
             context['kpi_total_contratos_individuales_count'] = ContratoIndividual.objects.filter(
                 activo=True).count()
             context['kpi_total_contratos_colectivos_count'] = ContratoColectivo.objects.filter(
@@ -5391,205 +5377,134 @@ class ReporteGeneralView(LoginRequiredMixin, TemplateView):
                 activo=True).count()
             context['kpi_total_reclamaciones'] = Reclamacion.objects.filter(
                 activo=True).count()
-            context['kpi_total_facturas'] = Factura.objects.filter(
-                activo=True).count()
-            context['kpi_total_pagos'] = Pago.objects.filter(
-                activo=True).count()
-            monto_contratos_ind = ContratoIndividual.objects.filter(activo=True).aggregate(
-                total_monto=Coalesce(Sum('monto_total'), Value(Decimal('0.0'))))['total_monto']
-            monto_contratos_col = ContratoColectivo.objects.filter(activo=True).aggregate(
-                total_monto=Coalesce(Sum('monto_total'), Value(Decimal('0.0'))))['total_monto']
-            context['kpi_monto_total_contratos'] = monto_contratos_ind + \
-                monto_contratos_col
-            context['kpi_monto_total_pagado_facturas'] = Pago.objects.filter(activo=True, factura__isnull=False).aggregate(
-                total_pagado=Coalesce(Sum('monto_pago'), Value(Decimal('0.0'))))['total_pagado']
-            context['kpi_monto_pendiente_facturas'] = Factura.objects.filter(pagada=False, activo=True).aggregate(
-                total_pendiente=Coalesce(Sum('monto_pendiente'), Value(Decimal('0.0'))))['total_pendiente']
+
+            # Financieros y de Seguros
+            ganancias_brutas_pool = ContratoIndividual.objects.filter(activo=True).aggregate(t=Coalesce(Sum('monto_total'), Decimal(
+                '0.0')))['t'] + ContratoColectivo.objects.filter(activo=True).aggregate(t=Coalesce(Sum('monto_total'), Decimal('0.0')))['t']
+            context['kpi_monto_total_contratos'] = ganancias_brutas_pool
+
+            total_comisiones_generadas = RegistroComision.objects.filter(estatus_pago_comision__in=[
+                                                                         'PENDIENTE', 'PAGADA']).aggregate(t=Coalesce(Sum('monto_comision'), Decimal('0.0')))['t']
+            context['kpi_total_comisiones_generadas'] = total_comisiones_generadas
+            context['kpi_ganancia_neta_pool'] = ganancias_brutas_pool - \
+                total_comisiones_generadas
+
+            total_siniestros_incurridos = Reclamacion.objects.filter(activo=True, estado__in=[
+                                                                     'APROBADA', 'PAGADA']).aggregate(t=Coalesce(Sum('monto_reclamado'), Decimal('0.0')))['t']
+            context['kpi_total_siniestros_incurridos'] = total_siniestros_incurridos
+            context['kpi_ratio_siniestralidad'] = (
+                total_siniestros_incurridos / ganancias_brutas_pool * 100) if ganancias_brutas_pool > 0 else Decimal('0.0')
+
+            promedio_duracion = Reclamacion.objects.filter(activo=True, fecha_cierre_reclamo__isnull=False, fecha_reclamo__isnull=False).annotate(
+                d=ExpressionWrapper(F('fecha_cierre_reclamo') - F('fecha_reclamo'), output_field=DurationField())).aggregate(p=Avg('d'))['p']
+            context['kpi_tiempo_promedio_resolucion'] = promedio_duracion.days if promedio_duracion else 0
+
+            context['kpi_monto_total_pagado_facturas'] = Pago.objects.filter(
+                activo=True, factura__isnull=False).aggregate(t=Coalesce(Sum('monto_pago'), Decimal('0.0')))['t']
             facturas_vencidas_qs = Factura.objects.filter(
                 activo=True, pagada=False, estatus_factura='VENCIDA')
             context['kpi_facturas_vencidas_conteo'] = facturas_vencidas_qs.count()
             context['kpi_facturas_vencidas_monto'] = facturas_vencidas_qs.aggregate(
-                total_monto_vencido=Coalesce(Sum('monto_pendiente'), Value(Decimal('0.0'))))['total_monto_vencido']
-            try:
-                context['url_lista_facturas_vencidas'] = f"{reverse('myapp:factura_list')}?{urlencode({'estatus_factura': 'VENCIDA', 'pagada': '0', 'activo': '1'})}"
-            except NoReverseMatch:
-                pass
+                t=Coalesce(Sum('monto_pendiente'), Decimal('0.0')))['t']
             comisiones_pendientes_qs = RegistroComision.objects.filter(
                 estatus_pago_comision='PENDIENTE')
             context['kpi_comisiones_pendientes_conteo'] = comisiones_pendientes_qs.count()
             context['kpi_comisiones_pendientes_monto'] = comisiones_pendientes_qs.aggregate(
-                total_monto_comision=Coalesce(Sum('monto_comision'), Value(Decimal('0.0'))))['total_monto_comision']
-            try:
-                context['url_liquidacion_comisiones'] = reverse(
-                    'myapp:liquidacion_comisiones')
-            except NoReverseMatch:
-                pass
-            context['datos_tabla_comisiones'] = obtener_datos_tabla_resumen_comisiones()
-            logger_rgv.debug("KPIs calculados.")
+                t=Coalesce(Sum('monto_comision'), Decimal('0.0')))['t']
 
-            # --- DATOS PARA GRÁFICOS DEL DASHBOARD ---
-            logger_rgv.debug("Iniciando generación de gráficos...")
-            # 1. Antigüedad Promedio por Estatus
-            data_antiguedad_estatus_final = {}
-            antiguedad_data = []
-            for ci_val in ContratoIndividual.objects.filter(activo=True, fecha_inicio_vigencia__isnull=False, fecha_inicio_vigencia__lte=hoy).values('estatus', 'fecha_inicio_vigencia'):
-                if ci_val['estatus'] and ci_val['fecha_inicio_vigencia']:
-                    antiguedad_data.append({'estatus_code': ci_val['estatus'], 'antiguedad_dias': (
-                        hoy - ci_val['fecha_inicio_vigencia']).days})
-            for cc_val in ContratoColectivo.objects.filter(activo=True, fecha_inicio_vigencia__isnull=False, fecha_inicio_vigencia__lte=hoy).values('estatus', 'fecha_inicio_vigencia'):
-                if cc_val['estatus'] and cc_val['fecha_inicio_vigencia']:
-                    antiguedad_data.append({'estatus_code': cc_val['estatus'], 'antiguedad_dias': (
-                        hoy - cc_val['fecha_inicio_vigencia']).days})
-            if antiguedad_data:
-                df_ant = pd.DataFrame(antiguedad_data)
-                df_ant = df_ant[df_ant['antiguedad_dias'] >= 0]
-                if not df_ant.empty:
-                    df_ant_avg = df_ant.groupby('estatus_code')[
-                        'antiguedad_dias'].mean().round(0)
-                    data_antiguedad_estatus_final = {estatus_map_vigencia.get(
-                        code, str(code)): float(avg) for code, avg in df_ant_avg.to_dict().items()}
-            context['plotly_contratos_estado_html'] = generar_grafico_estados_contrato(
-                data_antiguedad_estatus_final)
+            pagos_con_igtf = Pago.objects.filter(
+                activo=True, aplica_igtf_pago=True, monto_pago__gt=0)
+            total_igtf = sum((p.monto_pago / (Decimal('1') + self.TASA_IGTF))
+                             * self.TASA_IGTF for p in pagos_con_igtf)
+            context['kpi_total_igtf_recaudado'] = total_igtf.quantize(
+                Decimal('0.01'))
+            logger_rgv.info("Todos los KPIs calculados.")
 
-            # 2. Top Tipos Reclamación
-            top_n_tipos_rec_dash = 5
-            estados_pendientes_rec_dash = [
-                'ABIERTA', 'EN_PROCESO', 'PENDIENTE_DOCS', 'EN_ANALISIS', 'INVESTIGACION']
-            data_top_tipos_qs_dash = Reclamacion.objects.filter(estado__in=estados_pendientes_rec_dash, monto_reclamado__isnull=False, activo=True).values(
-                'tipo_reclamacion').annotate(avg_monto=Avg('monto_reclamado')).filter(avg_monto__gt=Decimal('0.00')).order_by('-avg_monto')[:top_n_tipos_rec_dash]
-            data_list_top_tipos_rec_dash = [(tipo_rec_map.get(item['tipo_reclamacion'], str(item['tipo_reclamacion'])), float(
-                item['avg_monto'])) for item in data_top_tipos_qs_dash if item.get('avg_monto')]
+            # --- FASE 2: DATOS PARA GRÁFICOS (RESTAURADO) ---
+            logger_rgv.debug("Iniciando generación de datos para gráficos...")
+            if not pd:
+                logger_rgv.warning(
+                    "La librería pandas no está instalada. Algunos gráficos no se generarán.")
+
+            # Gráfico 1: Antigüedad de Contratos
+            if pd:
+                antiguedad_data = [{'estatus_code': c['estatus'], 'antiguedad_dias': (hoy - c['fecha_inicio_vigencia']).days} for c in list(ContratoIndividual.objects.filter(activo=True, fecha_inicio_vigencia__lte=hoy).values(
+                    'estatus', 'fecha_inicio_vigencia')) + list(ContratoColectivo.objects.filter(activo=True, fecha_inicio_vigencia__lte=hoy).values('estatus', 'fecha_inicio_vigencia')) if c.get('fecha_inicio_vigencia')]
+                if antiguedad_data:
+                    df_ant_avg = pd.DataFrame(antiguedad_data).groupby(
+                        'estatus_code')['antiguedad_dias'].mean().round(0)
+                    data_antiguedad = {estatus_map_vigencia.get(k, k): float(
+                        v) for k, v in df_ant_avg.to_dict().items()}
+                    context['plotly_contratos_estado_html'] = generar_grafico_estados_contrato(
+                        data_antiguedad)
+
+            # Gráfico 2: Top Tipos de Reclamación
+            data_top_tipos = [(tipo_rec_map.get(i['tipo_reclamacion'], i['tipo_reclamacion']), float(i['avg_monto'])) for i in Reclamacion.objects.filter(estado__in=[
+                'ABIERTA', 'EN_PROCESO'], activo=True).values('tipo_reclamacion').annotate(avg_monto=Avg('monto_reclamado')).filter(avg_monto__gt=0).order_by('-avg_monto')[:5]]
             context['plotly_reclamaciones_estado_html'] = generar_grafico_estados_reclamacion(
-                data_list_top_tipos_rec_dash)
+                data_top_tipos)
 
-            # 3. Mix Cartera (Usa la versión corregida)
-            # Llama a la versión corregida
-            context['plotly_ramos_monto_html'] = generar_grafico_total_primas_ramo_barras
+            # Gráfico 3: Primas por Ramo (llama a la función directamente)
+            context['plotly_ramos_monto_html'] = generar_grafico_total_primas_ramo_barras()
 
-            # 4. Resolución Recientes
-            dias_atras_res_dash = 90
-            fecha_limite_res_dash_date = hoy - \
-                timedelta(days=dias_atras_res_dash)
-            naive_datetime_limite_res = py_datetime.combine(
-                fecha_limite_res_dash_date, py_datetime.min.time())
-            aware_datetime_limite_res = django_timezone.make_aware(
-                naive_datetime_limite_res)
-            recs_recientes_qs_dash = Reclamacion.objects.filter(Q(fecha_reclamo__gte=fecha_limite_res_dash_date) | Q(
-                fecha_modificacion__gte=aware_datetime_limite_res), activo=True)
-            estados_resueltos_def_rec_dash = ['CERRADA', 'PAGADA', 'RECHAZADA']
-            resueltas_rec_count_dash = recs_recientes_qs_dash.filter(
-                estado__in=estados_resueltos_def_rec_dash).count()
-            pendientes_rec_count_dash = recs_recientes_qs_dash.exclude(
-                estado__in=estados_resueltos_def_rec_dash).count()
-            data_para_res_recientes_dash = {
-                'Resueltas': resueltas_rec_count_dash, 'Pendientes': pendientes_rec_count_dash}
+            # Gráfico 4: Resolución Recientes
+            recs_recientes = Reclamacion.objects.filter(Q(fecha_reclamo__gte=hoy - timedelta(days=90)) | Q(
+                fecha_modificacion__gte=django_timezone.now() - timedelta(days=90)), activo=True)
+            resueltas_count = recs_recientes.filter(
+                estado__in=['CERRADA', 'PAGADA', 'RECHAZADA']).count()
+            pendientes_count = recs_recientes.exclude(
+                estado__in=['CERRADA', 'PAGADA', 'RECHAZADA']).count()
             context['plotly_resolucion_gauge_html'] = generar_grafico_resolucion_gauge(
-                data_para_res_recientes_dash)
+                {'Resueltas': resueltas_count, 'Pendientes': pendientes_count})
 
-            # --- 5. IGTF (KPI y Datos para Gráfico) ---
-            logger_rgv.debug("Calculando datos para IGTF (KPI y Gráfico)...")
-            total_igtf_calculado_para_kpi = Decimal('0.00')
-            data_igtf_para_grafico_dict = collections.defaultdict(Decimal)
-            TASA_IGTF_CALC = self.TASA_IGTF  # Tasa definida en la clase
-
-            # Definir ramo_map aquí si no está definido antes en el método
-            # Cache simple para evitar re-crear el dict
-            if not hasattr(self, '_ramo_map_cache_rgv'):
-                self._ramo_map_cache_rgv = dict(CommonChoices.RAMO)
-            ramo_map = self._ramo_map_cache_rgv
-
-            pagos_con_igtf_qs = Pago.objects.filter(
-                activo=True,
-                aplica_igtf_pago=True,
-                monto_pago__gt=Decimal('0.00')
-            ).select_related(
-                'factura__contrato_individual',  # Traer el ContratoIndividual completo
-                'factura__contrato_colectivo'  # Traer el ContratoColectivo completo
-            )
-            # OJO: Si ContratoIndividual o ContratoColectivo tienen FKs a 'ramo' como un modelo separado,
-            # entonces sería 'factura__contrato_individual__ramo_modelo', etc.
-            # Pero por tus modelos, 'ramo' es un CharField.
-
-            for pago_obj in pagos_con_igtf_qs:
-                if (Decimal('1') + TASA_IGTF_CALC) == 0:
-                    logger_rgv.error(
-                        f"TASA_IGTF_CALC es -1, lo que causa división por cero. Pago PK: {pago_obj.pk}")
-                    continue
-
-                monto_base_para_igtf = pago_obj.monto_pago / \
-                    (Decimal('1') + TASA_IGTF_CALC)
-                igtf_del_pago = (
-                    monto_base_para_igtf * TASA_IGTF_CALC).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-
-                total_igtf_calculado_para_kpi += igtf_del_pago
-
-                categoria_igtf = "Otros Pagos IGTF"
-                if pago_obj.factura:
-                    factura_asociada = pago_obj.factura
-                    contrato_asociado = factura_asociada.contrato_individual or factura_asociada.contrato_colectivo
-                    # Acceder al atributo 'ramo'
-                    if contrato_asociado and hasattr(contrato_asociado, 'ramo') and contrato_asociado.ramo:
-                        categoria_igtf = f"Ramo: {ramo_map.get(contrato_asociado.ramo, str(contrato_asociado.ramo))}"
-                    elif factura_asociada.contrato_individual:
-                        categoria_igtf = "Cont. Individual"
-                    elif factura_asociada.contrato_colectivo:
-                        categoria_igtf = "Cont. Colectivo"
-
-                data_igtf_para_grafico_dict[categoria_igtf] += igtf_del_pago
-
-            context['kpi_total_igtf_recaudado'] = total_igtf_calculado_para_kpi.quantize(
-                Decimal('0.01'), rounding=ROUND_HALF_UP)
-            logger_rgv.debug(
-                f"KPI Total IGTF Recaudado asignado: {context['kpi_total_igtf_recaudado']}")
-
-            data_igtf_para_dona_plotly = {'Categoria': [], 'IGTF': []}
-            for categoria, valor_igtf in data_igtf_para_grafico_dict.items():
-                if valor_igtf > 0:
-                    data_igtf_para_dona_plotly['Categoria'].append(categoria)
-                    data_igtf_para_dona_plotly['IGTF'].append(
-                        float(valor_igtf))
-
+            # Gráfico 5: IGTF por Categoría
+            data_igtf_grafico = collections.defaultdict(Decimal)
+            for pago in pagos_con_igtf.select_related('factura__contrato_individual', 'factura__contrato_colectivo'):
+                igtf_pago = (pago.monto_pago / (Decimal('1') +
+                             self.TASA_IGTF)) * self.TASA_IGTF
+                contrato = pago.factura.contrato_individual if pago.factura else None or pago.factura.contrato_colectivo if pago.factura else None
+                categoria = f"Ramo: {ramo_map.get(contrato.ramo, contrato.ramo)}" if contrato and contrato.ramo else "Otros Pagos"
+                data_igtf_grafico[categoria] += igtf_pago
             context['plotly_impuestos_categoria_html'] = generar_grafico_impuestos_por_categoria(
-                data_igtf_para_dona_plotly
-            )
-            logger_rgv.debug(
-                "Datos para gráfico IGTF por categoría preparados y gráfico generado.")
-            # --- FIN Bloque IGTF ---
-            # 6. Cartera Intermediarios Bubble
-            top_n_inter_bubble_dash = 10
-            siniestros_ind_sub_dash = Subquery(Reclamacion.objects.filter(contrato_individual__intermediario_id=OuterRef('pk'), activo=True, contrato_individual__activo=True).values(
-                'contrato_individual__intermediario_id').annotate(total_siniestro=Coalesce(Sum('monto_reclamado'), Value(Decimal('0.0')))).values('total_siniestro')[:1], output_field=DecimalField(decimal_places=2))
-            siniestros_col_sub_dash = Subquery(Reclamacion.objects.filter(contrato_colectivo__intermediario_id=OuterRef('pk'), activo=True, contrato_colectivo__activo=True).values(
-                'contrato_colectivo__intermediario_id').annotate(total_siniestro=Coalesce(Sum('monto_reclamado'), Value(Decimal('0.0')))).values('total_siniestro')[:1], output_field=DecimalField(decimal_places=2))
-            data_inter_bubble_qs_dash = (Intermediario.objects.filter(activo=True).annotate(pi=Coalesce(Sum('contratoindividual__monto_total', filter=Q(contratoindividual__activo=True)), Value(Decimal('0.0'))), pc=Coalesce(Sum('contratos_colectivos__monto_total', filter=Q(contratos_colectivos__activo=True)), Value(Decimal('0.0'))), si=Coalesce(siniestros_ind_sub_dash, Value(Decimal('0.0'))), sc=Coalesce(siniestros_col_sub_dash, Value(Decimal('0.0'))), n_ci=Count('contratoindividual', filter=Q(contratoindividual__activo=True), distinct=True), n_cc=Count('contratos_colectivos', filter=Q(contratos_colectivos__activo=True), distinct=True)).annotate(pt=ExpressionWrapper(
-                F('pi') + F('pc'), output_field=DecimalField(decimal_places=2)), st=ExpressionWrapper(F('si') + F('sc'), output_field=DecimalField(decimal_places=2)), ce=Case(When(Q(porcentaje_comision__isnull=False) & Q(pt__gt=Decimal('0.0')), then=ExpressionWrapper(F('pt') * F('porcentaje_comision') / Decimal('100.0'), output_field=DecimalField(decimal_places=2))), default=Value(Decimal('0.0')), output_field=DecimalField(decimal_places=2)), n_ct=F('n_ci') + F('n_cc')).annotate(rn=ExpressionWrapper(F('pt') - F('st') - F('ce'), output_field=DecimalField(decimal_places=2))).filter(Q(pt__gt=Decimal('0.005')) & Q(n_ct__gt=0)).order_by('-pt')[:top_n_inter_bubble_dash])
-            data_list_bubble_dash = [{'nombre_intermediario': inter.nombre_completo, 'prima_total': float(inter.pt), 'rentabilidad_neta': float(inter.rn), 'numero_contratos': int(
-                inter.n_ct), 'siniestros_totales': float(inter.st), 'comisiones_estimadas': float(inter.ce)} for inter in data_inter_bubble_qs_dash]
+                {'Categoria': list(data_igtf_grafico.keys()), 'IGTF': [float(v) for v in data_igtf_grafico.values()]})
+
+            # Gráfico 6: Rentabilidad de Intermediarios
+            data_inter_bubble = [{'nombre_intermediario': i.nombre_completo, 'prima_total': float(i.pt), 'rentabilidad_neta': float(i.pt - i.st - (i.pt * i.porcentaje_comision / 100)), 'numero_contratos': i.n_ct, 'siniestros_totales': float(i.st), 'comisiones_estimadas': float(i.pt * i.porcentaje_comision / 100)} for i in Intermediario.objects.filter(activo=True).annotate(pt=Coalesce(Sum('contratoindividual__monto_total'), Decimal(
+                '0.0')) + Coalesce(Sum('contratos_colectivos__monto_total'), Decimal('0.0')), st=Coalesce(Sum('contratoindividual__reclamacion__monto_reclamado'), Decimal('0.0')) + Coalesce(Sum('contratos_colectivos__reclamacion__monto_reclamado'), Decimal('0.0')), n_ct=Count('contratoindividual', distinct=True) + Count('contratos_colectivos', distinct=True)).filter(pt__gt=0).order_by('-pt')[:10]]
             context['plotly_rentabilidad_intermediario_html'] = generar_grafico_rentabilidad_neta_intermediario(
-                data_list_bubble_dash)
+                data_inter_bubble)
+            logger_rgv.debug("Datos para gráficos generados.")
 
-            logger_rgv.debug("ReporteGeneralView: Fin generación de gráficos.")
-
-            # --- Cálculo de Tablas ---
-            logger_rgv.debug(
-                "ReporteGeneralView: Calculando datos para tablas...")
-            context['table_top_tipos_reclamacion'] = [{'tipo': tipo_rec_map.get(i['tipo_reclamacion'], str(i['tipo_reclamacion'])), 'cantidad': i['cantidad']} for i in Reclamacion.objects.filter(
+            # --- FASE 3: DATOS PARA TABLAS DE RESUMEN ---
+            logger_rgv.debug("Calculando datos para tablas de resumen...")
+            context['datos_tabla_comisiones'] = obtener_datos_tabla_resumen_comisiones()
+            context['table_top_tipos_reclamacion'] = [{'tipo': tipo_rec_map.get(i['tipo_reclamacion'], i['tipo_reclamacion']), 'cantidad': i['cantidad']} for i in Reclamacion.objects.filter(
                 activo=True).values('tipo_reclamacion').annotate(cantidad=Count('id')).filter(cantidad__gt=0).order_by('-cantidad')[:10]]
             context['table_facturas_antiguas'] = Factura.objects.filter(activo=True, pagada=False, monto_pendiente__gt=Decimal('0.01'), vigencia_recibo_hasta__lt=hoy).select_related(
-                'contrato_individual__afiliado', 'contrato_colectivo__intermediario').annotate(dias_vencida=ExpressionWrapper(Value(hoy) - F('vigencia_recibo_hasta'), output_field=DurationField())).order_by('vigencia_recibo_hasta')[:10]
-            context['table_top_intermediarios'] = Intermediario.objects.filter(activo=True).annotate(num_contratos=(Count('contratoindividual', filter=Q(contratoindividual__activo=True), distinct=True) + Count('contratos_colectivos', filter=Q(contratos_colectivos__activo=True), distinct=True)), monto_contratos=(
-                Coalesce(Sum('contratoindividual__monto_total', filter=Q(contratoindividual__activo=True)), Value(Decimal('0.0'))) + Coalesce(Sum('contratos_colectivos__monto_total', filter=Q(contratos_colectivos__activo=True)), Value(Decimal('0.0'))))).filter(num_contratos__gt=0).order_by('-monto_contratos')[:10]
-            logger_rgv.debug(
-                "ReporteGeneralView: Datos para tablas calculados.")
+                'contrato_individual__afiliado', 'contrato_colectivo').annotate(dias_vencida=ExpressionWrapper(Value(hoy) - F('vigencia_recibo_hasta'), output_field=DurationField())).order_by('vigencia_recibo_hasta')[:10]
+            context['table_top_intermediarios'] = Intermediario.objects.filter(activo=True).annotate(num_contratos=(Count('contratoindividual', distinct=True) + Count('contratos_colectivos', distinct=True)), monto_contratos=(
+                Coalesce(Sum('contratoindividual__monto_total'), Decimal('0.0')) + Coalesce(Sum('contratos_colectivos__monto_total'), Decimal('0.0')))).filter(num_contratos__gt=0).order_by('-monto_contratos')[:10]
+
+            resumen_ramo = []
+            for ramo_code in set(ContratoIndividual.objects.filter(activo=True).values_list('ramo', flat=True)) | set(ContratoColectivo.objects.filter(activo=True).values_list('ramo', flat=True)):
+                primas = ContratoIndividual.objects.filter(activo=True, ramo=ramo_code).aggregate(t=Coalesce(Sum('monto_total'), Decimal('0.0')))[
+                    't'] + ContratoColectivo.objects.filter(activo=True, ramo=ramo_code).aggregate(t=Coalesce(Sum('monto_total'), Decimal('0.0')))['t']
+                siniestros = Reclamacion.objects.filter(Q(contrato_individual__ramo=ramo_code) | Q(contrato_colectivo__ramo=ramo_code), activo=True, estado__in=[
+                                                        'APROBADA', 'PAGADA']).aggregate(t=Coalesce(Sum('monto_reclamado'), Decimal('0.0')))['t']
+                resumen_ramo.append({'ramo_nombre': ramo_map.get(ramo_code, ramo_code), 'total_primas': primas,
+                                    'total_siniestros': siniestros, 'ratio_siniestralidad': (siniestros / primas * 100) if primas > 0 else Decimal('0.0')})
+            context['table_resumen_por_ramo'] = sorted(
+                resumen_ramo, key=lambda x: x['total_primas'], reverse=True)
+            logger_rgv.debug("Datos para tablas calculados.")
 
         except Exception as e_main:
             logger_rgv.error(
                 f"Error CRÍTICO generando datos para ReporteGeneralView: {e_main}", exc_info=True)
             context[
                 'error'] = f"Ocurrió un error grave al calcular los datos del reporte: {escape(str(e_main))}"
-            for g_ctx_name in graficas_context_names:  # Resetear gráficos a "error"
+            for g_ctx_name in graficas_context_names:
                 context[g_ctx_name] = generar_figura_sin_datos_plotly(
-                    f"Error al cargar datos ({g_ctx_name.replace('plotly_', '').replace('_html', '')}).")
+                    f"Error al cargar datos.")
 
         return context
 
