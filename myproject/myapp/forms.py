@@ -181,11 +181,21 @@ class FormularioCreacionUsuario(AwareDateInputMixinVE, UserCreationForm, BaseMod
     tipo_usuario = forms.ChoiceField(
         choices=CommonChoices.TIPO_USUARIO, label="Tipo de Usuario")
 
-    fecha_nacimiento = forms.CharField(
+# CORRECTO
+    fecha_nacimiento = forms.DateField(
         label="Fecha de Nacimiento",
         required=False,
-        widget=forms.TextInput(
-            attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}),
+        # Usamos el widget DateInput y le decimos qué formato aceptar
+        widget=forms.DateInput(
+            format='%d/%m/%Y',  # Le dice a Django que espere este formato
+            attrs={
+                'type': 'text',  # Fuerza al navegador a no usar su datepicker nativo
+                'placeholder': 'DD/MM/YYYY',
+                'class': 'form-control date-input'  # Añadimos una clase para el datepicker de JS
+            }
+        ),
+        # Le decimos al campo qué formatos son válidos para la entrada
+        input_formats=('%d/%m/%Y',)
     )
     departamento = forms.ChoiceField(
         choices=CommonChoices.DEPARTAMENTO, required=False, label="Departamento")
@@ -228,11 +238,20 @@ class FormularioEdicionUsuario(AwareDateInputMixinVE, BaseModelForm):
     segundo_apellido = forms.CharField(
         max_length=100, label="Segundo Apellido", required=False)
 
-    fecha_nacimiento = forms.CharField(
+    fecha_nacimiento = forms.DateField(
         label="Fecha de Nacimiento",
         required=False,
-        widget=forms.TextInput(
-            attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}),
+        # Usamos el widget DateInput y le decimos qué formato aceptar
+        widget=forms.DateInput(
+            format='%d/%m/%Y',  # Le dice a Django que espere este formato
+            attrs={
+                'type': 'text',  # Fuerza al navegador a no usar su datepicker nativo
+                'placeholder': 'DD/MM/YYYY',
+                'class': 'form-control date-input'  # Añadimos una clase para el datepicker de JS
+            }
+        ),
+        # Le decimos al campo qué formatos son válidos para la entrada
+        input_formats=('%d/%m/%Y',)
     )
     telefono = forms.CharField(max_length=15, required=False, label="Teléfono")
     direccion = forms.CharField(widget=forms.Textarea(
