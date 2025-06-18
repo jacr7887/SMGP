@@ -756,11 +756,6 @@ class ContratoIndividualForm(AwareDateInputMixinVE, BaseModelForm):
     periodo_vigencia_meses = forms.IntegerField(label="Duración Contrato (Meses)", min_value=1, widget=forms.NumberInput(
         attrs={'min': '1', 'class': 'form-control', 'id': 'id_periodo_vigencia_meses'}), required=False, help_text="Si se indica, la Fecha Fin se calcula.")
 
-    monto_total = forms.DecimalField(
-        label="Monto Total del Contrato", max_digits=15, decimal_places=2, required=True,
-        widget=forms.NumberInput(
-            attrs={'class': 'form-control', 'id': 'id_monto_total', 'step': '0.01'})
-    )
     cantidad_cuotas_display = forms.CharField(label="Cantidad de Cuotas Estimadas", required=False, widget=forms.TextInput(
         attrs={'readonly': True, 'class': 'form-control-plaintext dark-input-plaintext', 'id': 'id_cantidad_cuotas_display'}))
     monto_cuota_display = forms.CharField(label="Monto Estimado por Cuota/Recibo", required=False, widget=forms.TextInput(
@@ -798,7 +793,7 @@ class ContratoIndividualForm(AwareDateInputMixinVE, BaseModelForm):
         fields = [
             'activo', 'ramo', 'forma_pago', 'estatus', 'estado_contrato',
             'fecha_emision', 'fecha_inicio_vigencia', 'fecha_fin_vigencia',
-            'periodo_vigencia_meses', 'monto_total',  # Añadido monto_total
+            'periodo_vigencia_meses',
             'intermediario', 'tipo_identificacion_contratante',
             'contratante_cedula', 'contratante_nombre', 'direccion_contratante',
             'telefono_contratante', 'email_contratante', 'afiliado', 'plan_contratado',
@@ -988,12 +983,6 @@ class ContratoColectivoForm(AwareDateInputMixinVE, BaseModelForm):
     periodo_vigencia_meses = forms.IntegerField(label="Duración Contrato (Meses)", min_value=1, widget=forms.NumberInput(
         attrs={'min': '1', 'class': 'form-control', 'id': 'id_periodo_vigencia_meses'}), required=False, help_text="Si se indica, la Fecha Fin se calcula.")
 
-    monto_total = forms.DecimalField(
-        required=False,
-        label="Monto Total del Contrato", max_digits=15, decimal_places=2,
-        widget=forms.NumberInput(
-            attrs={'class': 'form-control', 'id': 'id_monto_total', 'step': '0.01'})
-    )
     cantidad_cuotas_display = forms.CharField(label="Cantidad de Cuotas Estimadas", required=False, widget=forms.TextInput(
         attrs={'readonly': True, 'class': 'form-control-plaintext dark-input-plaintext', 'id': 'id_cantidad_cuotas_display'}))
     monto_cuota_display = forms.CharField(label="Monto Estimado por Cuota/Recibo", required=False, widget=forms.TextInput(
@@ -1031,7 +1020,7 @@ class ContratoColectivoForm(AwareDateInputMixinVE, BaseModelForm):
             'rif', 'razon_social', 'pagos_realizados', 'comision_recibo',
             'codigo_validacion', 'fecha_creacion', 'fecha_modificacion',
             'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido',
-            'historial_cambios', 'monto_total'
+            'historial_cambios'
         ]
         widgets = {
             'activo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
