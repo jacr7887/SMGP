@@ -30,8 +30,7 @@
          .tables-grid-container { grid-template-columns: repeat(2, 1fr); }
     }
     @media (min-width: 768px) and (max-width: 991.98px) {
-        .kpi-grid-container { grid-template-columns: repeat(2, 1fr); }
-        .visualizations-grid-container { grid-template-columns: repeat(2, 1fr); }
+        .kpi-grid-container, .visualizations-grid-container { grid-template-columns: repeat(2, 1fr); }
         .tables-grid-container { grid-template-columns: 1fr; }
     }
     @media (max-width: 767.98px) {
@@ -39,7 +38,7 @@
     }
     .full-width-table { grid-column: 1 / -1; }
 
-    /* === ESTILO LIQUID GLASS (REFINADO CON CONTRASTE) === */
+    /* === ESTILO LIQUID GLASS (REFINADO CON CONTRASTE Y CENTRADO) === */
     .kpi-card, .chart-card, .table-container-dashboard {
         background: rgba(40, 40, 60, 0.45);
         backdrop-filter: blur(18px);
@@ -59,13 +58,13 @@
     .kpi-card .kpi-content-wrapper { padding: 1.2rem; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; flex-grow: 1; }
     .kpi-icon { font-size: 2.2rem; opacity: 0.5; margin-bottom: 0.5rem; text-shadow: 0 0 10px rgba(0,0,0,0.5); }
     .kpi-label { font-size: 0.8rem; text-transform: uppercase; font-weight: 500; opacity: 0.7; margin-bottom: 0.2rem; color: #E0E0E0; }
-    .kpi-value { font-weight: 700; line-height: 1.1; font-size: 1.8rem; color: #FFFFFF; text-shadow: 0 0 8px rgba(255, 255, 255, 0.4); }
+    .kpi-value { font-weight: 700; line-height: 1.1; font-size: clamp(1.4rem, 4vw, 1.8rem); color: #FFFFFF; text-shadow: 0 0 8px rgba(255, 255, 255, 0.4); }
     .kpi-secondary { font-size: 0.8rem; color: #B0B0C0; opacity: 0.9; margin-top: 0.2rem; }
     .kpi-footer { background: rgba(0, 0, 0, 0.2); border-top: 1px solid rgba(255, 255, 255, 0.1); padding: 0.5rem 1rem; font-size: 0.75rem; color: #A0A0B0; text-align: center; border-bottom-left-radius: 20px; border-bottom-right-radius: 20px;}
     .kpi-footer a { color: #C0C0D0; text-decoration: none; font-weight: 500; }
     .kpi-footer a:hover { color: #FFFFFF; }
     
-    /* === PALETA DE 12 COLORES ÚNICOS PARA KPIs (Liquid Glass Tinted) === */
+    /* Paleta de 12 colores únicos para KPIs (Liquid Glass Tinted) */
     .kpi-card.kpi-bg-blue    { border-left-color: #0d6efd; background: linear-gradient(135deg, rgba(13, 110, 253, 0.15), rgba(40, 40, 60, 0.45)); }
     .kpi-card.kpi-bg-indigo   { border-left-color: #6610f2; background: linear-gradient(135deg, rgba(102, 16, 242, 0.15), rgba(40, 40, 60, 0.45)); }
     .kpi-card.kpi-bg-success  { border-left-color: #198754; background: linear-gradient(135deg, rgba(25, 135, 84, 0.2), rgba(40, 40, 60, 0.45)); }
@@ -76,9 +75,11 @@
     .kpi-card.kpi-bg-pink     { border-left-color: #d63384; background: linear-gradient(135deg, rgba(214, 51, 132, 0.15), rgba(40, 40, 60, 0.45)); }
     .kpi-card.kpi-bg-orange   { border-left-color: #fd7e14; background: linear-gradient(135deg, rgba(253, 126, 20, 0.15), rgba(40, 40, 60, 0.45)); }
     .kpi-card.kpi-bg-danger   { border-left-color: #dc3545; background: linear-gradient(135deg, rgba(220, 53, 69, 0.2), rgba(40, 40, 60, 0.45)); }
-    .kpi-card.kpi-bg-warning  { border-left-color: #ffc107; background: linear-gradient(135deg, rgba(255, 193, 7, 0.2), rgba(40, 40, 60, 0.45)); }
-    .kpi-card.kpi-bg-light    { border-left-color: #adb5bd; background: linear-gradient(135deg, rgba(173, 181, 189, 0.2), rgba(40, 40, 60, 0.45)); }
-    
+    .kpi-card.kpi-bg-warm-red { border-left-color: #e74c3c; background: linear-gradient(135deg, rgba(231, 76, 60, 0.2), rgba(40, 40, 60, 0.45)); }
+    .kpi-card.kpi-bg-warning  { border-left-color: #ffc107; background: linear-gradient(135deg, rgba(255, 193, 7, 0.25), rgba(255, 193, 7, 0.1)); }
+    .kpi-card.kpi-bg-warning .kpi-label, .kpi-card.kpi-bg-warning .kpi-secondary, .kpi-card.kpi-bg-warning .kpi-value { color: #3b2e00 !important; text-shadow: none; }
+    .kpi-card.kpi-bg-warning .kpi-footer, .kpi-card.kpi-bg-warning .kpi-footer a { color: #3b2e00 !important; font-weight: 600; }
+
     /* Títulos y Tablas */
     .section-title { text-align: center; }
     .card-title { font-size: 1.1rem; color: var(--text-light); text-align: center; padding: 1rem; margin-bottom: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
@@ -91,7 +92,6 @@
     .table-container-dashboard .data-table td { color: #C0C0D0; }
     .no-results { color: var(--text-muted); text-align: center; padding: 2rem; font-style: italic; }
     .link-styled { color: #8cb4ff; text-decoration: none; } .link-styled:hover { color: #FFFFFF; }
-    
     .table-container-dashboard .data-table .text-left { text-align: left !important; }
     .table-container-dashboard .data-table .text-right { text-align: right !important; }
     .table-container-dashboard .data-table .text-center { text-align: center !important; }
@@ -110,7 +110,7 @@
 
             <!-- Fila 1: KPIs Financieros y de Riesgo -->
             <div class="kpi-card kpi-bg-blue animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-coins"></i></div><div class="kpi-text-content"><div class="kpi-label">Ganancia Bruta (Pool)</div><div class="kpi-value">$ {{ kpi_monto_total_contratos|floatformat:0|intcomma }}</div></div></div><div class="kpi-footer"><span>Total de primas de contratos</span></div></div>
-            <div class="kpi-card kpi-bg-secondary animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-handshake"></i></div><div class="kpi-text-content"><div class="kpi-label">Total Comisiones</div><div class="kpi-value" style="color: #ffc107;">- $ {{ kpi_total_comisiones_generadas|floatformat:0|intcomma }}</div></div></div><div class="kpi-footer"><span>Descontado del pool de ganancias</span></div></div>
+            <div class="kpi-card kpi-bg-warm-red animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-handshake"></i></div><div class="kpi-text-content"><div class="kpi-label">Total Comisiones</div><div class="kpi-value">- $ {{ kpi_total_comisiones_generadas|floatformat:0|intcomma }}</div></div></div><div class="kpi-footer"><span>Descontado del pool de ganancias</span></div></div>
             <div class="kpi-card kpi-bg-success animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-piggy-bank"></i></div><div class="kpi-text-content"><div class="kpi-label">Ganancia Neta Estimada</div><div class="kpi-value">$ {{ kpi_ganancia_neta_pool|floatformat:0|intcomma }}</div></div></div><div class="kpi-footer"><span>Pool final después de comisiones</span></div></div>
             <div class="kpi-card kpi-bg-cyan animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-money-bill-wave"></i></div><div class="kpi-text-content"><div class="kpi-label">Primas Cobradas</div><div class="kpi-value">$ {{ kpi_monto_total_pagado_facturas|floatformat:0|intcomma }}</div></div></div><div class="kpi-footer"><span>Ingresos efectivos recibidos</span></div></div>
             <div class="kpi-card kpi-bg-danger animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-chart-line-down"></i></div><div class="kpi-text-content"><div class="kpi-label">Ratio Siniestralidad</div><div class="kpi-value">{{ kpi_ratio_siniestralidad|floatformat:2 }}%</div><div class="kpi-secondary">Siniestros: $ {{ kpi_total_siniestros_incurridos|floatformat:0|intcomma }}</div></div></div><div class="kpi-footer"><span>(Siniestros / Primas)</span></div></div>
@@ -119,7 +119,7 @@
             <!-- Fila 2: KPIs Operativos y de Alerta -->
             <div class="kpi-card kpi-bg-dark animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-file-signature"></i></div><div class="kpi-text-content"><div class="kpi-label">Contratos Totales</div><div class="kpi-value">{{ kpi_total_contratos|intcomma }}</div><div class="kpi-secondary">Ind: {{ kpi_total_contratos_individuales_count|default:0|intcomma }} / Col: {{ kpi_total_contratos_colectivos_count|default:0|intcomma }}</div></div></div><div class="kpi-footer"><span>Cartera total de contratos</span></div></div>
             <div class="kpi-card kpi-bg-pink animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-users"></i></div><div class="kpi-text-content"><div class="kpi-label">Afiliados Totales</div><div class="kpi-value">{{ kpi_total_afiliados_ind|add:kpi_total_afiliados_col|intcomma }}</div><div class="kpi-secondary">Ind: {{ kpi_total_afiliados_ind|intcomma }} / Col: {{ kpi_total_afiliados_col|intcomma }}</div></div></div><div class="kpi-footer"><span>Total de vidas aseguradas</span></div></div>
-            <div class="kpi-card kpi-bg-light animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-exclamation-circle"></i></div><div class="kpi-text-content"><div class="kpi-label">Reclamaciones Activas</div><div class="kpi-value">{{ kpi_total_reclamaciones|intcomma }}</div></div></div><div class="kpi-footer"><span>Gestión de Siniestros</span></div></div>
+            <div class="kpi-card kpi-bg-indigo animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-exclamation-circle"></i></div><div class="kpi-text-content"><div class="kpi-label">Reclamaciones Activas</div><div class="kpi-value">{{ kpi_total_reclamaciones|intcomma }}</div></div></div><div class="kpi-footer"><span>Gestión de Siniestros</span></div></div>
             <div class="kpi-card kpi-bg-danger animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-file-invoice-dollar"></i></div><div class="kpi-text-content"><div class="kpi-label">Facturas Vencidas</div><div class="kpi-value">{{ kpi_facturas_vencidas_conteo|intcomma }}</div><div class="kpi-secondary">Monto: $ {{ kpi_facturas_vencidas_monto|floatformat:2|intcomma }}</div></div></div>{% if kpi_facturas_vencidas_conteo > 0 %}<div class="kpi-footer"><a href="{{ url_lista_facturas_vencidas|default:'#' }}" style="color:white; font-weight:600;">Ver Detalle <i class="fas fa-arrow-right ms-1"></i></a></div>{% else %}<div class="kpi-footer"><span>Todo al día</span></div>{% endif %}</div>
             <div class="kpi-card kpi-bg-warning animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-hand-holding-usd"></i></div><div class="kpi-text-content"><div class="kpi-label">Comisiones Pendientes</div><div class="kpi-value">{{ kpi_comisiones_pendientes_conteo|intcomma }}</div><div class="kpi-secondary">Monto: $ {{ kpi_comisiones_pendientes_monto|floatformat:2|intcomma }}</div></div></div>{% if kpi_comisiones_pendientes_conteo > 0 %}<div class="kpi-footer"><a href="{{ url_liquidacion_comisiones|default:'#' }}">Liquidar <i class="fas fa-arrow-right ms-1"></i></a></div>{% else %}<div class="kpi-footer"><span>Todo liquidado</span></div>{% endif %}</div>
             <div class="kpi-card kpi-bg-orange animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-landmark"></i></div><div class="kpi-text-content"><div class="kpi-label">IGTF Recaudado (Est.)</div><div class="kpi-value">$ {{ kpi_total_igtf_recaudado|floatformat:0|intcomma }}</div></div></div><div class="kpi-footer"><span>Impuesto Transacciones</span></div></div>
@@ -129,12 +129,12 @@
     <section class="mb-5">
         <h2 class="h4 mb-3 text-muted section-title"><i class="fas fa-chart-line me-2"></i>Visualizaciones Destacadas</h2>
         <div class="visualizations-grid-container">
-            {% if plotly_contratos_estado_html %}<div class="chart-card animated fadeIn"><h5 class="card-title">Antigüedad Promedio Contratos</h5><div class="chart-container">{{ plotly_contratos_estado_html|safe }}</div></div>{% endif %}
-            {% if plotly_reclamaciones_estado_html %}<div class="chart-card animated fadeIn"><h5 class="card-title">Tipos de Reclamo Pendientes</h5><div class="chart-container">{{ plotly_reclamaciones_estado_html|safe }}</div></div>{% endif %}
-            {% if plotly_ramos_monto_html %}<div class="chart-card animated fadeIn"><h5 class="card-title">Primas por Ramo</h5><div class="chart-container">{{ plotly_ramos_monto_html|safe }}</div></div>{% endif %}
-            {% if plotly_resolucion_gauge_html %}<div class="chart-card animated fadeIn"><h5 class="card-title">Resolución Reclamos Recientes</h5><div class="chart-container">{{ plotly_resolucion_gauge_html|safe }}</div></div>{% endif %}
-            {% if plotly_impuestos_categoria_html %}<div class="chart-card animated fadeIn"><h5 class="card-title">Distribución IGTF</h5><div class="chart-container">{{ plotly_impuestos_categoria_html|safe }}</div></div>{% endif %}
-            {% if plotly_rentabilidad_intermediario_html %}<div class="chart-card animated fadeIn"><h5 class="card-title">Cartera Intermediarios</h5><div class="chart-container">{{ plotly_rentabilidad_intermediario_html|safe }}</div></div>{% endif %}
+            <div class="chart-card animated fadeIn"><h5 class="card-title">Antigüedad Promedio Contratos</h5><div class="chart-container">{{ plotly_contratos_estado_html|safe }}</div></div>
+            <div class="chart-card animated fadeIn"><h5 class="card-title">Tipos de Reclamo Pendientes</h5><div class="chart-container">{{ plotly_reclamaciones_estado_html|safe }}</div></div>
+            <div class="chart-card animated fadeIn"><h5 class="card-title">Primas por Ramo</h5><div class="chart-container">{{ plotly_ramos_monto_html|safe }}</div></div>
+            <div class="chart-card animated fadeIn"><h5 class="card-title">Resolución Reclamos Recientes</h5><div class="chart-container">{{ plotly_resolucion_gauge_html|safe }}</div></div>
+            <div class="chart-card animated fadeIn"><h5 class="card-title">Distribución IGTF</h5><div class="chart-container">{{ plotly_impuestos_categoria_html|safe }}</div></div>
+            <div class="chart-card animated fadeIn"><h5 class="card-title">Cartera Intermediarios</h5><div class="chart-container">{{ plotly_rentabilidad_intermediario_html|safe }}</div></div>
         </div>
     </section>
     
