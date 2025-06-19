@@ -134,6 +134,57 @@ from .filters import (
 from django import forms  # Añadido forms
 
 
+class IntermediarioDataMixin:
+    """
+    Un mixin para las vistas de Django que filtra los datos para que un usuario
+    solo vea la información relacionada con su intermediario asociado.
+
+    Los superusuarios pueden ver todo.
+    """
+
+    def get_queryset(self):
+        # Primero, obtenemos el queryset original de la vista que usa este mixin.
+        queryset = super().get_queryset()
+
+        # Si el usuario es un superusuario, no aplicamos ningún filtro.
+        if self.request.user.is_superuser:
+            return queryset
+
+        # Obtenemos el intermediario asociado al usuario logueado.
+        # Usamos el método que creamos en el manager, aunque podríamos accederlo directamente.
+        intermediario_usuario = self.request.user.intermediario
+
+        # Si el usuario no tiene un intermediario asociado, no debería ver nada.
+        if not intermediario_usuario:
+            return queryset.none()  # Devuelve un queryset vacío.
+
+        # === LÓGICA DE FILTRADO ===
+        # Aquí es donde ocurre la magia. Determinamos cómo filtrar basado en el modelo de la vista.
+        modelo = queryset.model
+
+        if hasattr(modelo, 'intermediario'):
+            # Para modelos que tienen una relación directa con Intermediario
+            # (ContratoIndividual, ContratoColectivo, AfiliadoIndividual, etc.)
+            queryset = queryset.filter(intermediario=intermediario_usuario)
+
+        elif hasattr(modelo, 'contrato_individual__intermediario'):
+            # Para modelos como Factura o Reclamacion que se relacionan a través de un contrato.
+            queryset = queryset.filter(
+                Q(contrato_individual__intermediario=intermediario_usuario) |
+                Q(contrato_colectivo__intermediario=intermediario_usuario)
+            )
+
+        elif modelo == Intermediario:
+            # Si la vista es del propio modelo Intermediario, solo debe ver su propio perfil.
+            queryset = queryset.filter(pk=intermediario_usuario.pk)
+
+        else:
+            # Si llegamos a una vista que no sabemos cómo filtrar, por seguridad, no mostramos nada.
+            return queryset.none()
+
+        return queryset
+
+
 # Configuración del logger
 logger = logging.getLogger(__name__)
 
@@ -1030,7 +1081,7 @@ class AuditoriaSistemaDeleteView(BaseDeleteView):
 # ==========================
 
 
-class AfiliadoIndividualListView(BaseListView):
+class AfiliadoIndividualListView(IntermediarioDataMixin, BaseListView):
     model = AfiliadoIndividual
     model_manager_name = 'all_objects'  # Para BaseCRUDView
     template_name = 'afiliado_individual_list.html'
@@ -1239,7 +1290,7 @@ class AfiliadoIndividualDeleteView(BaseDeleteView):
 # ==========================
 
 
-class AfiliadoColectivoListView(BaseListView):
+class AfiliadoColectivoListView(IntermediarioDataMixin, BaseListView):
     model = AfiliadoColectivo
     model_manager_name = 'objects'
     template_name = 'afiliado_colectivo_list.html'
@@ -1426,7 +1477,7 @@ class AfiliadoColectivoDeleteView(BaseDeleteView):
 # ==========================
 
 
-class ContratoIndividualListView(BaseListView):
+class ContratoIndividualListView(IntermediarioDataMixin, BaseListView):
     model = ContratoIndividual
     model_manager_name = 'objects'
     template_name = 'contrato_individual_list.html'
@@ -1750,7 +1801,7 @@ class ContratoIndividualDeleteView(BaseDeleteView):
 # ==========================
 # ContratoColectivo Vistas
 # ==========================
-class ContratoColectivoListView(BaseListView):
+class ContratoColectivoListView(IntermediarioDataMixin, BaseListView):
     model = ContratoColectivo
     model_manager_name = 'objects'
     template_name = 'contrato_colectivo_list.html'
@@ -2313,7 +2364,7 @@ class IntermediarioDeleteView(BaseDeleteView):
 # ==========================
 
 
-class ReclamacionListView(BaseListView):
+class ReclamacionListView(IntermediarioDataMixin, BaseListView):
     model = Reclamacion
     model_manager_name = 'objects'
     template_name = 'reclamacion_list.html'
@@ -2660,7 +2711,7 @@ class ReclamacionStatusAPIView(View):
 # ==========================
 
 
-class PagoListView(BaseListView):
+class PagoListView(IntermediarioDataMixin, BaseListView):
     model = Pago
     model_manager_name = 'objects'
     template_name = 'pago_list.html'
@@ -4112,7 +4163,7 @@ class UsuarioDeleteView(BaseDeleteView):
 # ==========================
 # Factura Vistas
 # ==========================
-class FacturaListView(BaseListView):
+class FacturaListView(IntermediarioDataMixin, BaseListView):
     model = Factura
     model_manager_name = 'objects'
     template_name = 'factura_list.html'

@@ -5,6 +5,18 @@ from django.core.cache import caches
 from django.core.cache.backends.base import BaseCache, InvalidCacheBackendError
 import logging
 import warnings
+from celery import shared_task
+from django.db import transaction
+from django.db.models import Q
+from datetime import date, timedelta
+from dateutil.relativedelta import relativedelta
+import logging
+
+
+from .models import ContratoIndividual, ContratoColectivo, Factura
+
+logger = logging.getLogger(__name__)
+
 
 # Configuración inicial de logging
 logger = logging.getLogger(__name__)
@@ -118,3 +130,103 @@ if __name__ == "__main__":
     django.setup()
     result = clear_graph_cache()
     print(f"Entradas eliminadas: {result or 0}")
+
+
+def generar_facturas_para_contrato(contrato):
+    """
+    Función helper que contiene la lógica para un solo contrato.
+    Devuelve el número de facturas creadas.
+    """
+    hoy = date.today()
+    if not contrato.esta_vigente:
+        return 0
+
+    # Determinar el intervalo de pago
+    intervalo = None
+    if contrato.forma_pago == 'MENSUAL':
+        intervalo = relativedelta(months=1)
+    elif contrato.forma_pago == 'TRIMESTRAL':
+        intervalo = relativedelta(months=3)
+    elif contrato.forma_pago == 'SEMESTRAL':
+        intervalo = relativedelta(months=6)
+    elif contrato.forma_pago == 'ANUAL':
+        intervalo = relativedelta(years=1)
+
+    # Si es 'CONTADO' o no se puede determinar, no se generan facturas periódicas
+    if not intervalo:
+        return 0
+
+    # Buscar la última factura generada para este contrato
+    ultima_factura = Factura.objects.filter(
+        Q(contrato_individual=contrato) | Q(contrato_colectivo=contrato)
+    ).order_by('-vigencia_recibo_hasta').first()
+
+    fecha_inicio_siguiente_factura = contrato.fecha_inicio_vigencia
+    if ultima_factura:
+        fecha_inicio_siguiente_factura = ultima_factura.vigencia_recibo_hasta + \
+            timedelta(days=1)
+
+    # Comprobar si ya debemos generar la siguiente factura
+    # Generamos si la fecha de inicio de la próxima factura ya pasó o es hoy
+    if fecha_inicio_siguiente_factura > hoy:
+        return 0  # Aún no es tiempo
+
+    fecha_fin_siguiente_factura = fecha_inicio_siguiente_factura + \
+        intervalo - timedelta(days=1)
+
+    # No generar facturas más allá de la vigencia del contrato
+    if fecha_fin_siguiente_factura > contrato.fecha_fin_vigencia:
+        fecha_fin_siguiente_factura = contrato.fecha_fin_vigencia
+
+    # Evitar crear una factura duplicada para el mismo período
+    if Factura.objects.filter(
+        Q(contrato_individual=contrato) | Q(contrato_colectivo=contrato),
+        vigencia_recibo_desde=fecha_inicio_siguiente_factura
+    ).exists():
+        logger.warning(
+            f"Factura para contrato {contrato.numero_contrato} y período desde {fecha_inicio_siguiente_factura} ya existe. Omitiendo.")
+        return 0
+
+    # Crear la nueva factura
+    try:
+        nueva_factura = Factura.objects.create(
+            contrato_individual=contrato if isinstance(
+                contrato, ContratoIndividual) else None,
+            contrato_colectivo=contrato if isinstance(
+                contrato, ContratoColectivo) else None,
+            monto=contrato.monto_cuota_estimada,
+            vigencia_recibo_desde=fecha_inicio_siguiente_factura,
+            vigencia_recibo_hasta=fecha_fin_siguiente_factura,
+            intermediario=contrato.intermediario,
+            estatus_factura='GENERADA'  # O 'PENDIENTE' según tu flujo
+        )
+        logger.info(
+            f"ÉXITO: Factura {nueva_factura.numero_recibo} creada para contrato {contrato.numero_contrato} para el período {fecha_inicio_siguiente_factura} a {fecha_fin_siguiente_factura}.")
+        return 1
+    except Exception as e:
+        logger.error(
+            f"Error creando factura para contrato {contrato.numero_contrato}: {e}")
+        return 0
+
+
+@shared_task(name="generar_facturas_periodicas")
+def generar_facturas_periodicas_task():
+    """
+    Tarea principal de Celery que recorre todos los contratos activos
+    y genera las facturas que correspondan.
+    """
+    logger.info(
+        "--- INICIANDO TAREA PROGRAMADA: Generación de Facturas Periódicas ---")
+
+    contratos_a_procesar = list(ContratoIndividual.objects.filter(activo=True)) + \
+        list(ContratoColectivo.objects.filter(activo=True))
+
+    total_facturas_creadas = 0
+
+    for contrato in contratos_a_procesar:
+        with transaction.atomic():
+            total_facturas_creadas += generar_facturas_para_contrato(contrato)
+
+    logger.info(
+        f"--- TAREA FINALIZADA: Se crearon {total_facturas_creadas} nuevas facturas. ---")
+    return f"Se crearon {total_facturas_creadas} nuevas facturas."

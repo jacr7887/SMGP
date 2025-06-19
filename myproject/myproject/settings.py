@@ -81,7 +81,7 @@ INSTALLED_APPS = [
     'whitenoise.runserver_nostatic', 'django.contrib.staticfiles',
     'django.contrib.humanize', 'django_filters', 'django_select2', 'rangefilter',
     'sequences', 'pgtrigger', 'widget_tweaks',
-    'myapp.apps.MyappConfig',
+    'myapp.apps.MyappConfig', 'django_celery_beat'
 ]
 
 MIDDLEWARE = [
@@ -234,3 +234,29 @@ LICENSE_EXEMPT_URL_NAMES = [
     'admin:myapp_licenseinfo_history', 'admin:myapp_licenseinfo_view',
 ]
 SMGP_LICENSE_VERIFY_KEY_B64 = env('SMGP_LICENSE_VERIFY_KEY_B64')
+
+CELERY_BROKER_URL = 'sqla+django://'
+
+# Dónde Celery almacenará los resultados. También usamos la base de datos.
+# Esto crea tablas adicionales 'celery_...' para guardar el estado de las tareas.
+CELERY_RESULT_BACKEND = 'db+postgresql://postgres://postgres:7319@localhost:5432/smgp'
+
+# === IMPORTANTE: REEMPLAZA CON TUS DATOS REALES DE POSTGRESQL ===
+# Ejemplo:
+# CELERY_RESULT_BACKEND = 'db+postgresql://postgres:mysecretpassword@localhost:5432/mpc_db'
+# Estos deben ser los mismos datos que tienes en tu configuración de DATABASES.
+
+# Aceptar contenido en formato JSON (esto no cambia)
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+
+# Zona horaria para la programación de tareas (esto no cambia)
+CELERY_TIMEZONE = 'America/Caracas'
+
+# --- CONFIGURACIÓN DE CELERY BEAT (esto no cambia) ---
+
+# Le decimos a Celery Beat que use la base de datos de Django para guardar los horarios
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+# No necesitas añadir nada a INSTALLED_APPS si ya tienes 'django_celery_beat'.
