@@ -1,0 +1,25 @@
+Asistente, necesito que continúes ayudándome con un proyecto de Django. Hemos pasado por un proceso de depuración muy largo y frustrante, y quiero que entiendas exactamente en qué punto estamos y cuál es el objetivo final.
+Contexto del Proyecto:
+Tengo una aplicación de gestión de seguros (SMGP) construida con Django 4.2 y PostgreSQL. La aplicación está casi terminada y es muy completa: gestiona contratos, afiliados, intermediarios, reclamaciones, y genera KPIs y gráficos.
+El Objetivo Principal:
+Necesito implementar un sistema de automatización para la facturación periódica. La idea es que un proceso en segundo plano se ejecute automáticamente (por ejemplo, una vez al día) y cree las facturas de cobro para los contratos según su frecuencia de pago (mensual, trimestral, etc.), sin intervención manual. El objetivo final es empaquetar toda la aplicación, incluyendo esta automatización, en un único archivo .exe para Windows usando PyInstaller.
+Lo que Intentamos y Salió MAL (El "Infierno de Celery"):
+Inicialmente, intentamos usar Celery, la librería estándar para tareas en segundo plano.
+Encontramos una serie de errores de dependencias increíblemente persistentes y frustrantes, específicamente con la combinación de mi entorno (Windows, Python 3.13) y las versiones de Celery, setuptools y importlib-metadata.
+Los errores principales fueron AttributeError: 'EntryPoints' object has no attribute 'get' y ModuleNotFoundError.
+Intentamos múltiples "recetas" de instalación, degradando paquetes como pip y setuptools, pero los problemas continuaron, lo que indica un conflicto de dependencias muy profundo y difícil de resolver en mi entorno específico.
+La Nueva Estrategia (Nuestra Situación Actual):
+Hemos decidido abandonar por completo la idea de usar Celery para este proyecto debido a su complejidad y fragilidad en mi entorno.
+Ahora vamos a usar una librería mucho más simple y robusta llamada django-background-tasks. Esta librería es ideal porque:
+No tiene dependencias externas conflictivas (no necesita Redis).
+Usa la base de datos PostgreSQL que ya tengo.
+Es mucho más fácil de configurar y de empaquetar con PyInstaller.
+Mi Última Acción Realizada:
+Siguiendo tus últimas instrucciones, acabo de ejecutar un script de PowerShell como administrador para reparar la variable de entorno Path de mi sistema Windows, ya que descubrimos que una versión incorrecta de Python (de Inkscape) estaba interfiriendo. Estoy a punto de reiniciar mi computadora para que esos cambios se apliquen.
+¿Qué necesito que hagas ahora?
+Asumiendo que después de reiniciar mi PC, el comando python --version finalmente muestra la versión correcta (3.13), por favor, guíame en los siguientes pasos para implementar la automatización con django-background-tasks desde un punto de partida limpio. Necesito saber:
+Cómo crear un nuevo entorno virtual limpio.
+Un archivo requirements.txt completo y correcto que incluya django-background-tasks y todas mis otras dependencias, pero sin nada de Celery.
+Los pasos para instalar todo, configurar settings.py para django-background-tasks, adaptar el archivo myapp/tasks.py, y ejecutar las migraciones.
+Finalmente, cómo ejecutar el sistema en desarrollo y cómo adaptar mi start.py y mi .spec para empaquetar la aplicación con PyInstaller.
+Por favor, sé muy claro y preciso. Hemos perdido mucho tiempo con los errores anteriores, así que necesito que esta sea la solución definitiva.

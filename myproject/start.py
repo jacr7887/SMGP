@@ -1,23 +1,47 @@
-# start.py (Versión Final con Celery y Multiprocesamiento)
+# start.py (Versión Final, a prueba de todo, con lector de .env integrado)
 
 import os
 import sys
 import multiprocessing
-import subprocess  # [NUEVO] Necesario para llamar a Celery
+import subprocess
 from pathlib import Path
 import logging
 
 # --- PASO 1: Configurar el entorno ANTES DE CUALQUIER IMPORT DE DJANGO ---
 if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    # Modo Congelado (.exe)
+    # _MEIPASS es la carpeta temporal donde PyInstaller extrae los archivos
     project_path = sys._MEIPASS
 else:
+    # Modo Desarrollo (python manage.py ...)
+    # La ruta del script start.py
     project_path = os.path.dirname(os.path.abspath(__file__))
 
+# Añadimos la ruta del proyecto al path de Python para que encuentre los módulos
 sys.path.insert(0, project_path)
+# Establecemos la variable de entorno que Django usará para encontrar la configuración
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'myproject.settings')
 
-# --- PASO 2: Crear el archivo .env si no existe ---
-DEFAULT_ENV_CONTENT = """# .env - Creado automáticamente.
+
+# --- [SOLUCIÓN DEFINITIVA] Función para leer .env y cargar variables al entorno ---
+def load_env_from_file():
+    """
+    Busca el archivo .env, lo crea si no existe, y carga sus variables
+    directamente en el entorno de ejecución de Python (os.environ).
+    """
+    print("Buscando y cargando archivo .env...")
+    try:
+        # Determinar la ruta base donde debe estar el .env
+        if getattr(sys, 'frozen', False):
+            # Si es un .exe, el .env debe estar junto al ejecutable
+            base_path = Path(sys.executable).parent
+        else:
+            # En desarrollo, el .env está en la carpeta raíz del proyecto (un nivel arriba de donde está start.py)
+            base_path = Path(__file__).parent.parent
+
+        env_path = base_path / '.env'
+
+        DEFAULT_ENV_CONTENT = """# .env - Creado automáticamente.
 SECRET_KEY='Xgfei34531#$&/$234fGHYtfhuY&6%$33rf#FfHUu7854fd"S3F%6HrR2dfdgG%6(5##3rfDfv-t4342345F$26fd6/%$#)'
 DEBUG=False
 ALLOWED_HOSTS=*
@@ -29,31 +53,44 @@ DJANGO_SUPERUSER_PASSWORD='123456789/*-+'
 DJANGO_SUPERUSER_PRIMER_NOMBRE='Jesus'
 DJANGO_SUPERUSER_PRIMER_APELLIDO='Chacon'
 """
-try:
-    if getattr(sys, 'frozen', False):
-        base_path = Path(sys.executable).parent
-    else:
-        base_path = Path(__file__).parent
-    env_path = base_path / '.env'
-    if not env_path.exists():
-        print(f"Archivo .env no encontrado. Creando uno nuevo en: {env_path}")
-        with open(env_path, 'w', encoding='utf-8') as f:
-            f.write(DEFAULT_ENV_CONTENT)
-except Exception as e:
-    print(f"ERROR: No se pudo crear el archivo .env: {e}")
-    input("Presiona Enter para salir.")
-    sys.exit(1)
+        if not env_path.exists():
+            print(
+                f"Archivo .env no encontrado. Creando uno nuevo en: {env_path}")
+            with open(env_path, 'w', encoding='utf-8') as f:
+                f.write(DEFAULT_ENV_CONTENT)
 
-# --- PASO 3: Función de Inicialización de la BD (sin cambios) ---
+        # Leemos el archivo línea por línea y cargamos las variables
+        with open(env_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    key = key.strip()
+                    value = value.strip()
+                    # Quitar comillas si las hay
+                    if (value.startswith("'") and value.endswith("'")) or \
+                       (value.startswith('"') and value.endswith('"')):
+                        value = value[1:-1]
+                    # Establecer la variable de entorno si no existe ya
+                    os.environ.setdefault(key, value)
+        print("Variables de entorno cargadas con éxito desde .env")
+
+    except Exception as e:
+        print(f"ERROR CRÍTICO: No se pudo procesar el archivo .env: {e}")
+        input("Presiona Enter para salir.")
+        sys.exit(1)
 
 
 def initialize_database():
+    """
+    Verifica la conexión a la BD y ejecuta migraciones/poblado si es necesario.
+    """
     import django
-    from django.conf import settings
     from django.core.management import call_command
     from django.db import connection
     from django.db.utils import OperationalError
 
+    # Llamar a django.setup() es crucial para que Django se configure
     print("Llamando a django.setup() desde initialize_database...")
     django.setup()
     print("Configuración de Django completada.")
@@ -61,11 +98,7 @@ def initialize_database():
     from myapp.models import Usuario, Tarifa
 
     try:
-        # La mejor forma de saber si la BD está vacía es intentar una conexión
-        # y luego verificar si las tablas existen o están pobladas.
         connection.ensure_connection()
-
-        # Verificar si las migraciones ya se aplicaron y si hay datos
         if not Usuario.objects.filter(is_superuser=True).exists() or not Tarifa.objects.exists():
             print("\n[INICIALIZACIÓN DE BD REQUERIDA]")
             print("Aplicando migraciones...")
@@ -88,90 +121,65 @@ def initialize_database():
         sys.exit(1)
 
 
-# --- [NUEVO] Funciones para lanzar cada proceso hijo ---
-
 def run_django_waitress():
-    """Inicia el servidor web Django."""
-    # Importaciones locales para que el proceso hijo las tenga
+    """Inicia el servidor web Django con Waitress."""
     from waitress import serve
-    from myproject.wsgi import application  # Asegúrate que la ruta sea correcta
-
+    from myproject.wsgi import application
     print(
-        ">>> [Proceso 1/3] Iniciando servidor Django con Waitress en el puerto 8000...")
+        ">>> [Proceso 1/2] Iniciando servidor Django con Waitress en el puerto 8000...")
     try:
         serve(application, host='0.0.0.0', port='8000', threads=8)
     except Exception as e:
         print(f"!!! Error al iniciar el servidor Django: {e}")
 
 
-def run_celery_worker():
-    """Inicia el Worker de Celery."""
-    print(">>> [Proceso 2/3] Iniciando Celery Worker...")
+def run_task_processor():
+    """Inicia el procesador de tareas de django-background-tasks."""
+    print(
+        ">>> [Proceso 2/2] Iniciando Procesador de Tareas (django-background-tasks)...")
     try:
-        # --pool=solo es crucial para la compatibilidad con PyInstaller en Windows
-        command = [sys.executable, '-m', 'celery', '-A',
-                   'myproject.celery', 'worker', '--loglevel=info', '--pool=solo']
-        subprocess.run(command)
+        # Usamos call_command, que es la forma limpia de ejecutar comandos de gestión
+        from django.core.management import call_command
+        call_command('process_tasks')
     except Exception as e:
-        print(f"!!! Error al iniciar Celery Worker: {e}")
+        print(f"!!! Error al iniciar el procesador de tareas: {e}")
 
 
-def run_celery_beat():
-    """Inicia el programador (Beat) de Celery."""
-    print(">>> [Proceso 3/3] Iniciando Celery Beat...")
-    try:
-        pid_file = 'celerybeat.pid'
-        if os.path.exists(pid_file):
-            os.remove(pid_file)
-
-        command = [sys.executable, '-m', 'celery', '-A', 'myproject.celery', 'beat',
-                   '--loglevel=info', '--scheduler', 'django_celery_beat.schedulers:DatabaseScheduler']
-        subprocess.run(command)
-    except Exception as e:
-        print(f"!!! Error al iniciar Celery Beat: {e}")
-
-
-# --- [NUEVO] Punto de Entrada Principal con Multiprocesamiento ---
+# --- Punto de Entrada Principal con Multiprocesamiento ---
 if __name__ == '__main__':
-    # Necesario para PyInstaller en Windows
+    # Necesario para que el multiprocesamiento funcione correctamente con PyInstaller
     multiprocessing.freeze_support()
 
+    # [CAMBIO CLAVE] Cargamos el .env ANTES de que Django o cualquier otra cosa se inicie
+    load_env_from_file()
+
     print("\n" + "="*50)
-    print("--- SMGP App - INICIANDO SISTEMA ---")
+    print("--- SMGP App - PROCESO PRINCIPAL INICIANDO ---")
     print("="*50, flush=True)
 
     try:
-        # PASO A: Ejecutar la inicialización de la base de datos UNA SOLA VEZ en el proceso principal.
+        # Se ejecuta la inicialización una sola vez en el proceso principal.
         initialize_database()
 
         print("\n" + "-"*50)
         print("Iniciando procesos en paralelo...")
-        print("1. Servidor Web (Django/Waitress)")
-        print("2. Procesador de Tareas (Celery Worker)")
-        print("3. Programador de Tareas (Celery Beat)")
+        print("1. Servidor Web (Waitress)")
+        print("2. Procesador de Tareas (Background Tasks)")
         print("La aplicación estará lista en http://localhost:8000")
         print("Presiona Ctrl+C en esta ventana para detener todos los servicios.")
         print("-"*50, flush=True)
 
-        # PASO B: Crear los procesos para cada servicio.
+        # Se crean y lanzan los dos procesos necesarios.
         process_django = multiprocessing.Process(
             target=run_django_waitress, name="Django-Waitress")
-        process_worker = multiprocessing.Process(
-            target=run_celery_worker, name="Celery-Worker")
-        process_beat = multiprocessing.Process(
-            target=run_celery_beat, name="Celery-Beat")
+        process_tasks = multiprocessing.Process(
+            target=run_task_processor, name="Task-Processor")
 
-        # PASO C: Iniciar todos los procesos.
         process_django.start()
-        process_worker.start()
-        process_beat.start()
+        process_tasks.start()
 
-        # PASO D: Esperar a que los procesos terminen.
-        # Esto mantiene el script principal vivo. Si el usuario cierra esta ventana,
-        # los procesos hijos también se terminarán.
         process_django.join()
-        process_worker.join()
-        process_beat.join()
+        process_tasks.join()
 
         print(">>> Todos los procesos han finalizado. Cerrando aplicación.")
 

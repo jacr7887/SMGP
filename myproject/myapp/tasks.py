@@ -1,147 +1,68 @@
 # myapp/tasks.py
-"""Módulo avanzado para gestión de caché de gráficos con soporte multi-backend"""
-from typing import Optional, Union
-from django.core.cache import caches
-from django.core.cache.backends.base import BaseCache, InvalidCacheBackendError
+
+# --- 1. Importaciones de Terceros y de Django ---
+from typing import Optional
 import logging
 import warnings
-from celery import shared_task
-from django.db import transaction
-from django.db.models import Q
 from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
-import logging
 
+from django.core.cache import caches
+from django.core.cache.backends.base import InvalidCacheBackendError
+from django.db import transaction
+from django.db.models import Q
 
+# --- 2. Importaciones de la librería de tareas en segundo plano ---
+from background_task import background
+from background_task.models import Task
+
+# --- 3. Importaciones de tu Propia App ---
 from .models import ContratoIndividual, ContratoColectivo, Factura
 
+# --- 4. Configuración del Logger ---
 logger = logging.getLogger(__name__)
-
-
-# Configuración inicial de logging
-logger = logging.getLogger(__name__)
-# Suprime warnings de conexiones
 warnings.simplefilter("ignore", ResourceWarning)
 
 
+# --- 5. Lógica de Gestión de Caché (SIMPLIFICADA Y CORRECTA) ---
 def clear_graph_cache(backend_name: str = 'default') -> Optional[int]:
-    """Elimina todas las entradas de caché relacionadas con gráficos de forma segura.
-
-    Args:
-        backend_name (str): Nombre del backend configurado en settings.CACHES.
-                            Default: 'default'
-
-    Returns:
-        int: Número de entradas eliminadas (None si falla críticamente)
-
-    Raises:
-        ValueError: Si el backend no existe
-        TypeError: Si el backend no soporta las operaciones necesarias
-
-    Ejemplos:
-        >>> clear_graph_cache()
-        42  # Entradas eliminadas
-
-        >>> clear_graph_cache('memcached')
-        15
+    """
+    Elimina todas las entradas de caché de gráficos para el backend de caché de archivos.
     """
     try:
         backend = caches[backend_name]
-        return _handle_cache_clean(backend)
 
-    except KeyError as e:
-        logger.critical("Backend de caché no encontrado: %s", backend_name)
-        raise ValueError(f"Backend '{backend_name}' no existe") from e
+        # Como solo usas FileBasedCache, esta es la única lógica que necesitas.
+        keys = backend.keys("graph_*")
+        if not keys:
+            logger.debug(
+                "No se encontraron claves de caché de gráficos para limpiar.")
+            return 0
 
-    except InvalidCacheBackendError as e:
-        logger.error("Backend inválido: %s", str(e))
+        backend.delete_many(keys)
+        logger.info(
+            f"Se eliminaron {len(keys)} entradas de la caché de gráficos.")
+        return len(keys)
+
+    except (KeyError, InvalidCacheBackendError) as e:
+        logger.critical(
+            f"Backend de caché '{backend_name}' no encontrado o inválido: {e}")
         return None
-
     except Exception as e:
-        logger.error("Error no controlado: %s", str(e), exc_info=True)
+        logger.error(
+            f"Error inesperado al limpiar la caché de gráficos: {e}", exc_info=True)
         return None
 
 
-def _handle_cache_clean(backend: BaseCache) -> Optional[int]:
-    """Estrategia de limpieza según tipo de backend."""
-    try:
-        # Optimización para Redis
-        if 'redis' in backend.__class__.__name__.lower():
-            if hasattr(backend, 'delete_pattern'):
-                return backend.delete_pattern("graph_*")
-            return _redis_fallback_clean(backend)
-
-        # Optimización para Memcached
-        elif 'memcached' in backend.__class__.__name__.lower():
-            return _memcached_clean(backend)
-
-        # Método estándar para otros backends
-        return _generic_cache_clean(backend)
-
-    except AttributeError as e:
-        logger.warning("Backend no soporta operaciones bulk: %s", str(e))
-        return _fallback_sequential_clean(backend)
-
-
-def _generic_cache_clean(backend: BaseCache) -> int:
-    """Limpieza genérica para la mayoría de backends."""
-    keys = backend.keys("graph_*")
-    if not keys:
-        logger.debug("No se encontraron claves para limpiar")
-        return 0
-    backend.delete_many(keys)
-    return len(keys)
-
-
-def _redis_fallback_clean(backend: BaseCache) -> int:
-    """Limpieza alternativa para Redis sin delete_pattern."""
-    from redis import Redis  # type: ignore
-    client: Redis = backend.get_client()
-    keys = client.keys("graph_*")
-    if not keys:
-        return 0
-    return client.delete(*keys)
-
-
-def _memcached_clean(backend: BaseCache) -> int:
-    """Limpieza optimizada para Memcached."""
-    from pylibmc import Client  # type: ignore
-    client: Client = backend._cache  # pylint: disable=protected-access
-    all_keys = client.get_multi(client.keys()).keys()
-    target_keys = [k for k in all_keys if k.startswith(b'graph_')]
-    if not target_keys:
-        return 0
-    client.delete_multi(target_keys)
-    return len(target_keys)
-
-
-def _fallback_sequential_clean(backend: BaseCache) -> int:
-    """Limpieza secuencial para backends limitados."""
-    deleted = 0
-    for key in backend.iter_keys("graph_*"):
-        backend.delete(key)
-        deleted += 1
-    return deleted
-
-
-# Ejemplo de uso básico (opcional)
-if __name__ == "__main__":
-    import django
-    django.setup()
-    result = clear_graph_cache()
-    print(f"Entradas eliminadas: {result or 0}")
-
-
+# --- 6. Función Helper para la Lógica de un Contrato (sin cambios) ---
 def generar_facturas_para_contrato(contrato):
     """
-    Función helper que contiene la lógica para un solo contrato.
-    Devuelve el número de facturas creadas.
+    Verifica si un contrato necesita una nueva factura y la crea si es necesario.
     """
+    # (Tu código completo para esta función se mantiene aquí, sin cambios)
     hoy = date.today()
-    if not contrato.esta_vigente:
+    if not hasattr(contrato, 'esta_vigente') or not contrato.esta_vigente:
         return 0
-
-    # Determinar el intervalo de pago
     intervalo = None
     if contrato.forma_pago == 'MENSUAL':
         intervalo = relativedelta(months=1)
@@ -151,82 +72,87 @@ def generar_facturas_para_contrato(contrato):
         intervalo = relativedelta(months=6)
     elif contrato.forma_pago == 'ANUAL':
         intervalo = relativedelta(years=1)
-
-    # Si es 'CONTADO' o no se puede determinar, no se generan facturas periódicas
     if not intervalo:
         return 0
-
-    # Buscar la última factura generada para este contrato
+    filtro_contrato = Q(contrato_individual=contrato) if isinstance(
+        contrato, ContratoIndividual) else Q(contrato_colectivo=contrato)
     ultima_factura = Factura.objects.filter(
-        Q(contrato_individual=contrato) | Q(contrato_colectivo=contrato)
-    ).order_by('-vigencia_recibo_hasta').first()
-
+        filtro_contrato).order_by('-vigencia_recibo_hasta').first()
     fecha_inicio_siguiente_factura = contrato.fecha_inicio_vigencia
     if ultima_factura:
         fecha_inicio_siguiente_factura = ultima_factura.vigencia_recibo_hasta + \
             timedelta(days=1)
-
-    # Comprobar si ya debemos generar la siguiente factura
-    # Generamos si la fecha de inicio de la próxima factura ya pasó o es hoy
     if fecha_inicio_siguiente_factura > hoy:
-        return 0  # Aún no es tiempo
-
+        return 0
     fecha_fin_siguiente_factura = fecha_inicio_siguiente_factura + \
         intervalo - timedelta(days=1)
-
-    # No generar facturas más allá de la vigencia del contrato
     if fecha_fin_siguiente_factura > contrato.fecha_fin_vigencia:
         fecha_fin_siguiente_factura = contrato.fecha_fin_vigencia
-
-    # Evitar crear una factura duplicada para el mismo período
-    if Factura.objects.filter(
-        Q(contrato_individual=contrato) | Q(contrato_colectivo=contrato),
-        vigencia_recibo_desde=fecha_inicio_siguiente_factura
-    ).exists():
+    if fecha_inicio_siguiente_factura > fecha_fin_siguiente_factura:
+        return 0
+    if Factura.objects.filter(filtro_contrato, vigencia_recibo_desde=fecha_inicio_siguiente_factura).exists():
         logger.warning(
             f"Factura para contrato {contrato.numero_contrato} y período desde {fecha_inicio_siguiente_factura} ya existe. Omitiendo.")
         return 0
-
-    # Crear la nueva factura
     try:
-        nueva_factura = Factura.objects.create(
-            contrato_individual=contrato if isinstance(
-                contrato, ContratoIndividual) else None,
-            contrato_colectivo=contrato if isinstance(
-                contrato, ContratoColectivo) else None,
-            monto=contrato.monto_cuota_estimada,
-            vigencia_recibo_desde=fecha_inicio_siguiente_factura,
-            vigencia_recibo_hasta=fecha_fin_siguiente_factura,
-            intermediario=contrato.intermediario,
-            estatus_factura='GENERADA'  # O 'PENDIENTE' según tu flujo
-        )
+        monto_factura = contrato.monto_cuota_estimada
+        if monto_factura is None or monto_factura <= 0:
+            logger.error(
+                f"Error: Monto de cuota es None o cero para contrato {contrato.numero_contrato}. No se puede crear factura.")
+            return 0
+        with transaction.atomic():
+            nueva_factura = Factura.objects.create(contrato_individual=contrato if isinstance(contrato, ContratoIndividual) else None, contrato_colectivo=contrato if isinstance(
+                contrato, ContratoColectivo) else None, monto=monto_factura, vigencia_recibo_desde=fecha_inicio_siguiente_factura, vigencia_recibo_hasta=fecha_fin_siguiente_factura, intermediario=contrato.intermediario, estatus_factura='GENERADA')
         logger.info(
             f"ÉXITO: Factura {nueva_factura.numero_recibo} creada para contrato {contrato.numero_contrato} para el período {fecha_inicio_siguiente_factura} a {fecha_fin_siguiente_factura}.")
         return 1
     except Exception as e:
         logger.error(
-            f"Error creando factura para contrato {contrato.numero_contrato}: {e}")
+            f"Error creando factura para contrato {contrato.numero_contrato}: {e}", exc_info=True)
         return 0
 
 
-@shared_task(name="generar_facturas_periodicas")
+# --- 7. Tarea Principal para la Automatización ---
+@background(schedule=0)
 def generar_facturas_periodicas_task():
     """
-    Tarea principal de Celery que recorre todos los contratos activos
-    y genera las facturas que correspondan.
+    Tarea principal que se registrará y ejecutará en segundo plano.
     """
     logger.info(
-        "--- INICIANDO TAREA PROGRAMADA: Generación de Facturas Periódicas ---")
-
-    contratos_a_procesar = list(ContratoIndividual.objects.filter(activo=True)) + \
-        list(ContratoColectivo.objects.filter(activo=True))
-
+        "--- INICIANDO TAREA: Generación de Facturas (django-background-tasks) ---")
+    contratos_a_procesar = list(ContratoIndividual.objects.filter(activo=True, estatus='VIGENTE').exclude(forma_pago='CONTADO')) + \
+        list(ContratoColectivo.objects.filter(activo=True,
+             estatus='VIGENTE').exclude(forma_pago='CONTADO'))
     total_facturas_creadas = 0
-
     for contrato in contratos_a_procesar:
-        with transaction.atomic():
-            total_facturas_creadas += generar_facturas_para_contrato(contrato)
-
+        total_facturas_creadas += generar_facturas_para_contrato(contrato)
     logger.info(
         f"--- TAREA FINALIZADA: Se crearon {total_facturas_creadas} nuevas facturas. ---")
-    return f"Se crearon {total_facturas_creadas} nuevas facturas."
+    print(
+        f"Tarea de facturación completada. Se crearon {total_facturas_creadas} facturas.")
+
+
+# --- 8. Función para Programar la Tarea desde el Shell ---
+def programar_generador_de_facturas():
+    """
+    Se ejecuta una sola vez desde el shell para registrar la tarea en la base de datos.
+    """
+    task_name = "myapp.tasks.generar_facturas_periodicas_task"
+    verbose_name = "Generador Diario de Facturas"
+    if not Task.objects.filter(task_name=task_name).exists():
+        generar_facturas_periodicas_task(
+            repeat=Task.DAILY, verbose_name=verbose_name, remove_existing_tasks=True)
+        print(
+            f"ÉXITO: Tarea '{verbose_name}' programada para ejecutarse diariamente.")
+    else:
+        print(f"INFO: La tarea '{verbose_name}' ya estaba programada.")
+
+
+# --- 9. Bloque de ejecución directa ---
+if __name__ == "__main__":
+    import django
+    import os
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'myproject.settings')
+    django.setup()
+    result = clear_graph_cache()
+    print(f"Entradas eliminadas: {result or 0}")
