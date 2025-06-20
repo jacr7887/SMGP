@@ -418,7 +418,20 @@ class CustomLoginView(LoginView):
         return super().form_invalid(form)
 
     def get_success_url(self):
-        return reverse_lazy('myapp:home')
+        """
+        Redirige al usuario al dashboard apropiado después de iniciar sesión.
+        """
+        user = self.request.user
+
+        if user.is_superuser:
+            # Los superusuarios van al reporte general.
+            return reverse_lazy('myapp:home')
+        elif user.intermediario:
+            # Los usuarios con un intermediario asociado van a su dashboard personal.
+            return reverse_lazy('myapp:intermediario_dashboard')
+        else:
+            # Cualquier otro usuario (ej. un cliente sin intermediario) va al home.
+            return reverse_lazy('myapp:home')
 
 
 @method_decorator(csrf_protect, name='dispatch')
@@ -6871,3 +6884,112 @@ class CalcularMontoContratoAPI(View):
             # Loguear el error real en el servidor
             # logger.error(f"Error en CalcularMontoContratoAPI: {e}")
             return JsonResponse({'error': 'Ocurrió un error interno en el servidor.'}, status=500)
+
+
+class IntermediarioDashboardView(LoginRequiredMixin, TemplateView):
+    template_name = 'intermediario_dashboard.html'  # Usaremos una nueva plantilla
+
+    def get(self, request, *args, **kwargs):
+        # Asegurarnos de que el usuario tiene un intermediario asociado
+        if not request.user.is_superuser and not request.user.intermediario:
+            # Si no es admin y no tiene intermediario, no puede ver este dashboard.
+            # Puedes redirigirlo o mostrar un error.
+            raise PermissionDenied(
+                "No tienes un intermediario asociado para ver este dashboard.")
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Determinar el intermediario para el cual se generará el reporte
+        user = self.request.user
+        intermediario_a_filtrar = None
+
+        if user.is_superuser:
+            # Si es superusuario, puede ver el dashboard de un intermediario específico
+            # pasando un ID en la URL. Si no, verá los datos globales.
+            intermediario_id = self.request.GET.get('intermediario_id')
+            if intermediario_id:
+                try:
+                    intermediario_a_filtrar = Intermediario.objects.get(
+                        pk=intermediario_id)
+                    context['dashboard_title'] = f"Dashboard para Intermediario: {intermediario_a_filtrar.nombre_completo}"
+                except Intermediario.DoesNotExist:
+                    context['dashboard_title'] = "Reporte General (Intermediario no encontrado)"
+            else:
+                context['dashboard_title'] = "Reporte General (Agregado)"
+        else:
+            # Si no es superusuario, SIEMPRE verá su propio dashboard
+            intermediario_a_filtrar = user.intermediario
+            context['dashboard_title'] = "Mi Dashboard de Intermediario"
+
+        # --- Base Querysets ---
+        # Creamos los querysets base que se usarán en todos los cálculos.
+        # Si hay un intermediario, se filtra todo. Si no, se usan todos los objetos.
+        if intermediario_a_filtrar:
+            qs_contratos_ind = ContratoIndividual.objects.filter(
+                intermediario=intermediario_a_filtrar, activo=True)
+            qs_contratos_col = ContratoColectivo.objects.filter(
+                intermediario=intermediario_a_filtrar, activo=True)
+            qs_afiliados_ind = AfiliadoIndividual.objects.filter(
+                contratos__intermediario=intermediario_a_filtrar, activo=True).distinct()
+            qs_afiliados_col = AfiliadoColectivo.objects.filter(
+                contratos_afiliados__intermediario=intermediario_a_filtrar, activo=True).distinct()
+            qs_reclamaciones = Reclamacion.objects.filter(Q(contrato_individual__intermediario=intermediario_a_filtrar) | Q(
+                contrato_colectivo__intermediario=intermediario_a_filtrar), activo=True)
+            qs_facturas = Factura.objects.filter(
+                intermediario=intermediario_a_filtrar, activo=True)
+            qs_pagos = Pago.objects.filter(
+                factura__intermediario=intermediario_a_filtrar, activo=True)
+            qs_comisiones = RegistroComision.objects.filter(
+                intermediario=intermediario_a_filtrar)
+        else:  # Datos globales para superusuario sin filtro
+            qs_contratos_ind = ContratoIndividual.objects.filter(activo=True)
+            qs_contratos_col = ContratoColectivo.objects.filter(activo=True)
+            qs_afiliados_ind = AfiliadoIndividual.objects.filter(activo=True)
+            qs_afiliados_col = AfiliadoColectivo.objects.filter(activo=True)
+            qs_reclamaciones = Reclamacion.objects.filter(activo=True)
+            qs_facturas = Factura.objects.filter(activo=True)
+            qs_pagos = Pago.objects.filter(activo=True)
+            qs_comisiones = RegistroComision.objects.all()
+
+        # --- Cálculo de KPIs desde los Querysets Base ---
+        context['kpi_total_contratos'] = qs_contratos_ind.count() + \
+            qs_contratos_col.count()
+        context['kpi_total_afiliados'] = qs_afiliados_ind.count() + \
+            qs_afiliados_col.count()
+        context['kpi_total_reclamaciones'] = qs_reclamaciones.count()
+
+        # KPIs Financieros
+        primas_brutas = qs_contratos_ind.aggregate(t=Coalesce(Sum('monto_total'), Decimal('0.0')))['t'] + \
+            qs_contratos_col.aggregate(t=Coalesce(
+                Sum('monto_total'), Decimal('0.0')))['t']
+        context['kpi_primas_brutas'] = primas_brutas
+
+        total_comisiones = qs_comisiones.filter(estatus_pago_comision__in=[
+                                                'PENDIENTE', 'PAGADA']).aggregate(t=Coalesce(Sum('monto_comision'), Decimal('0.0')))['t']
+        context['kpi_total_comisiones'] = total_comisiones
+
+        comisiones_pendientes = qs_comisiones.filter(estatus_pago_comision='PENDIENTE').aggregate(
+            t=Coalesce(Sum('monto_comision'), Decimal('0.0')))['t']
+        context['kpi_comisiones_pendientes'] = comisiones_pendientes
+
+        comisiones_pagadas = qs_comisiones.filter(estatus_pago_comision='PAGADA').aggregate(
+            t=Coalesce(Sum('monto_comision'), Decimal('0.0')))['t']
+        context['kpi_comisiones_pagadas'] = comisiones_pagadas
+
+        # Ratio de Siniestralidad de la Cartera
+        siniestros_incurridos = qs_reclamaciones.filter(estado__in=['APROBADA', 'PAGADA']).aggregate(
+            t=Coalesce(Sum('monto_reclamado'), Decimal('0.0')))['t']
+        context['kpi_ratio_siniestralidad'] = (
+            siniestros_incurridos / primas_brutas * 100) if primas_brutas > 0 else Decimal('0.0')
+
+        # Contratos por vencer (ej. en los próximos 60 días)
+        fecha_limite = date.today() + timedelta(days=60)
+        context['kpi_contratos_a_vencer'] = qs_contratos_ind.filter(fecha_fin_vigencia__lte=fecha_limite, estatus='VIGENTE').count() + \
+            qs_contratos_col.filter(
+                fecha_fin_vigencia__lte=fecha_limite, estatus='VIGENTE').count()
+
+        # Puedes añadir más KPIs específicos para el intermediario aquí...
+
+        return context

@@ -122,9 +122,14 @@ def initialize_database():
 
 
 def run_django_waitress():
-    """Inicia el servidor web Django con Waitress."""
+    """Inicia el servidor web Django."""
+    # [NUEVO] Cada proceso hijo debe configurar Django por su cuenta.
+    import django
+    django.setup()
+
     from waitress import serve
     from myproject.wsgi import application
+
     print(
         ">>> [Proceso 1/2] Iniciando servidor Django con Waitress en el puerto 8000...")
     try:
@@ -134,15 +139,65 @@ def run_django_waitress():
 
 
 def run_task_processor():
-    """Inicia el procesador de tareas de django-background-tasks."""
+    """Inicia el procesador de tareas de Django-Background-Tasks."""
+    # [NUEVO] Cada proceso hijo debe configurar Django por su cuenta.
+    import django
+    django.setup()
+
+    from django.core.management import call_command
+
     print(
         ">>> [Proceso 2/2] Iniciando Procesador de Tareas (django-background-tasks)...")
     try:
-        # Usamos call_command, que es la forma limpia de ejecutar comandos de gestión
-        from django.core.management import call_command
         call_command('process_tasks')
     except Exception as e:
+        import traceback
         print(f"!!! Error al iniciar el procesador de tareas: {e}")
+        traceback.print_exc()
+
+
+# --- Punto de Entrada Principal (Corregido y a prueba de bucles) ---
+if __name__ == '__main__':
+    multiprocessing.freeze_support()
+
+    # [NUEVO] La carga del .env también debe hacerse aquí para el proceso principal.
+    load_env_from_file()
+
+    print("\n" + "="*50)
+    print("--- SMGP App - PROCESO PRINCIPAL INICIANDO ---")
+    print("="*50, flush=True)
+
+    try:
+        # La inicialización de la BD solo la hace el proceso principal.
+        initialize_database()
+
+        print("\n" + "-"*50)
+        print("Iniciando servicios en paralelo...")
+        print("1. Servidor Web (Waitress)")
+        print("2. Procesador de Tareas (Background Tasks)")
+        print("La aplicación estará lista en http://localhost:8000")
+        print("Presiona Ctrl+C en esta ventana para detener todos los servicios.")
+        print("-"*50, flush=True)
+
+        process_django = multiprocessing.Process(
+            target=run_django_waitress, name="Django-Waitress")
+        process_tasks = multiprocessing.Process(
+            target=run_task_processor, name="Task-Processor")
+
+        process_django.start()
+        process_tasks.start()
+
+        process_django.join()
+        process_tasks.join()
+
+        print(">>> Todos los procesos han finalizado. Cerrando aplicación.")
+
+    except Exception as e:
+        print("\n" + "="*70)
+        print("!!! LA APLICACIÓN HA FALLADO DURANTE EL ARRANQUE !!!")
+        logging.exception(f"ERROR: {e}")
+        print("="*70)
+        input("La aplicación ha fallado. Presiona Enter para cerrar esta ventana.")
 
 
 # --- Punto de Entrada Principal con Multiprocesamiento ---

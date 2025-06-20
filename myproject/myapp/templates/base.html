@@ -34,56 +34,19 @@
       img.emoji { height: 1.1em; width: 1.1em; margin: 0 .07em 0 .1em; vertical-align: -0.15em; display: inline-block; }
 
       /* Estilos para el menú de notificaciones */
-      .notification_item {
-        position: relative; /* Para posicionar el botón de cierre */
-        padding-right: 30px; /* Espacio para el botón de cierre */
-        /* Asegúrate de que los estilos de .notification_item no se rompan */
-      }
-      .notification_item a.notification_link_content {
-        display: flex; /* Para alinear icono y texto */
-        align-items: flex-start;
-        text-decoration: none;
-        color: inherit; /* Heredar color del texto del dropdown */
-        padding: 8px 10px; /* Ajusta el padding del enlace */
-      }
-      .notification_item a.notification_link_content:hover {
-        background-color: rgba(255,255,255,0.05); /* Un hover sutil para el contenido */
-      }
-      .notification_icon { /* El del HTML ya tiene estilos, pero para asegurar */
-        margin-right: 8px; 
-        flex-shrink: 0;
-      }
-      .notification_content {
-        flex-grow: 1;
-      }
+      .notification_item { position: relative; padding-right: 30px; }
+      .notification_item a.notification_link_content { display: flex; align-items: flex-start; text-decoration: none; color: inherit; padding: 8px 10px; }
+      .notification_item a.notification_link_content:hover { background-color: rgba(255,255,255,0.05); }
+      .notification_icon { margin-right: 8px; flex-shrink: 0; }
+      .notification_content { flex-grow: 1; }
       .notification_text { margin: 0 0 3px 0; font-size: 0.9em; word-break: break-word; }
       .notification_time { margin: 0; font-size: 0.75em; color: #888; }
       .notification_item.unread .notification_text { font-weight: bold; }
-      .notification_item .mark-notification-as-read-btn {
-        position: absolute;
-        top: 2px;
-        right: 2px;
-        background: none;
-        border: none;
-        color: #999; /* Color del botón X */
-        font-size: 1.1rem; /* Tamaño del botón X */
-        line-height: 1;
-        padding: 2px 5px;
-        cursor: pointer;
-        z-index: 2; /* Para estar encima del contenido del enlace */
-      }
-      .notification_item .mark-notification-as-read-btn:hover {
-        color: #fff; /* Color al pasar el mouse */
-      }
-      .notification_footer {
-        text-align: center; padding: 8px 0; border-top: 1px solid #444; margin-top: 5px;
-      }
-      .notification_footer a {
-        font-size: 0.8em; color: #aaa; text-decoration: none;
-      }
-      .notification_footer a:hover {
-        color: #fff; text-decoration: underline;
-      }
+      .notification_item .mark-notification-as-read-btn { position: absolute; top: 2px; right: 2px; background: none; border: none; color: #999; font-size: 1.1rem; line-height: 1; padding: 2px 5px; cursor: pointer; z-index: 2; }
+      .notification_item .mark-notification-as-read-btn:hover { color: #fff; }
+      .notification_footer { text-align: center; padding: 8px 0; border-top: 1px solid #444; margin-top: 5px; }
+      .notification_footer a { font-size: 0.8em; color: #aaa; text-decoration: none; }
+      .notification_footer a:hover { color: #fff; text-decoration: underline; }
       .notification_empty { text-align: center; padding: 10px; color: #888; font-style: italic; }
     </style>
     {% block extra_css %}{% endblock %}
@@ -105,28 +68,48 @@
         </div>
         <div class="sidebar_content">
           <ul class="nav_menu">
-            <li class="nav_item {% if active_tab == 'dashboard' or request.resolver_match.url_name == 'home' %}active{% endif %}">
-                <a href="{% url 'myapp:home' %}" class="nav_link-sidebar"><span class="nav_icon">🏠</span><span class="nav_text">Inicio</span></a>
-            </li>
-            {% if user.is_authenticated %}
-                <li class="nav_item {% if active_tab == 'reportes' %}active{% endif %}">
-                    <a href="{% url 'myapp:reporte_general' %}" class="nav_link-sidebar">
-                        <span class="nav_icon">📊</span><span class="nav_text">Reporte General</span>
-                    </a>
-                </li>
+            
+            <!-- === [CORRECCIÓN] LÓGICA DE DASHBOARDS === -->
+            {% if user.is_superuser %}
+              <li class="nav_item {% if active_tab == 'dashboard' or request.resolver_match.url_name == 'home' %}active{% endif %}">
+                  <a href="{% url 'myapp:home' %}" class="nav_link-sidebar"><span class="nav_icon">🏠</span><span class="nav_text">Inicio (Admin)</span></a>
+              </li>
+              <li class="nav_item {% if active_tab == 'reportes' %}active{% endif %}">
+                  <a href="{% url 'myapp:reporte_general' %}" class="nav_link-sidebar"><span class="nav_icon">📊</span><span class="nav_text">Reporte General</span></a>
+              </li>
+            {% elif user.intermediario %}
+              <li class="nav_item {% if request.resolver_match.url_name == 'intermediario_dashboard' %}active{% endif %}">
+                  <a href="{% url 'myapp:intermediario_dashboard' %}" class="nav_link-sidebar"><span class="nav_icon">🏠</span><span class="nav_text">Mi Dashboard</span></a>
+              </li>
+            {% else %}
+              <li class="nav_item {% if active_tab == 'dashboard' or request.resolver_match.url_name == 'home' %}active{% endif %}">
+                  <a href="{% url 'myapp:home' %}" class="nav_link-sidebar"><span class="nav_icon">🏠</span><span class="nav_text">Inicio</span></a>
+              </li>
             {% endif %}
+            
             {% if perms.myapp.view_usuario %}
                <li class="nav_item {% if active_tab == 'usuarios' %}active{% endif %}">
-                   <a href="{% url 'myapp:usuario_list' %}" class="nav_link-sidebar">
-                       <span class="nav_icon">👤</span><span class="nav_text">Usuarios</span>
-                   </a>
+                   <a href="{% url 'myapp:usuario_list' %}" class="nav_link-sidebar"><span class="nav_icon">👤</span><span class="nav_text">Usuarios</span></a>
                </li>
             {% endif %}
-            {% if perms.myapp.view_intermediario %}
-                <li class="nav_item {% if active_tab == 'intermediarios' %}active{% endif %}">
-                    <a href="{% url 'myapp:intermediario_list' %}" class="nav_link-sidebar"><span class="nav_icon">🤝</span><span class="nav_text">Intermediarios</span></a>
-                </li>
+
+            <!-- === [CORRECCIÓN] MENÚ INTERMEDIARIO === -->
+            {% if user.is_authenticated %}
+            <li class="nav_item {% if active_tab == 'intermediarios' or request.resolver_match.url_name == 'intermediario_dashboard' %}open active{% endif %}">
+              <a href="#" class="nav_link-sidebar submenu_toggle">
+                <span class="nav_icon">🤝</span><span class="nav_text">Intermediario</span><span class="nav_arrow">▼</span>
+              </a>
+              <ul class="submenu">
+                {% if not request.user.is_superuser and request.user.intermediario %}
+                    <li><a href="{% url 'myapp:intermediario_dashboard' %}" class="submenu_link {% if request.resolver_match.url_name == 'intermediario_dashboard' %}active{% endif %}">Mi Dashboard</a></li>
+                {% endif %}
+                {% if perms.myapp.view_intermediario %}
+                    <li><a href="{% url 'myapp:intermediario_list' %}" class="submenu_link {% if active_tab == 'intermediarios' %}active{% endif %}">Lista de Intermediarios</a></li>
+                {% endif %}
+              </ul>
+            </li>
             {% endif %}
+
             {% if perms.myapp.view_registrocomision %}
                 <li class="nav_item {% if active_tab == 'comisiones' or active_tab == 'liquidacion_comisiones' %}open active{% endif %}">
                     <a href="#" class="nav_link-sidebar submenu_toggle">
@@ -136,15 +119,16 @@
                         <li><a href="{% url 'myapp:registro_comision_list' %}" class="submenu_link {% if active_tab == 'comisiones' %}active{% endif %}">Registros de Comisión</a></li>
                         <li><a href="{% url 'myapp:liquidacion_comisiones' %}" class="submenu_link {% if active_tab == 'liquidacion_comisiones' %}active{% endif %}">Liquidación Pendientes</a></li>
                         <li><a href="{% url 'myapp:historial_liquidaciones_list' %}" class="submenu_link {% if active_tab == 'historial_liquidaciones' %}active{% endif %}">Historial de Liquidaciones</a></li>
-
                     </ul>
                 </li>
             {% endif %}
+
             {% if perms.myapp.view_tarifa %}
                 <li class="nav_item {% if active_tab == 'tarifas' %}active{% endif %}">
                     <a href="{% url 'myapp:tarifa_list' %}" class="nav_link-sidebar"><span class="nav_icon">🏷️</span><span class="nav_text">Tarifas</span></a>
                 </li>
             {% endif %}
+
             {% if perms.myapp.view_afiliadoindividual or perms.myapp.view_afiliadocolectivo %}
             <li class="nav_item {% if active_tab == 'afiliados_individuales' or active_tab == 'afiliados_colectivos' %}open active{% endif %}">
               <a href="#" class="nav_link-sidebar submenu_toggle"><span class="nav_icon">👥</span><span class="nav_text">Afiliados</span><span class="nav_arrow">▼</span></a>
@@ -154,6 +138,7 @@
               </ul>
             </li>
             {% endif %}
+
             {% if perms.myapp.view_contratoindividual or perms.myapp.view_contratocolectivo %}
             <li class="nav_item {% if active_tab == 'contratos_individuales' or active_tab == 'contratos_colectivos' %}open active{% endif %}">
               <a href="#" class="nav_link-sidebar submenu_toggle"><span class="nav_icon">📝</span><span class="nav_text">Contratos</span><span class="nav_arrow">▼</span></a>
@@ -163,21 +148,25 @@
               </ul>
             </li>
             {% endif %}
+
             {% if perms.myapp.view_factura %}
                 <li class="nav_item {% if active_tab == 'facturas' %}active{% endif %}">
                     <a href="{% url 'myapp:factura_list' %}" class="nav_link-sidebar"><span class="nav_icon">🧾</span><span class="nav_text">Facturas</span></a>
                 </li>
             {% endif %}
+
             {% if perms.myapp.view_reclamacion %}
                 <li class="nav_item {% if active_tab == 'reclamaciones' %}active{% endif %}">
                     <a href="{% url 'myapp:reclamacion_list' %}" class="nav_link-sidebar"><span class="nav_icon">🆘</span><span class="nav_text">Reclamaciones</span></a>
                 </li>
             {% endif %}
+
             {% if perms.myapp.view_pago %}
                 <li class="nav_item {% if active_tab == 'pagos' %}active{% endif %}">
                     <a href="{% url 'myapp:pago_list' %}" class="nav_link-sidebar"><span class="nav_icon">💰</span><span class="nav_text">Pagos</span></a>
                 </li>
             {% endif %}
+
             {% if user.is_staff %}
             <li class="nav_item {% if active_tab == 'auditorias' or active_tab == 'licencia' %}open active{% endif %}">
                 <a href="#" class="nav_link-sidebar submenu_toggle"><span class="nav_icon">🔒</span><span class="nav_text">Admin</span><span class="nav_arrow">▼</span></a>
@@ -187,13 +176,11 @@
                 </ul>
             </li>
             {% endif %}
+
              <li class="nav_item">
-                <form id="logout-form-sidebar" method="post" action="{% url 'myapp:logout' %}" style="display: none;">
-                    {% csrf_token %}
-                </form>
+                <form id="logout-form-sidebar" method="post" action="{% url 'myapp:logout' %}" style="display: none;">{% csrf_token %}</form>
                 <a href="#" onclick="event.preventDefault(); document.getElementById('logout-form-sidebar').submit();" class="nav_link-sidebar">
-                    <span class="nav_icon">🚪</span>
-                    <span class="nav_text">Cerrar Sesión</span>
+                    <span class="nav_icon">🚪</span><span class="nav_text">Cerrar Sesión</span>
                 </a>
             </li>
           </ul>

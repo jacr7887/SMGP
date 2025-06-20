@@ -3,7 +3,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from . import views
 from myapp import views
-from .views import CalcularMontoContratoAPI, ReclamacionStatusAPIView
+from .views import CalcularMontoContratoAPI, ReclamacionStatusAPIView, IntermediarioDashboardView
 from django.views.generic import TemplateView  # Importa TemplateView
 
 app_name = 'myapp'
@@ -94,6 +94,8 @@ urlpatterns = [
          views.IntermediarioUpdateView.as_view(), name='intermediario_update'),
     path('intermediarios/eliminar/<int:pk>/',
          views.IntermediarioDeleteView.as_view(), name='intermediario_delete'),
+    path('intermediario/dashboard/', IntermediarioDashboardView.as_view(),
+         name='intermediario_dashboard'),
 
     # Vistas de Reclamación
     path('reclamaciones/', views.ReclamacionListView.as_view(),
