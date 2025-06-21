@@ -370,25 +370,20 @@ def validar_tarifa(sender, instance, **kwargs):
 @transaction.atomic
 def calcular_y_registrar_comisiones(pago_instance):
     """
-    Calcula y registra las comisiones (Directa y Override) basadas en un pago recibido.
-    La única fuente para los porcentajes de comisión es el modelo Intermediario.
+    Calcula y registra comisiones (Directa y Override) y envía notificaciones
+    al intermediario correspondiente solo si la comisión se acaba de crear.
     """
-    logger.info(
-        f"[SEÑAL COMISIONES] Iniciando para Pago PK: {pago_instance.pk}, Monto: {pago_instance.monto_pago}")
+    logger.info(f"[COMISIONES] Iniciando para Pago PK: {pago_instance.pk}")
 
-    # 1. Validar que el pago sea apto para generar comisiones
     if not pago_instance.factura_id:
-        logger.info(
-            f"[SEÑAL COMISIONES] Pago {pago_instance.pk} no está asociado a una factura. No se calculan comisiones.")
+        logger.info("[COMISIONES] Pago no asociado a factura. Finalizando.")
         return
 
     monto_base_calculo = pago_instance.monto_pago
     if not monto_base_calculo or monto_base_calculo <= Decimal('0.00'):
-        logger.info(
-            f"[SEÑAL COMISIONES] Monto base para comisión es cero o None para Pago {pago_instance.pk}. No se calculan comisiones.")
+        logger.info("[COMISIONES] Monto base es cero o None. Finalizando.")
         return
 
-    # 2. Obtener los objetos necesarios (Factura, Contrato, Intermediarios)
     try:
         factura = Factura.objects.select_related(
             'contrato_individual__intermediario__intermediario_relacionado',
@@ -396,28 +391,23 @@ def calcular_y_registrar_comisiones(pago_instance):
         ).get(pk=pago_instance.factura_id)
     except Factura.DoesNotExist:
         logger.error(
-            f"[SEÑAL COMISIONES] ERROR: Factura {pago_instance.factura_id} no encontrada para Pago {pago_instance.pk}.")
+            f"[COMISIONES] ERROR: Factura {pago_instance.factura_id} no encontrada.")
         return
 
     contrato = factura.contrato_individual or factura.contrato_colectivo
     if not contrato or not contrato.intermediario:
         logger.info(
-            f"[SEÑAL COMISIONES] Factura {factura.pk} no tiene un contrato o intermediario asociado. No se calculan comisiones.")
+            f"[COMISIONES] Factura {factura.pk} sin contrato o intermediario. Finalizando.")
         return
 
     intermediario_venta = contrato.intermediario
-    logger.info(
-        f"[SEÑAL COMISIONES] Venta por: {intermediario_venta.nombre_completo} (PK: {intermediario_venta.pk})")
 
-    # 3. Calcular y registrar Comisión Directa
+    # --- 1. COMISIÓN DIRECTA ---
     porcentaje_directa = intermediario_venta.porcentaje_comision or Decimal(
         '0.00')
-
     if porcentaje_directa > Decimal('0.00'):
         monto_comision = (monto_base_calculo *
                           porcentaje_directa) / Decimal('100.00')
-
-        # get_or_create para evitar duplicados si la señal se ejecuta varias veces
         rc_directa, created = RegistroComision.objects.get_or_create(
             pago_cliente=pago_instance,
             intermediario=intermediario_venta,
@@ -434,53 +424,63 @@ def calcular_y_registrar_comisiones(pago_instance):
         )
         if created:
             logger.info(
-                f"[SEÑAL COMISIONES] ÉXITO: Comisión DIRECTA de {rc_directa.monto_comision} registrada para {intermediario_venta.nombre_completo}.")
+                f"[COMISIONES] Creada comisión DIRECTA de ${rc_directa.monto_comision} para {intermediario_venta.nombre_completo}.")
+            # === NOTIFICACIÓN PARA INTERMEDIARIO DIRECTO ===
+            mensaje_directa = f"¡Felicidades! Has ganado una comisión directa de ${rc_directa.monto_comision:,.2f} por el pago de la factura {factura.numero_recibo}."
+            usuarios_a_notificar = intermediario_venta.usuarios_asignados.filter(
+                is_active=True)
+            if usuarios_a_notificar.exists():
+                crear_notificacion(
+                    usuario_destino=usuarios_a_notificar,
+                    mensaje=mensaje_directa,
+                    tipo='success',
+                    url_path_name='myapp:mis_comisiones_list'
+                )
         else:
             logger.warning(
-                f"[SEÑAL COMISIONES] Comisión DIRECTA para Pago {pago_instance.pk} ya existía. No se creó duplicado.")
-    else:
-        logger.info(
-            f"[SEÑAL COMISIONES] Intermediario {intermediario_venta.nombre_completo} no tiene comisión directa (>0).")
+                f"[COMISIONES] Comisión DIRECTA para Pago {pago_instance.pk} ya existía.")
 
-    # 4. Calcular y registrar Comisión de Override
+    # --- 2. COMISIÓN DE OVERRIDE ---
     intermediario_padre = intermediario_venta.intermediario_relacionado
     if intermediario_padre:
         porcentaje_override = intermediario_padre.porcentaje_override or Decimal(
             '0.00')
-
         if porcentaje_override > Decimal('0.00'):
-            monto_comision = (monto_base_calculo *
-                              porcentaje_override) / Decimal('100.00')
-
-            rc_override, created = RegistroComision.objects.get_or_create(
+            monto_comision_override = (
+                monto_base_calculo * porcentaje_override) / Decimal('100.00')
+            rc_override, created_override = RegistroComision.objects.get_or_create(
                 pago_cliente=pago_instance,
-                intermediario=intermediario_padre,  # El beneficiario es el padre
+                intermediario=intermediario_padre,
                 tipo_comision='OVERRIDE',
-                intermediario_vendedor=intermediario_venta,
                 defaults={
                     'contrato_individual': factura.contrato_individual,
                     'contrato_colectivo': factura.contrato_colectivo,
                     'factura_origen': factura,
                     'porcentaje_aplicado': porcentaje_override,
                     'monto_base_calculo': monto_base_calculo,
-                    'monto_comision': monto_comision.quantize(Decimal('0.01'), ROUND_HALF_UP),
+                    'monto_comision': monto_comision_override.quantize(Decimal('0.01'), ROUND_HALF_UP),
+                    'intermediario_vendedor': intermediario_venta
                 }
             )
-            if created:
+            if created_override:
                 logger.info(
-                    f"[SEÑAL COMISIONES] ÉXITO: Comisión OVERRIDE de {rc_override.monto_comision} registrada para PADRE {intermediario_padre.nombre_completo}.")
+                    f"[COMISIONES] Creada comisión OVERRIDE de ${rc_override.monto_comision} para {intermediario_padre.nombre_completo}.")
+                # === NOTIFICACIÓN PARA INTERMEDIARIO PADRE ===
+                mensaje_override = f"¡Has ganado una comisión de override de ${rc_override.monto_comision:,.2f} por una venta de {intermediario_venta.nombre_completo}!"
+                usuarios_padre_a_notificar = intermediario_padre.usuarios_asignados.filter(
+                    is_active=True)
+                if usuarios_padre_a_notificar.exists():
+                    crear_notificacion(
+                        usuario_destino=usuarios_padre_a_notificar,
+                        mensaje=mensaje_override,
+                        tipo='success',
+                        url_path_name='myapp:mis_comisiones_list'
+                    )
             else:
                 logger.warning(
-                    f"[SEÑAL COMISIONES] Comisión OVERRIDE para Pago {pago_instance.pk} ya existía. No se creó duplicado.")
-        else:
-            logger.info(
-                f"[SEÑAL COMISIONES] Intermediario Padre {intermediario_padre.nombre_completo} no tiene comisión de override (>0).")
-    else:
-        logger.info(
-            f"[SEÑAL COMISIONES] Intermediario {intermediario_venta.nombre_completo} no tiene padre. No hay override.")
+                    f"[COMISIONES] Comisión OVERRIDE para Pago {pago_instance.pk} ya existía.")
 
-    logger.info(
-        f"[SEÑAL COMISIONES] Finalizado para Pago PK: {pago_instance.pk}\n")
+    logger.info(f"[COMISIONES] Finalizado para Pago PK: {pago_instance.pk}\n")
 
 
 # @receiver(post_save, sender=Pago, dispatch_uid="pago_post_save_main_handler")

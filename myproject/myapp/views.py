@@ -3742,58 +3742,141 @@ def liquidacion_comisiones_view(request):
 
 @login_required
 def marcar_comisiones_pagadas_view(request):
+    """
+    Vista para liquidar múltiples comisiones desde el modal, con notificaciones.
+    """
     if request.method == 'POST':
         comisiones_ids_a_pagar = request.POST.getlist('comisiones_a_pagar_ids')
-        fecha_pago_efectiva_str = request.POST.get('fecha_pago_efectiva')
+        fecha_pago_str = request.POST.get('fecha_pago_efectiva')
 
-        fecha_pago_a_usar = django_timezone.now().date()  # Default a hoy
-
-        if fecha_pago_efectiva_str:
+        fecha_pago = timezone.now().date()
+        if fecha_pago_str:
             try:
-                # Parsear formato DD/MM/AAAA
-                fecha_pago_a_usar = datetime.strptime(
-                    fecha_pago_efectiva_str, '%d/%m/%Y').date()
-                if fecha_pago_a_usar > django_timezone.now().date():
-                    messages.error(
-                        request, "La fecha de pago no puede ser futura. Se usará la fecha actual.")
-                    fecha_pago_a_usar = django_timezone.now().date()
+                fecha_pago = datetime.strptime(
+                    fecha_pago_str, '%d/%m/%Y').date()
             except ValueError:
                 messages.error(
-                    request, "Formato de fecha de pago inválido (DD/MM/AAAA). Se usará la fecha actual.")
-                # fecha_pago_a_usar ya es django_timezone.now().date() por defecto
+                    request, "Formato de fecha de pago inválido. Se usará la fecha actual.")
 
-        if comisiones_ids_a_pagar:
-            try:
-                comisiones_ids_int = [int(id_str)
-                                      for id_str in comisiones_ids_a_pagar]
-            except ValueError:
-                messages.error(request, "Selección de comisiones inválida.")
-                return redirect('myapp:liquidacion_comisiones')
-
-            comisiones_a_actualizar = RegistroComision.objects.filter(
-                id__in=comisiones_ids_int,
-                estatus_pago_comision='PENDIENTE'
-            )
-
-            count_updated = comisiones_a_actualizar.update(
-                estatus_pago_comision='PAGADA',
-                fecha_pago_a_intermediario=fecha_pago_a_usar
-            )
-
-            if count_updated > 0:
-                messages.success(
-                    request, f"{count_updated} comisión(es) marcada(s) como pagada(s) con fecha {fecha_pago_a_usar.strftime('%d/%m/%Y')}.")
-            else:
-                messages.warning(
-                    request, "No se marcaron comisiones. Pueden haber sido pagadas previamente o la selección fue inválida.")
-        else:
+        if not comisiones_ids_a_pagar:
             messages.warning(
-                request, "No se seleccionaron comisiones para marcar como pagadas.")
+                request, "No se seleccionaron comisiones para liquidar.")
+            return redirect('myapp:liquidacion_comisiones')
+
+        try:
+            comisiones_ids_int = [int(id_str)
+                                  for id_str in comisiones_ids_a_pagar]
+        except ValueError:
+            messages.error(request, "Selección de comisiones inválida.")
+            return redirect('myapp:liquidacion_comisiones')
+
+        comisiones_a_liquidar = list(RegistroComision.objects.filter(
+            id__in=comisiones_ids_int, estatus_pago_comision='PENDIENTE'
+        ).select_related('intermediario'))
+
+        if not comisiones_a_liquidar:
+            messages.warning(
+                request, "No se encontraron comisiones pendientes válidas para la selección.")
+            return redirect('myapp:liquidacion_comisiones')
+
+        intermediario = comisiones_a_liquidar[0].intermediario
+        total_liquidado = sum(c.monto_comision for c in comisiones_a_liquidar)
+
+        count_updated = RegistroComision.objects.filter(id__in=[c.id for c in comisiones_a_liquidar]).update(
+            estatus_pago_comision='PAGADA',
+            fecha_pago_a_intermediario=fecha_pago,
+            usuario_que_liquido=request.user
+        )
+
+        if count_updated > 0:
+            messages.success(
+                request, f"{count_updated} comisión(es) para {intermediario.nombre_completo} marcada(s) como pagada(s).")
+
+            # Notificación para el admin
+            mensaje_admin = f"Liquidaste {count_updated} comisiones por un total de ${total_liquidado:,.2f} para {intermediario.nombre_completo}."
+            crear_notificacion(
+                usuario_destino=[
+                    request.user], mensaje=mensaje_admin, tipo='success',
+                url_path_name='myapp:historial_liquidaciones_list'
+            )
+
+            # Notificación para el intermediario
+            mensaje_intermediario = f"Hemos procesado el pago de {count_updated} de tus comisiones por un total de ${total_liquidado:,.2f}."
+            usuarios_intermediario = intermediario.usuarios_asignados.filter(
+                is_active=True)
+            if usuarios_intermediario.exists():
+                crear_notificacion(
+                    usuario_destino=usuarios_intermediario, mensaje=mensaje_intermediario, tipo='success',
+                    url_path_name='myapp:mis_comisiones_list'
+                )
 
         return redirect('myapp:liquidacion_comisiones')
 
-    messages.error(request, "Acción no permitida (solo POST).")
     return redirect('myapp:liquidacion_comisiones')
+
+
+@login_required
+@require_POST
+def marcar_comision_pagada_ajax_view(request):
+    """
+    Vista para liquidar una comisión individual con AJAX, con notificaciones.
+    """
+    try:
+        comision_id = int(request.POST.get('comision_id'))
+        comision = get_object_or_404(
+            RegistroComision.objects.select_related('intermediario'), pk=comision_id)
+
+        if comision.estatus_pago_comision == 'PAGADA':
+            return JsonResponse({'status': 'info', 'message': 'Esta comisión ya estaba pagada.'})
+
+        intermediario = comision.intermediario
+        monto_comision = comision.monto_comision
+
+        comision.estatus_pago_comision = 'PAGADA'
+        comision.fecha_pago_a_intermediario = timezone.now().date()
+        comision.usuario_que_liquido = request.user
+        comision.save(update_fields=[
+                      'estatus_pago_comision', 'fecha_pago_a_intermediario', 'usuario_que_liquido'])
+
+        # Notificación para el admin
+        mensaje_admin = f"Liquidaste la comisión #{comision.pk} de ${monto_comision:,.2f} para {intermediario.nombre_completo}."
+        crear_notificacion(
+            usuario_destino=[
+                request.user], mensaje=mensaje_admin, tipo='success',
+            url_path_name='myapp:registro_comision_detail', url_kwargs={'pk': comision.pk}
+        )
+
+        # Notificación para el intermediario
+        mensaje_intermediario = f"Hemos procesado el pago de tu comisión #{comision.pk} por un monto de ${monto_comision:,.2f}."
+        usuarios_intermediario = intermediario.usuarios_asignados.filter(
+            is_active=True)
+        if usuarios_intermediario.exists():
+            crear_notificacion(
+                usuario_destino=usuarios_intermediario, mensaje=mensaje_intermediario, tipo='success',
+                url_path_name='myapp:mis_comisiones_list'
+            )
+
+        nuevos_totales = calcular_totales_pendientes_intermediario(
+            intermediario)
+        return JsonResponse({
+            'status': 'success',
+            'message': f'Comisión ID {comision.pk} marcada como pagada.',
+            'comision_id': comision.pk,
+            'nuevo_estatus': comision.get_estatus_pago_comision_display(),
+            'fecha_pago': comision.fecha_pago_a_intermediario.strftime('%d/%m/%Y'),
+            'usuario_liquido': comision.usuario_que_liquido.get_full_name(),
+            'intermediario_id': intermediario.id,
+            'nuevos_totales': nuevos_totales
+        })
+
+    except (ValueError, TypeError):
+        return JsonResponse({'status': 'error', 'message': 'ID de comisión inválido.'}, status=400)
+    except RegistroComision.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Comisión no encontrada.'}, status=404)
+    except Exception as e:
+        logger.error(
+            f"Error en marcar_comision_pagada_ajax_view: {e}", exc_info=True)
+        return JsonResponse({'status': 'error', 'message': 'Ocurrió un error interno.'}, status=500)
 
 
 @login_required
