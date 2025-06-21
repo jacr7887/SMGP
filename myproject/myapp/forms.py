@@ -1,4 +1,8 @@
 # myapp/forms.py
+from django_select2.forms import Select2Widget
+from .form_mixin import AwareDateInputMixinVE  # Asumiendo que este mixin existe
+from .models import Pago, Factura, Reclamacion
+from decimal import Decimal, InvalidOperation
 from django import forms
 from django.contrib.auth import authenticate
 from django.contrib.auth.forms import UserCreationForm
@@ -1354,20 +1358,28 @@ class ReclamacionForm(AwareDateInputMixinVE, BaseModelForm):
 # ------------------------------
 
 
-class PagoForm(AwareDateInputMixinVE, BaseModelForm):
+# myapp/forms.py
+
+
+# Asegúrate de que tus imports locales estén correctos
+
+
+class PagoForm(AwareDateInputMixinVE, forms.ModelForm):
+    # Configuración para el mixin de fechas
     aware_date_fields_config = [
         {'name': 'fecha_pago', 'is_datetime': False,
-            'format': '%d/%m/%Y', 'placeholder': PLACEHOLDER_DATE_STRICT},
+            'format': '%d/%m/%Y', 'placeholder': 'DD/MM/AAAA'},
         {'name': 'fecha_notificacion_pago', 'is_datetime': False,
-            'format': '%d/%m/%Y', 'placeholder': PLACEHOLDER_DATE_STRICT},
+            'format': '%d/%m/%Y', 'placeholder': 'DD/MM/AAAA'},
     ]
 
+    # Campos del formulario definidos explícitamente
     reclamacion = forms.ModelChoiceField(
         queryset=Reclamacion.objects.filter(activo=True).exclude(
             estado__in=['PAGADA', 'CERRADA', 'ANULADA']).order_by('-fecha_reclamo'),
         required=False,
         widget=Select2Widget(
-            attrs={'data-placeholder': 'Buscar Reclamación ...', 'class': 'form-control'}),
+            attrs={'data-placeholder': 'Buscar Reclamación Pendiente...'}),
         label="Reclamación Asociada"
     )
     factura = forms.ModelChoiceField(
@@ -1375,33 +1387,29 @@ class PagoForm(AwareDateInputMixinVE, BaseModelForm):
             activo=True, pagada=False).order_by('-fecha_creacion'),
         required=False,
         widget=Select2Widget(
-            attrs={'data-placeholder': 'Buscar Factura Pendiente...', 'class': 'form-control'}),
+            attrs={'data-placeholder': 'Buscar Factura Pendiente...'}),
         label="Factura Asociada"
-    )
-    documentos_soporte_pago = forms.FileField(
-        validators=[validate_file_size, validate_file_type],
-        required=False,
-        help_text="Formatos: PDF, JPG, PNG. Max 10MB."
     )
     fecha_pago = forms.CharField(
         label="Fecha de Pago",
         widget=forms.TextInput(
-            attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}),
+            attrs={'placeholder': 'DD/MM/AAAA', 'class': 'form-control date-input'}),
         required=True
     )
     fecha_notificacion_pago = forms.CharField(
         label="Fecha Notificación Pago",
         widget=forms.TextInput(
-            attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}),
+            attrs={'placeholder': 'DD/MM/AAAA', 'class': 'form-control date-input'}),
         required=False
     )
     monto_pago = forms.DecimalField(
         label="Monto del Pago",
         max_digits=15,
         decimal_places=2,
+        localize=True,
         widget=forms.NumberInput(
-            attrs={'step': '0.01', 'class': 'form-control'}),
-        validators=[MinValueValidator(Decimal('0.01'))]  # <--- CORRECCIÓN AQUÍ
+            attrs={'placeholder': 'Ej: 1234,56', 'class': 'form-control', 'step': '0.01'}),
+        required=True
     )
     forma_pago = forms.ChoiceField(
         label="Forma de Pago",
@@ -1413,11 +1421,15 @@ class PagoForm(AwareDateInputMixinVE, BaseModelForm):
         max_length=100,
         required=False,
         widget=forms.TextInput(
-            attrs={'placeholder': 'Nro. Transferencia, Zelle, etc.', 'class': 'form-control'})
+            attrs={'placeholder': 'Nro. Transferencia, Zelle, etc.'})
     )
     observaciones_pago = forms.CharField(
         label="Observaciones del Pago",
-        widget=forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+        widget=forms.Textarea(attrs={'rows': 3}),
+        required=False
+    )
+    documentos_soporte_pago = forms.FileField(
+        label="Documento de Soporte",
         required=False
     )
     activo = forms.BooleanField(
@@ -1439,88 +1451,67 @@ class PagoForm(AwareDateInputMixinVE, BaseModelForm):
             'forma_pago', 'referencia_pago', 'fecha_notificacion_pago',
             'observaciones_pago', 'documentos_soporte_pago', 'aplica_igtf_pago'
         ]
-        exclude = ['fecha_creacion', 'fecha_modificacion', 'primer_nombre',
-                   'segundo_nombre', 'primer_apellido', 'segundo_apellido']
-        widgets = {
-            'activo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'aplica_igtf_pago': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.instance and self.instance.pk:
-            if hasattr(self, 'aware_date_fields_config'):
-                for config in self.aware_date_fields_config:
-                    field_name = config['name']
-                    display_format = config['format']
-                    if field_name in self.fields and hasattr(self.instance, field_name):
-                        model_value = getattr(self.instance, field_name, None)
-                        if model_value:
-                            if isinstance(model_value, datetime):
-                                date_to_format = django_timezone.localtime(model_value).date(
-                                ) if django_timezone.is_aware(model_value) else model_value.date()
-                                self.initial[field_name] = date_to_format.strftime(
-                                    display_format)
-                            elif isinstance(model_value, date):
-                                self.initial[field_name] = model_value.strftime(
-                                    display_format)
-                        elif self.fields[field_name].required is False:
-                            self.initial[field_name] = ''
 
-    def clean_forma_pago(self):
-        metodo = self.cleaned_data.get('forma_pago')
-        return metodo
+        # El mixin se encarga de crear los CharField para las fechas.
+        # Esto lo dejamos intacto.
+        if hasattr(self, 'setup_aware_date_fields'):
+            self.setup_aware_date_fields()
+        # Si el formulario se está usando para editar una instancia existente...
+        if self.instance and self.instance.pk:
+            # Deshabilitamos los campos de asociación para que no se puedan cambiar.
+            if 'factura' in self.fields:
+                self.fields['factura'].disabled = True
+                if self.instance.factura:
+                    self.fields['factura'].queryset = Factura.objects.filter(
+                        pk=self.instance.factura.pk)
+
+            if 'reclamacion' in self.fields:
+                self.fields['reclamacion'].disabled = True
+                if self.instance.reclamacion:
+                    self.fields['reclamacion'].queryset = Reclamacion.objects.filter(
+                        pk=self.instance.reclamacion.pk)
+
+            # --- LÓGICA CLAVE PARA FORMATEAR FECHAS ---
+            # Iteramos sobre la configuración de nuestro mixin.
+            for config in self.aware_date_fields_config:
+                field_name = config['name']
+                display_format = config['format']  # Formato 'dd/mm/yyyy'
+
+                # Obtenemos el valor de la fecha desde la instancia del modelo.
+                model_value = getattr(self.instance, field_name, None)
+
+                # Si el modelo tiene un valor para esta fecha...
+                if model_value:
+                    # Lo formateamos al formato deseado y lo ponemos como valor
+                    # inicial del campo del formulario (que es un CharField).
+                    self.initial[field_name] = model_value.strftime(
+                        display_format)
 
     def clean_monto_pago(self):
         monto = self.cleaned_data.get('monto_pago')
         if monto is not None and monto <= Decimal('0.00'):
-            raise ValidationError('El monto del pago debe ser positivo.')
+            raise ValidationError(
+                'El monto del pago debe ser un valor positivo.')
         return monto
 
     def clean(self):
         cleaned_data = super().clean()
         factura = cleaned_data.get('factura')
         reclamacion = cleaned_data.get('reclamacion')
-        monto_pago = cleaned_data.get('monto_pago')
-        fecha_pago_obj = cleaned_data.get('fecha_pago')
-        hoy_date_para_comparar = django_timezone.now().date()
 
-        if not factura and not reclamacion:
-            raise ValidationError(
-                "El pago debe estar asociado a una Factura o a una Reclamación.", code='missing_association')
-        if factura and reclamacion:
-            raise ValidationError(
-                "El pago no puede estar asociado a una Factura y a una Reclamación a la vez.", code='multiple_associations')
+        # Solo en la creación se valida que se seleccione una asociación.
+        # En la edición, los campos están deshabilitados.
+        if not self.instance or not self.instance.pk:
+            if not factura and not reclamacion:
+                raise ValidationError(
+                    "El pago debe estar asociado a una Factura o a una Reclamación.", code='missing_association')
+            if factura and reclamacion:
+                raise ValidationError(
+                    "El pago no puede estar asociado a una Factura y a una Reclamación a la vez.", code='multiple_associations')
 
-        if fecha_pago_obj and fecha_pago_obj > hoy_date_para_comparar:
-            self.add_error(
-                'fecha_pago', "La fecha de pago no puede ser futura.")
-
-        if monto_pago:
-            TOLERANCE = Decimal('0.01')
-            instance = self.instance
-            if factura:
-                pagos_previos = factura.pagos.filter(activo=True)
-                if instance and instance.pk:
-                    pagos_previos = pagos_previos.exclude(pk=instance.pk)
-                total_pagado_previo = pagos_previos.aggregate(total=Sum('monto_pago'))[
-                    'total'] or Decimal('0.00')
-                pendiente_factura = (factura.monto or Decimal(
-                    '0.00')) - total_pagado_previo
-                if monto_pago > pendiente_factura + TOLERANCE:
-                    self.add_error('monto_pago', ValidationError(
-                        f"El monto (${monto_pago:.2f}) excede el pendiente actual (${pendiente_factura:.2f}) de la Factura {factura.numero_recibo}."))
-            elif reclamacion:
-                pagos_previos = reclamacion.pagos.filter(activo=True)
-                if instance and instance.pk:
-                    pagos_previos = pagos_previos.exclude(pk=instance.pk)
-                total_pagado_previo = pagos_previos.aggregate(total=Sum('monto_pago'))[
-                    'total'] or Decimal('0.00')
-                pendiente_reclamacion = (
-                    reclamacion.monto_reclamado or Decimal('0.00')) - total_pagado_previo
-                if monto_pago > pendiente_reclamacion + TOLERANCE:
-                    self.add_error('monto_pago', ValidationError(
-                        f"El monto (${monto_pago:.2f}) excede el pendiente actual (${pendiente_reclamacion:.2f}) de la Reclamación #{reclamacion.pk}."))
         return cleaned_data
 # ------------------------------
 # TarifaForm

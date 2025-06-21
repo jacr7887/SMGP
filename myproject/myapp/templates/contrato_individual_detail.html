@@ -1,7 +1,7 @@
 {% extends "home.html" %}
 {% load static %}
 {% load humanize %}
-{% load custom_filters %} {# Carga los filtros personalizados #}
+{% load custom_filters %}
 
 {% block title %}Detalle Contrato: {{ object.numero_contrato|default:"(Sin número)" }}{% endblock %}
 
@@ -37,12 +37,7 @@
             <div class="dark-group">
                 <span class="dark-label">🏷️ Tarifa Aplicada:</span>
                  <span>
-                    {% if object.tarifa_aplicada %}
-                        {% if perms.myapp.view_tarifa %}<a href="{% url 'myapp:tarifa_detail' object.tarifa_aplicada.pk %}" title="Ver detalle tarifa">{{ object.tarifa_aplicada }}</a>{% else %}{{ object.tarifa_aplicada }}{% endif %}
-                         (${% if object.tarifa_aplicada.monto_anual %}{{ object.tarifa_aplicada.monto_anual|floatformat:2|intcomma }}{% else %}N/A{% endif %} Anual)
-                    {% else %}
-                        <span class="text-muted">N/A</span>
-                    {% endif %}
+                    {% if object.tarifa_aplicada %}<a href="{% url 'myapp:tarifa_detail' object.tarifa_aplicada.pk %}" title="Ver detalle tarifa">{{ object.tarifa_aplicada }}</a>{% else %}-{% endif %}
                  </span>
             </div>
         </div>
@@ -54,15 +49,7 @@
              <div class="dark-group">
                 <span class="dark-label">👤 Afiliado Principal:</span>
                  <span>
-                 {% if object.afiliado %}
-                     {% if perms.myapp.view_afiliadoindividual %}
-                     <a href="{% url 'myapp:afiliado_individual_detail' object.afiliado.pk %}">{{ object.afiliado.nombre_completo|escape }} (C.I: {{ object.afiliado.cedula }})</a>
-                     {% else %}
-                     {{ object.afiliado.nombre_completo|escape }} (C.I: {{ object.afiliado.cedula }})
-                     {% endif %}
-                 {% else %}
-                     <span class="text-muted">No asignado</span>
-                 {% endif %}
+                 {% if object.afiliado %}<a href="{% url 'myapp:afiliado_individual_detail' object.afiliado.pk %}">{{ object.afiliado.nombre_completo|escape }} (C.I: {{ object.afiliado.cedula }})</a>{% else %}<span class="text-muted">No asignado</span>{% endif %}
                  </span>
              </div>
              <div class="dark-group"><span class="dark-label">🧑‍💼 Nombre Contratante:</span><span>{{ object.contratante_nombre|escape|default:"-" }}</span></div>
@@ -80,7 +67,7 @@
             <div class="dark-group"><span class="dark-label">📅 Fecha Emisión:</span><span>{{ object.fecha_emision|date:"d/m/Y H:i:s" }}</span></div>
             <div class="dark-group"><span class="dark-label">➡️ Inicio Vigencia Contrato:</span><span>{{ object.fecha_inicio_vigencia|date:"d/m/Y" }}</span></div>
             <div class="dark-group"><span class="dark-label">⏹️ Fin Vigencia Contrato:</span><span>{{ object.fecha_fin_vigencia|date:"d/m/Y" }}</span></div>
-            <div class="dark-group"><span class="dark-label">⏱️ Duración Contrato (Meses):</span><span>{{ object.periodo_vigencia_meses|default:object.duracion_calculada_meses|default:"-" }}</span></div>
+            <div class="dark-group"><span class="dark-label">⏱️ Duración Contrato (Meses):</span><span>{{ object.periodo_vigencia_meses|default:"-" }}</span></div>
             <div class="dark-group"><span class="dark-label">⏳ Días Vigencia Transcurridos:</span><span>{{ object.dias_vigencia_transcurridos|default:"0" }} días</span></div>
             <div class="dark-group"><span class="dark-label">🗓️ Días Vigencia Restantes:</span><span>{{ object.dias_vigencia_restantes|default:"0" }} días</span></div>
             <div class="dark-group"><span class="dark-label">🔔 Renovación Pronta (<60d):</span><span class="badge {% if object.necesita_renovacion_pronto %}badge-warning{% else %}badge-info{% endif %}">{{ object.necesita_renovacion_pronto|yesno:"Sí,No" }}</span></div>
@@ -116,16 +103,7 @@
       <fieldset class="mb-4">
         <legend>⚙️ Otros Datos y Sistema</legend>
         <div class="dark-grid">
-            <div class="dark-group">
-                <span class="dark-label">🤝 Intermediario:</span>
-                <span>
-                 {% if object.intermediario %}
-                     <a href="{% url 'myapp:intermediario_detail' object.intermediario.pk %}">{{ object.intermediario.nombre_completo|default:object.intermediario.codigo|escape }}</a>
-                 {% else %}
-                     <span class="text-muted">No asignado</span>
-                 {% endif %}
-                 </span>
-            </div>
+            <div class="dark-group"><span class="dark-label">🤝 Intermediario:</span><span>{% if object.intermediario %}<a href="{% url 'myapp:intermediario_detail' object.intermediario.pk %}">{{ object.intermediario.nombre_completo|escape }}</a>{% else %}-{% endif %}</span></div>
             <div class="dark-group"><span class="dark-label">🔍 Criterio Búsqueda:</span><p style="margin:0;">{{ object.criterio_busqueda|escape|linebreaksbr|default:"-" }}</p></div>
             <div class="dark-group"><span class="dark-label">❓ Consultar Afiliados Activos Data:</span><span class="badge {% if object.consultar_afiliados_activos %}badge-info{% else %}badge-secondary{% endif %}">{{ object.consultar_afiliados_activos|yesno:"Sí,No" }}</span></div>
              <div class="dark-group"><span class="dark-label">➕ Fecha Creación:</span><span>{{ object.fecha_creacion|date:"d/m/Y H:i:s" }}</span></div>
@@ -145,6 +123,7 @@
                  <legend>🛡️ Consumo de Cobertura</legend>
                  <div class="dark-grid">
                      <div class="dark-group"><span class="dark-label">💰 Suma Asegurada Total:</span><span class="h5">${{ object.suma_asegurada|default:"0.00"|floatformat:2|intcomma }}</span></div>
+                     {# === CORRECCIÓN: Usar variable del contexto === #}
                      <div class="dark-group"><span class="dark-label">📉 Monto Total Pagado por Reclamaciones:</span><span class="h5 text-warning">${{ monto_total_pagado_reclamaciones|floatformat:2|intcomma|default:"0.00" }}</span></div>
                      <div class="dark-group"><span class="dark-label">✅ Saldo Disponible Cobertura:</span><span class="h5 text-success">${{ saldo_disponible_cobertura|floatformat:2|intcomma|default:"0.00" }}</span></div>
                       <div class="dark-group">
@@ -165,7 +144,7 @@
                             <td>{{ rec.pk }}</td>
                             <td>{{ rec.fecha_reclamo|date:"d/m/Y" }}</td>
                             <td>{{ rec.get_tipo_reclamacion_display }}</td>
-                            <td><span id="status-badge-{{ rec.pk }}" class="badge">{{ rec.get_estado_display }}</span></td>
+                            <td><span id="status-badge-{{ rec.pk }}" class="badge {% if rec.estado == 'PAGADA' %}badge-success{% elif rec.estado == 'RECHAZADA' %}badge-danger{% else %}badge-info{% endif %}">{{ rec.get_estado_display }}</span></td>
                             <td class="text-end">${{ rec.monto_reclamado|floatformat:2|intcomma }}</td>
                             <td class="actions"><a href="{% url 'myapp:reclamacion_detail' rec.pk %}" class="action-icon" title="Ver Reclamación">👁️</a></td>
                         </tr>
