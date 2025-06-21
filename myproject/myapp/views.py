@@ -1234,18 +1234,12 @@ class AfiliadoIndividualCreateView(BaseCreateView):
 
     def enviar_notificacion_creacion(self, afiliado):
         mensaje = f"Nuevo Afiliado Individual registrado: {afiliado.nombre_completo} (CI: {afiliado.cedula})."
-        admin_users = Usuario.objects.filter(is_superuser=True, is_active=True)
-        # Notificar también al intermediario si se asignó?
-        # if afiliado.intermediario and hasattr(afiliado.intermediario, 'usuarios'):
-        #     admin_users = list(admin_users) + list(afiliado.intermediario.usuarios.filter(is_active=True))
-        if admin_users:
-            crear_notificacion(
-                list(set(admin_users)),  # Evitar duplicados
-                mensaje,
-                tipo='success',
-                url_path_name='myapp:afiliado_individual_detail',
-                url_kwargs={'pk': afiliado.pk}
-            )
+        crear_notificacion(
+            usuario_destino=Usuario.objects.filter(
+                is_staff=True, is_active=True),
+            mensaje=mensaje, tipo='success',
+            url_path_name='myapp:afiliado_individual_detail', url_kwargs={'pk': afiliado.pk}
+        )
 
 
 @method_decorator(csrf_protect, name='dispatch')
@@ -1308,11 +1302,14 @@ class AfiliadoIndividualDeleteView(BaseDeleteView):
                 return redirect(self.success_url)
         return super().post(request, *args, **kwargs)
 
-    def enviar_notificacion_eliminacion(self, obj_pk, obj_repr):
-        mensaje = f"Se eliminó el Afiliado Individual: {obj_repr} (ID: {obj_pk})."
-        admin_users = Usuario.objects.filter(is_superuser=True, is_active=True)
-        if admin_users:
-            crear_notificacion(list(admin_users), mensaje, tipo='warning')
+    def enviar_notificacion_eliminacion(self, afiliado_repr):
+        mensaje = f"Se eliminó el Afiliado Individual: {afiliado_repr}."
+        crear_notificacion(
+            usuario_destino=Usuario.objects.filter(
+                is_superuser=True, is_active=True),
+            mensaje=mensaje, tipo='warning'
+        )
+
 
 # ==========================
 # AfiliadoColectivo Vistas
@@ -2002,16 +1999,13 @@ class ContratoColectivoUpdateView(BaseUpdateView):
         queryset = super().get_queryset()
         return queryset.select_related('intermediario').prefetch_related('afiliados_colectivos')
 
-    # --- MÉTODO get_form CORREGIDO ---
     def get_form(self, form_class=None):
         """
         Obtiene la instancia del formulario base sin modificaciones
         adicionales de readonly/disabled en esta vista.
         """
         form = super().get_form(form_class)
-        # SE ELIMINÓ EL BLOQUE if not self.request.user.is_superuser ...
         return form
-    # --- FIN MÉTODO get_form CORREGIDO ---
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -2019,7 +2013,6 @@ class ContratoColectivoUpdateView(BaseUpdateView):
         return context
 
     def form_valid(self, form):
-        # ... (lógica de form_valid y notificación como estaba) ...
         objeto_antes = None
         datos_antes = {}
         try:
@@ -2058,7 +2051,6 @@ class ContratoColectivoUpdateView(BaseUpdateView):
         return response
 
     def enviar_notificacion_actualizacion(self, cont_antes, cont_despues, changed_data):
-        # ... (código de notificación como estaba) ...
         if not changed_data:
             return
         mensaje = f"Contrato Colectivo {cont_despues.numero_contrato or cont_despues.pk} actualizado. Cambios en: {', '.join(changed_data)}."
@@ -2959,6 +2951,42 @@ class PagoCreateView(BaseCreateView):
             form.add_error(
                 None, "Ocurrió un error inesperado al procesar el pago.")
             return self.form_invalid(form)
+
+    def enviar_notificacion_creacion(self, pago):
+        """
+        Envía una notificación tras la creación exitosa de un pago.
+        """
+        if pago.factura:
+            contrato = pago.factura.get_contrato_asociado
+            asociacion_str = f"para la factura {pago.factura.numero_recibo}"
+            url_destino = reverse('myapp:factura_detail',
+                                  kwargs={'pk': pago.factura.pk})
+        elif pago.reclamacion:
+            contrato = pago.reclamacion.contrato_individual or pago.reclamacion.contrato_colectivo
+            asociacion_str = f"para la reclamación #{pago.reclamacion.pk}"
+            url_destino = reverse('myapp:reclamacion_detail', kwargs={
+                                  'pk': pago.reclamacion.pk})
+        else:
+            contrato = None
+            asociacion_str = "sin una asociación clara"
+            url_destino = reverse('myapp:pago_detail', kwargs={'pk': pago.pk})
+
+        mensaje = f"Nuevo pago de ${pago.monto_pago:.2f} (Ref: {pago.referencia_pago or pago.pk}) se ha registrado {asociacion_str}."
+
+        # Definir destinatarios
+        destinatarios = set(Usuario.objects.filter(
+            is_staff=True, is_active=True))
+        if contrato and contrato.intermediario:
+            for user in contrato.intermediario.usuarios_asignados.filter(is_active=True):
+                destinatarios.add(user)
+
+        if destinatarios:
+            crear_notificacion(
+                usuario_destino=list(destinatarios),
+                mensaje=mensaje,
+                tipo='success',
+                url_destino=url_destino
+            )
 
 
 class PagoUpdateView(BaseUpdateView):
