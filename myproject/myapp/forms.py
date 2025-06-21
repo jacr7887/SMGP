@@ -1652,103 +1652,51 @@ class FacturaForm(AwareDateInputMixinVE, BaseModelForm):
             'format': '%d/%m/%Y', 'placeholder': PLACEHOLDER_DATE_STRICT},
     ]
 
-    contrato_individual = forms.ModelChoiceField(
-        queryset=ContratoIndividual.objects.filter(
-            activo=True).select_related('afiliado', 'intermediario', 'tarifa_aplicada').order_by('-fecha_emision'),
-        required=False,
-        widget=Select2Widget(attrs={'data-placeholder': 'Buscar Contrato Individual...',
-                             'class': 'form-control', 'id': 'id_contrato_individual'}),
-        label="Contrato Individual"
-    )
-    contrato_colectivo = forms.ModelChoiceField(
-        queryset=ContratoColectivo.objects.filter(
-            activo=True).select_related('intermediario', 'tarifa_aplicada').order_by('-fecha_emision'),
-        required=False,
-        widget=Select2Widget(attrs={'data-placeholder': 'Buscar Contrato Colectivo...',
-                             'class': 'form-control', 'id': 'id_contrato_colectivo'}),
-        label="Contrato Colectivo"
-    )
-    intermediario = forms.ModelChoiceField(
-        queryset=Intermediario.objects.filter(
-            activo=True).order_by('nombre_completo'),
-        required=False,
-        widget=Select2Widget(attrs={'data-placeholder': 'Buscar Intermediario...',
-                             'class': 'form-control', 'id': 'id_intermediario'}),
-        label="Intermediario (Factura)"
-    )
+    contrato_individual = forms.ModelChoiceField(queryset=ContratoIndividual.objects.filter(activo=True).select_related('afiliado', 'intermediario', 'tarifa_aplicada').order_by(
+        '-fecha_emision'), required=False, widget=Select2Widget(attrs={'data-placeholder': 'Buscar Contrato Individual...', 'class': 'form-control', 'id': 'id_contrato_individual'}), label="Contrato Individual")
+    contrato_colectivo = forms.ModelChoiceField(queryset=ContratoColectivo.objects.filter(activo=True).select_related('intermediario', 'tarifa_aplicada').order_by(
+        '-fecha_emision'), required=False, widget=Select2Widget(attrs={'data-placeholder': 'Buscar Contrato Colectivo...', 'class': 'form-control', 'id': 'id_contrato_colectivo'}), label="Contrato Colectivo")
+    intermediario = forms.ModelChoiceField(queryset=Intermediario.objects.filter(activo=True).order_by('nombre_completo'), required=False, widget=Select2Widget(
+        attrs={'data-placeholder': 'Buscar Intermediario...', 'class': 'form-control', 'id': 'id_intermediario'}), label="Intermediario (Factura)")
+    vigencia_recibo_desde = forms.CharField(label="Vigencia Recibo Desde", widget=forms.TextInput(
+        attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control', 'id': 'id_vigencia_recibo_desde'}), required=True)
+    vigencia_recibo_hasta = forms.CharField(label="Vigencia Recibo Hasta", widget=forms.TextInput(
+        attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control', 'id': 'id_vigencia_recibo_hasta'}), required=True)
 
-    vigencia_recibo_desde = forms.CharField(
-        label="Vigencia Recibo Desde",
-        widget=forms.TextInput(attrs={'placeholder': PLACEHOLDER_DATE_STRICT,
-                               'class': 'form-control', 'id': 'id_vigencia_recibo_desde'}),
-        required=True
-    )
-    vigencia_recibo_hasta = forms.CharField(
-        label="Vigencia Recibo Hasta",
-        widget=forms.TextInput(attrs={'placeholder': PLACEHOLDER_DATE_STRICT,
-                               'class': 'form-control', 'id': 'id_vigencia_recibo_hasta'}),
-        required=True
-    )
     monto = forms.DecimalField(
         label="Monto Base Factura",
         max_digits=15, decimal_places=2,
-        widget=forms.NumberInput(
-            attrs={'step': '0.01', 'min': '0.00', 'class': 'form-control',
-                   'id': 'id_monto', 'readonly': True}),
-        validators=[MinValueValidator(Decimal('0.00'))],
-        required=True
+        # Usamos un campo oculto para el valor y un div para mostrarlo al usuario.
+        widget=forms.HiddenInput(attrs={'id': 'id_monto'}),
+        required=True,
+        validators=[MinValueValidator(Decimal('0.00'))]
     )
-    dias_periodo_cobro = forms.IntegerField(
-        label="Días del Período de Cobro",
-        min_value=0,
-        widget=forms.NumberInput(attrs={
-                                 'min': '0', 'class': 'form-control', 'id': 'id_dias_periodo_cobro', 'readonly': True}),
-        required=False
-    )
-    estatus_factura = forms.ChoiceField(
-        label="Estatus de Factura", choices=CommonChoices.ESTATUS_FACTURA,
-        widget=forms.Select(attrs={'class': 'form-select select-field'})
-    )
-    estatus_emision = forms.ChoiceField(
-        label="Estatus de Emisión", choices=CommonChoices.EMISION_RECIBO,
-        widget=forms.Select(attrs={'class': 'form-select select-field'})
-    )
-    aplica_igtf = forms.BooleanField(
-        label="¿Condiciones para IGTF presentes?",
-        required=False,
-        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
-    )
-    observaciones = forms.CharField(
-        label="Observaciones de la Factura",
-        widget=forms.Textarea(
-            attrs={'rows': 3, 'placeholder': 'Añadir notas...', 'class': 'form-control'}),
-        required=False
-    )
-    activo = forms.BooleanField(
-        label="Factura Activa",
-        required=False,
-        initial=True,
-        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
-    )
+
+    dias_periodo_cobro = forms.IntegerField(label="Días del Período de Cobro", min_value=0, widget=forms.NumberInput(
+        attrs={'min': '0', 'class': 'form-control-plaintext bg-dark text-white p-2 rounded', 'id': 'id_dias_periodo_cobro'}), required=False)
+
+    estatus_factura = forms.ChoiceField(label="Estatus de Factura", choices=CommonChoices.ESTATUS_FACTURA, widget=forms.Select(
+        attrs={'class': 'form-select select-field'}))
+    estatus_emision = forms.ChoiceField(label="Estatus de Emisión", choices=CommonChoices.EMISION_RECIBO, widget=forms.Select(
+        attrs={'class': 'form-select select-field'}))
+    aplica_igtf = forms.BooleanField(label="¿Condiciones para IGTF presentes?",
+                                     required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
+    observaciones = forms.CharField(label="Observaciones de la Factura", widget=forms.Textarea(
+        attrs={'rows': 3, 'placeholder': 'Añadir notas...', 'class': 'form-control'}), required=False)
+    activo = forms.BooleanField(label="Factura Activa", required=False, initial=True,
+                                widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
 
     class Meta:
         model = Factura
-        fields = [
-            'activo', 'estatus_factura', 'contrato_individual', 'contrato_colectivo',
-            'intermediario', 'vigencia_recibo_desde', 'vigencia_recibo_hasta', 'monto',
-            'dias_periodo_cobro', 'estatus_emision', 'aplica_igtf', 'observaciones',
-        ]
-        exclude = [
-            'numero_recibo', 'relacion_ingreso', 'monto_pendiente', 'pagada',
-            'recibos_pendientes_cache', 'fecha_creacion', 'fecha_modificacion',
-            'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido'
-        ]
+        fields = ['activo', 'estatus_factura', 'contrato_individual', 'contrato_colectivo', 'intermediario', 'vigencia_recibo_desde',
+                  'vigencia_recibo_hasta', 'monto', 'dias_periodo_cobro', 'estatus_emision', 'aplica_igtf', 'observaciones']
+        exclude = ['numero_recibo', 'relacion_ingreso', 'monto_pendiente', 'pagada', 'recibos_pendientes_cache',
+                   'fecha_creacion', 'fecha_modificacion', 'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido']
 
     def __init__(self, *args, **kwargs):
         contrato_inicial_id = kwargs.pop('contrato_id', None)
         contrato_inicial_tipo = kwargs.pop('contrato_tipo', None)
         super().__init__(*args, **kwargs)
-
         if self.instance and self.instance.pk:
             if hasattr(self, 'aware_date_fields_config'):
                 for config in self.aware_date_fields_config:
@@ -1761,7 +1709,6 @@ class FacturaForm(AwareDateInputMixinVE, BaseModelForm):
                                 display_format)
                         elif not model_value and self.fields[field_name].required is False:
                             self.initial[field_name] = ''
-
         contrato_para_prellenado = None
         if self.instance and self.instance.pk:
             if self.instance.contrato_individual:
@@ -1772,7 +1719,6 @@ class FacturaForm(AwareDateInputMixinVE, BaseModelForm):
                 contrato_para_prellenado = self.instance.contrato_colectivo
                 self.initial.setdefault(
                     'contrato_colectivo', self.instance.contrato_colectivo.pk)
-
         elif contrato_inicial_id and contrato_inicial_tipo:
             if contrato_inicial_tipo == 'individual':
                 try:
@@ -1792,12 +1738,10 @@ class FacturaForm(AwareDateInputMixinVE, BaseModelForm):
                 except ContratoColectivo.DoesNotExist:
                     logger.warning(
                         f"ContratoColectivo ID {contrato_inicial_id} no encontrado para pre-llenado.")
-
         if contrato_para_prellenado:
             if not self.initial.get('intermediario') and contrato_para_prellenado.intermediario:
                 self.initial.setdefault(
                     'intermediario', contrato_para_prellenado.intermediario.pk)
-
             if not self.initial.get('monto') and hasattr(contrato_para_prellenado, 'monto_cuota_estimada'):
                 monto_cuota_prop = contrato_para_prellenado.monto_cuota_estimada
                 if monto_cuota_prop is not None:
@@ -1807,41 +1751,32 @@ class FacturaForm(AwareDateInputMixinVE, BaseModelForm):
                     logger.warning(
                         f"FacturaForm __init__: Contrato {contrato_para_prellenado.pk} 'monto_cuota_estimada' es None.")
 
-        self.fields['dias_periodo_cobro'].widget.attrs['readonly'] = True
-
     def clean(self):
         cleaned_data = super().clean()
         contrato_individual = cleaned_data.get('contrato_individual')
         contrato_colectivo = cleaned_data.get('contrato_colectivo')
         f_desde = cleaned_data.get('vigencia_recibo_desde')
         f_hasta = cleaned_data.get('vigencia_recibo_hasta')
-
         if not contrato_individual and not contrato_colectivo:
             raise forms.ValidationError(
                 "Debe seleccionar un Contrato Individual o un Contrato Colectivo.", code='contrato_requerido')
         if contrato_individual and contrato_colectivo:
             raise forms.ValidationError(
                 "Solo puede seleccionar un tipo de contrato (Individual o Colectivo).", code='multiples_contratos')
-
         if f_desde and f_hasta:
-            if not isinstance(f_desde, date) or not isinstance(f_hasta, date):
-                pass
-            elif f_hasta < f_desde:
+            if isinstance(f_desde, date) and isinstance(f_hasta, date) and f_hasta < f_desde:
                 self.add_error(
                     'vigencia_recibo_hasta', 'La fecha "Hasta" de vigencia del recibo no puede ser anterior a la fecha "Desde".')
-
         contrato_seleccionado = contrato_individual or contrato_colectivo
         if contrato_seleccionado and f_desde and f_hasta and isinstance(f_desde, date) and isinstance(f_hasta, date):
             fecha_inicio_contrato = contrato_seleccionado.fecha_inicio_vigencia
             if isinstance(fecha_inicio_contrato, datetime):
                 fecha_inicio_contrato = django_timezone.localtime(fecha_inicio_contrato).date(
                 ) if django_timezone.is_aware(fecha_inicio_contrato) else fecha_inicio_contrato.date()
-
             fecha_fin_contrato = contrato_seleccionado.fecha_fin_vigencia
             if isinstance(fecha_fin_contrato, datetime):
                 fecha_fin_contrato = django_timezone.localtime(fecha_fin_contrato).date(
                 ) if django_timezone.is_aware(fecha_fin_contrato) else fecha_fin_contrato.date()
-
             if fecha_inicio_contrato and f_desde < fecha_inicio_contrato:
                 self.add_error(
                     'vigencia_recibo_desde', f"La vigencia del recibo ({f_desde.strftime('%d/%m/%Y')}) no puede iniciar antes que la del contrato ({fecha_inicio_contrato.strftime('%d/%m/%Y')}).")
@@ -1849,6 +1784,18 @@ class FacturaForm(AwareDateInputMixinVE, BaseModelForm):
                 self.add_error(
                     'vigencia_recibo_hasta', f"La vigencia del recibo ({f_hasta.strftime('%d/%m/%Y')}) no puede terminar después que la del contrato ({fecha_fin_contrato.strftime('%d/%m/%Y')}).")
         return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if not instance.pk:
+            instance.monto_pendiente = instance.monto
+            if not instance.monto or instance.monto <= Decimal('0.00'):
+                instance.pagada = True
+                instance.monto_pendiente = Decimal('0.00')
+                instance.estatus_factura = 'PAGADA'
+        if commit:
+            instance.save()
+        return instance
 
 
 # ------------------------------

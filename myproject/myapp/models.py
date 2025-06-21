@@ -539,7 +539,7 @@ class ContratoBase(ModeloBase):
         default=0,
         verbose_name="Pagos Realizados",
         blank=True,
-        editable=False,
+        editable=True,
         help_text="Número de pagos o cuotas abonadas para este contrato hasta la fecha."
     )
     estatus = models.CharField(
@@ -682,32 +682,31 @@ class ContratoBase(ModeloBase):
     def total_pagado_a_facturas(self):
         """
         Suma los montos de los pagos activos asociados a las facturas activas de este contrato.
-        Funciona para ContratoIndividual y ContratoColectivo gracias al related_name 'factura_set'.
+        Esta property realiza una consulta a la BD cada vez que se llama, garantizando datos frescos.
         """
         if hasattr(self, 'factura_set'):
-            pagos = self.factura_set.filter(activo=True, pagos__activo=True).aggregate(
+            return self.factura_set.filter(
+                activo=True,
+                pagos__activo=True
+            ).aggregate(
                 total=Coalesce(Sum('pagos__monto_pago'), Decimal(
                     '0.00'), output_field=DecimalField())
             )['total']
-            return pagos.quantize(Decimal("0.01"), ROUND_HALF_UP)
         return Decimal('0.00')
 
     @property
     def saldo_pendiente_contrato(self):
         """
         Calcula el saldo pendiente del contrato restando los pagos al monto total.
-        Funciona para ambos tipos de contrato.
+        Usa la property `total_pagado_a_facturas` para asegurar el cálculo con datos frescos.
         """
-        # Asegurarse de que monto_total sea un Decimal
         monto_total_contrato = self.monto_total if isinstance(
             self.monto_total, Decimal) else Decimal('0.00')
-
         if monto_total_contrato <= Decimal('0.00'):
             return Decimal('0.00')
 
-        # Llama a la propiedad que acabamos de mover a esta misma clase.
         pendiente = monto_total_contrato - self.total_pagado_a_facturas
-        return max(Decimal('0.00'), pendiente).quantize(Decimal("0.01"), ROUND_HALF_UP)
+        return max(Decimal('0.00'), pendiente)
 
     def save(self, *args, **kwargs):
         # Esta lógica se asegura de que el campo NUNCA se guarde como NULL
@@ -2595,55 +2594,15 @@ class Factura(ModeloBase):
 
     def save(self, *args, **kwargs):
         is_new = self._state.adding
-
-        # Pre-llenar intermediario desde el contrato si no se especificó en la factura
-        if not self.intermediario:
-            if self.contrato_individual and self.contrato_individual.intermediario:
-                self.intermediario = self.contrato_individual.intermediario
-            elif self.contrato_colectivo and self.contrato_colectivo.intermediario:
-                self.intermediario = self.contrato_colectivo
-
-        # Calcular días periodo si no se proveyó y las fechas sí
-        if self.vigencia_recibo_desde and self.vigencia_recibo_hasta and self.dias_periodo_cobro is None:
-            if isinstance(self.vigencia_recibo_desde, date) and isinstance(self.vigencia_recibo_hasta, date):
-                delta = self.vigencia_recibo_hasta - self.vigencia_recibo_desde
-                self.dias_periodo_cobro = delta.days + 1  # Incluir ambos días
-            else:  # Si son datetime, convertir a date primero
-                desde = self.vigencia_recibo_desde
-                hasta = self.vigencia_recibo_hasta
-                if isinstance(desde, datetime):
-                    desde = django_timezone.localtime(desde).date(
-                    ) if django_timezone.is_aware(desde) else desde.date()
-                if isinstance(hasta, datetime):
-                    hasta = django_timezone.localtime(hasta).date(
-                    ) if django_timezone.is_aware(hasta) else hasta.date()
-                if desde and hasta:
-                    delta = hasta - desde
-                    self.dias_periodo_cobro = delta.days + 1
-
         if is_new:
+            self.monto_pendiente = self.monto
+            if self.monto is not None and self.monto <= self.TOLERANCE:
+                self.pagada = True
+
             if not self.numero_recibo:
                 self.numero_recibo = self._generar_numero_recibo_factura()
             if not self.relacion_ingreso:
                 self.relacion_ingreso = self._generar_relacion_ingreso_factura()
-            self.monto_pendiente = self.monto or Decimal('0.00')
-            self.pagada = False
-            if not self.primer_nombre:  # Llenar campos de ModeloBase para Factura
-                contrato = self.contrato_individual or self.contrato_colectivo
-                if contrato:
-                    self.primer_nombre = f"Factura Cont. {contrato.numero_contrato or contrato.pk}"
-                    self.primer_apellido = f"Vig. {self.vigencia_recibo_desde.strftime('%d/%m/%y') if self.vigencia_recibo_desde else 'N/A'}"
-                else:
-                    self.primer_nombre = "Factura"
-                    self.primer_apellido = f"ID {self.pk or 'Nueva'}"
-
-        # La lógica de actualización de monto_pendiente, pagada y estatus_factura
-        # se maneja mejor con señales post_save/post_delete de Pago,
-        # o si se llama explícitamente a un método de actualización.
-        # Aquí solo se actualiza si no hay pagos (ej. al cambiar el monto de la factura)
-        # o si se está creando.
-        # Si quieres que se recalcule siempre, quita la condición de is_new para monto_pendiente.
-        # Pero es más eficiente hacerlo con señales.
 
         super().save(*args, **kwargs)
 
@@ -2654,6 +2613,14 @@ class Factura(ModeloBase):
         elif self.contrato_colectivo and self.contrato_colectivo.ramo:
             return self.contrato_colectivo.get_ramo_display()
         return None
+
+    @property
+    def get_contrato_asociado(self):
+        """
+        Devuelve el objeto de contrato (Individual o Colectivo) al que está
+        asociada esta factura.
+        """
+        return self.contrato_individual or self.contrato_colectivo
 
     class Meta:
         verbose_name = "Factura"

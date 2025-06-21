@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 import threading
 from decimal import Decimal, ROUND_HALF_UP
-from django.db import transaction
+from django.db import transaction, models
 from django.db.models import Sum, F, Value, DecimalField, Q  # Value no se usa aquí
 from django.db.models.functions import Coalesce
 from django.apps import apps
@@ -646,26 +646,27 @@ def actualizar_factura_post_pago(factura_id):
             logger.info(
                 f"[Signal actualizar_factura] Factura {factura_id} actualizada con: {campos_a_actualizar_factura}")
 
+            # === [CORRECCIÓN CLAVE] ===
             # Actualizar contador de pagos en contrato si el estado 'pagada' cambió
             contrato_pk = factura.contrato_individual_id or factura.contrato_colectivo_id
             contrato_model_class = ContratoIndividualModel if factura.contrato_individual_id else ContratoColectivoModel if factura.contrato_colectivo_id else None
 
-            if contrato_pk and contrato_model_class and hasattr(contrato_model_class(), 'pagos_realizados'):
-                # Si la factura cambió a pagada y antes no lo estaba
+            # En lugar de hasattr, comprobamos si el modelo y el pk existen.
+            # El campo 'pagos_realizados' está en ambos modelos Contrato, así que la comprobación es segura.
+            if contrato_pk and contrato_model_class:
                 if nueva_pagada and not pagada_antes_de_recalcular:
                     contrato_model_class.objects.filter(pk=contrato_pk).update(
                         pagos_realizados=F('pagos_realizados') + 1)
                     logger.info(
-                        f"[Signal actualizar_factura] Contrato {contrato_pk} ({contrato_model_class.__name__}): Contador pagos_realizados ++.")
-                # Si la factura cambió a NO pagada y antes SÍ lo estaba
+                        f"[Signal] Contrato {contrato_pk} ({contrato_model_class.__name__}): Contador pagos_realizados ++.")
                 elif not nueva_pagada and pagada_antes_de_recalcular:
                     contrato_model_class.objects.filter(pk=contrato_pk, pagos_realizados__gt=0).update(
                         pagos_realizados=F('pagos_realizados') - 1)
                     logger.info(
-                        f"[Signal actualizar_factura] Contrato {contrato_pk} ({contrato_model_class.__name__}): Contador pagos_realizados --.")
+                        f"[Signal] Contrato {contrato_pk} ({contrato_model_class.__name__}): Contador pagos_realizados --.")
         else:
             logger.debug(
-                f"[Signal actualizar_factura] Factura {factura_id} no requirió actualización de pendiente/pagada ni estatus.")
+                f"[Signal actualizar_factura] Factura {factura_id} no requirió actualización.")
 
     except FacturaModel.DoesNotExist:
         logger.error(
@@ -1089,3 +1090,41 @@ def sanear_para_log(mensaje_str: str, encoding='cp1252', errors='replace') -> st
             f"Error excepcional durante sanear_para_log para encoding '{encoding}': {e}")
         # Devolver una versión muy simplificada del string original sin caracteres problemáticos
         return "".join(c if ord(c) < 128 else '?' for c in mensaje_str)
+
+
+@receiver(post_save, sender=Factura, dispatch_uid="actualizar_contador_pagos_contrato")
+def actualizar_contador_pagos_contrato(sender, instance, **kwargs):
+    """
+    Señal que se dispara cada vez que una Factura se guarda.
+    Su única responsabilidad es recalcular y actualizar el campo `pagos_realizados`
+    en el Contrato asociado. Este es el enfoque más robusto.
+    """
+    factura = instance
+    contrato = factura.contrato_individual or factura.contrato_colectivo
+
+    if not contrato:
+        return
+
+    try:
+        # Contamos directamente en la BD cuántas facturas de este contrato están pagadas.
+        with transaction.atomic():
+            numero_facturas_pagadas = Factura.objects.filter(
+                contrato_individual_id=contrato.pk if isinstance(
+                    contrato, ContratoIndividual) else None,
+                contrato_colectivo_id=contrato.pk if isinstance(
+                    contrato, ContratoColectivo) else None,
+                pagada=True,
+                activo=True
+            ).count()
+
+            # Comparamos con el valor actual para evitar escrituras innecesarias
+            if contrato.pagos_realizados != numero_facturas_pagadas:
+                contrato_model = type(contrato)
+                contrato_model.objects.filter(pk=contrato.pk).update(
+                    pagos_realizados=numero_facturas_pagadas)
+                logger.info(
+                    f"[SEÑAL] Contador de pagos para Contrato {contrato.pk} actualizado a: {numero_facturas_pagadas}")
+
+    except Exception as e:
+        logger.error(
+            f"Error en la señal actualizar_contador_pagos_contrato para Factura {factura.pk}: {e}", exc_info=True)

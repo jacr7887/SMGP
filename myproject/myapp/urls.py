@@ -149,6 +149,8 @@ urlpatterns = [
     path('facturas/eliminar/<int:pk>/',
          views.FacturaDeleteView.as_view(), name='factura_delete'),
 
+    path('facturas/crear/<str:tipo_contrato>/<int:contrato_id>/',
+         views.FacturaCreateView.as_view(), name='factura_create_from_contrato'),
     path('ajax/get-contrato-monto-cuota/', views.get_contrato_monto_cuota_api_view,
          name='get_contrato_monto_cuota_api'),
 

@@ -586,83 +586,105 @@ class BaseCRUDView(View):  # Ajusta la herencia si es necesario
         })
         return context
 
+    # --- MÉTODO FORM_VALID CORREGIDO Y ROBUSTO ---
     def form_valid(self, form):
-        is_update_operation = self.object is not None
+        # Determinamos si es una operación de creación o actualización
+        is_update = hasattr(self, 'object') and self.object and self.object.pk
+        action_type = 'MODIFICACION' if is_update else 'CREACION'
 
-        objeto_antes_dict = None
-        if is_update_operation:
+        objeto_antes_dict = {}
+        if is_update:
             try:
-                db_instance_before_save = self.model.objects.get(
-                    pk=self.object.pk)
+                # Obtenemos una foto del objeto ANTES de guardarlo
+                db_instance = self.model.objects.get(pk=self.object.pk)
                 fields_to_compare = [
-                    f.name for f in db_instance_before_save._meta.fields if f.name in form.fields]
+                    f.name for f in db_instance._meta.fields if f.name in form.fields]
                 objeto_antes_dict = model_to_dict(
-                    db_instance_before_save, fields=fields_to_compare)
+                    db_instance, fields=fields_to_compare)
             except self.model.DoesNotExist:
                 logger.warning(
-                    f"No se encontró el objeto original PK={self.object.pk} en form_valid para comparación.")
-
-        action_type = 'MODIFICACION' if is_update_operation else 'CREACION'
+                    f"No se encontró el objeto original PK={self.object.pk} en form_valid.")
 
         try:
-            with transaction.atomic():  # Envolver el guardado en una transacción
+            # Envolvemos el guardado en una transacción atómica
+            with transaction.atomic():
                 self.object = form.save()
 
+            # --- Lógica Post-Guardado (Solo si fue exitoso) ---
+
+            # 1. Enviar notificaciones
             try:
-                if is_update_operation and objeto_antes_dict is not None:
+                if is_update:
                     if hasattr(self, 'enviar_notificacion_actualizacion'):
                         self.enviar_notificacion_actualizacion(
                             objeto_antes_dict, self.object, form.changed_data)
-                elif not is_update_operation:
+                else:  # Es creación
                     if hasattr(self, 'enviar_notificacion_creacion'):
                         self.enviar_notificacion_creacion(self.object)
             except Exception as notif_error:
                 logger.error(
-                    f"Error enviando notificación para {action_type} de {self.model._meta.verbose_name} {self.object.pk if self.object else 'N/A'}: {notif_error}", exc_info=True)
+                    f"Error enviando notificación para {action_type} de {self.model._meta.verbose_name}: {notif_error}", exc_info=True)
 
+            # 2. Crear la entrada de auditoría de ÉXITO
             self._create_audit_entry(
                 action_type=action_type,
                 resultado='EXITO',
                 detalle=f"{action_type} exitosa de {self.model._meta.verbose_name}: {str(self.object)}"
             )
-            messages.success(self.request, ('Operación exitosa'))
+
+            # 3. Mostrar mensaje de éxito y redirigir
+            messages.success(self.request, 'Operación realizada con éxito.')
             return HttpResponseRedirect(self.get_success_url())
 
-        except ValidationError as e:
+        except (ValidationError, IntegrityError) as e:
+            # Capturamos errores de validación o de integridad de la base de datos
             logger.error(
-                f"ValidationError en {self.__class__.__name__} ({action_type}): {e.message_dict if hasattr(e, 'message_dict') else str(e)}", exc_info=True)
-            if hasattr(e, 'message_dict'):
+                f"Error de guardado en {self.__class__.__name__} ({action_type}): {e}", exc_info=True)
+
+            # Añadimos el error al formulario para mostrarlo al usuario
+            if isinstance(e, ValidationError) and hasattr(e, 'message_dict'):
                 form._update_errors(e)
             else:
                 form.add_error(None, str(e))
-            messages.error(
-                self.request, "Error de validación al guardar. Por favor, corrija los errores.")
-            self._create_audit_entry(action_type=action_type, resultado='ERROR',
-                                     detalle=f"ValidationError: {str(e.message_dict if hasattr(e, 'message_dict') else str(e))[:450]}")
+
+            # La lógica de auditoría de ERROR ahora se maneja en form_invalid
             return self.form_invalid(form)
-        except IntegrityError as e:
-            logger.error(
-                f"IntegrityError en {self.__class__.__name__} ({action_type}): {e}", exc_info=True)
-            error_msg = "Error de base de datos (posible duplicado o FK inválida)."
-            if "violates unique constraint" in str(e).lower():
-                error_msg = "Error: Ya existe un registro con uno de estos valores únicos."
-            elif "violates foreign key constraint" in str(e).lower():
-                error_msg = "Error: No se puede asignar una relación a un registro que no existe."
-            elif "violates not-null constraint" in str(e).lower():
-                error_msg = "Error: Uno de los campos obligatorios está vacío."
-            form.add_error(None, error_msg)
-            messages.error(self.request, error_msg)
-            self._create_audit_entry(
-                action_type=action_type, resultado='ERROR', detalle=f"IntegrityError: {str(e)[:200]}")
-            return self.form_invalid(form)
+
         except Exception as e:
+            # Capturamos cualquier otro error inesperado
             logger.error(
                 f"Error inesperado en {self.__class__.__name__}.form_valid ({action_type}): {e}", exc_info=True)
             messages.error(
-                self.request, f'Error inesperado al procesar el formulario: {str(e)}')
-            self._create_audit_entry(action_type=action_type, resultado='ERROR',
-                                     detalle=f"Error inesperado en {action_type.lower()}: {str(e)[:200]}")
+                self.request, f'Ocurrió un error inesperado al procesar el formulario: {str(e)}')
+
+            # La lógica de auditoría de ERROR ahora se maneja en form_invalid
             return self.form_invalid(form)
+
+    # --- MÉTODO FORM_INVALID CORREGIDO Y ROBUSTO ---
+
+    def form_invalid(self, form):
+        """
+        Manejador para cuando el formulario no es válido.
+        Se encarga de registrar la auditoría de fallo y mostrar el mensaje de error.
+        """
+        is_update = hasattr(self, 'object') and self.object and self.object.pk
+        action_type = 'MODIFICACION' if is_update else 'CREACION'
+
+        # Creamos el log de auditoría para el intento fallido
+        self._create_audit_entry(
+            action_type=action_type,
+            resultado='ERROR_VALIDACION',
+            detalle=f"Fallo de validación en formulario {self.model._meta.verbose_name}: {form.errors.as_json()}"
+        )
+
+        # Log y mensaje para el usuario
+        logger.warning(
+            f"[{self.__class__.__name__}] Formulario inválido: {form.errors.as_json()}")
+        messages.error(
+            self.request, "Error en el formulario. Por favor, corrija los campos indicados.")
+
+        # Devolvemos la respuesta para renderizar el formulario con los errores
+        return super().form_invalid(form)
 
     def _create_audit_entry(self, action_type, resultado, detalle):
         registro_pk = None
@@ -1554,126 +1576,88 @@ class ContratoIndividualListView(IntermediarioDataMixin, BaseListView):
 class ContratoIndividualDetailView(BaseDetailView):
     model = ContratoIndividual
     template_name = 'contrato_individual_detail.html'
-    context_object_name = 'contrato'
+    context_object_name = 'object'
     permission_required = 'myapp.view_contratoindividual'
     model_manager_name = 'all_objects'
 
     def get_queryset(self):
-        # TU GET_QUERYSET ESTÁ PERFECTO. NO SE TOCA.
+        """
+        Optimiza la consulta inicial. Se elimina el prefetch de 'factura_set'
+        para garantizar que los datos de facturas se obtengan frescos.
+        """
         queryset = super().get_queryset()
         return queryset.select_related(
             'afiliado',
             'intermediario',
             'tarifa_aplicada'
         ).prefetch_related(
-            Prefetch('reclamacion_set', queryset=Reclamacion.objects.select_related('usuario_asignado').prefetch_related(
-                Prefetch('pagos', queryset=Pago.objects.filter(activo=True).order_by('-fecha_pago'), to_attr='pagos_activos_de_reclamacion')),
-                to_attr='reclamaciones_con_pagos'),
-            Prefetch('factura_set', queryset=Factura.objects.select_related('intermediario').prefetch_related(
-                Prefetch('pagos', queryset=Pago.objects.filter(activo=True).only('pk', 'monto_pago'), to_attr='pagos_activos_de_factura')))
+            'reclamacion_set'
         )
 
     def get_context_data(self, **kwargs):
-        # TU GET_CONTEXT_DATA ES LA BASE. SOLO AÑADIMOS UNA COSA.
+        """
+        Prepara el contexto completo para la plantilla, replicando la lógica
+        exitosa de ContratoColectivoDetailView.
+        """
         context = super().get_context_data(**kwargs)
         contrato = self.object
 
-        logger.info(
-            f"--- ContratoIndividualDetailView.get_context_data para Contrato PK: {contrato.pk} ---")
+        # 1. Refrescar el objeto principal. Es CLAVE para el contador `pagos_realizados`.
+        contrato.refresh_from_db()
 
-        # Procesar Facturas y sus Pagos (tu código, sin cambios)
-        facturas_asociadas = list(contrato.factura_set.all())
-        monto_total_pagado_facturas = Decimal('0.00')
-        for factura_obj in facturas_asociadas:
-            for pago_obj in getattr(factura_obj, 'pagos_activos_de_factura', []):
-                if pago_obj.monto_pago:
-                    monto_total_pagado_facturas += pago_obj.monto_pago
+        # 2. Obtener las facturas y sus pagos con una CONSULTA FRESCA.
+        facturas_asociadas = list(Factura.objects.filter(
+            contrato_individual=contrato
+        ).prefetch_related(
+            Prefetch('pagos', queryset=Pago.objects.filter(activo=True))
+        ))
 
-        saldo_pendiente_facturas = sum(
-            f.monto_pendiente for f in facturas_asociadas if f.monto_pendiente is not None
+        # 3. Calcular los totales financieros agregados.
+        total_pagado_a_facturas = sum(
+            pago.monto_pago for factura in facturas_asociadas for pago in factura.pagos.all()
         ) or Decimal('0.00')
 
-        # Procesar Reclamaciones y sus Pagos (tu código, con una adición)
-        reclamaciones_con_sus_pagos = list(
-            getattr(contrato, 'reclamaciones_con_pagos', []))
+        saldo_pendiente_anual = (contrato.importe_anual_contrato or Decimal(
+            '0.00')) - total_pagado_a_facturas
 
-        # =================================================================
-        # === INICIO DE LA ÚNICA CORRECCIÓN NECESARIA ===
-        # =================================================================
-        # Antes de usar las reclamaciones, forzamos a que cada una recargue
-        # su información desde la base de datos. Esto asegura que veamos
-        # el estado ('PAGADA') que la señal acaba de guardar.
-        for rec in reclamaciones_con_sus_pagos:
-            rec.refresh_from_db()
-        # =================================================================
-        # === FIN DE LA CORRECCIÓN ===
-        # =================================================================
+        reclamaciones_asociadas = list(contrato.reclamacion_set.all())
+        pagos_de_reclamaciones = list(Pago.objects.filter(
+            reclamacion__contrato_individual=contrato, activo=True))
+        monto_total_pagado_reclamaciones = contrato.monto_total_pagado_reclamaciones
+        saldo_disponible_cobertura = contrato.saldo_disponible_cobertura
+        porcentaje_cobertura_consumido = contrato.porcentaje_cobertura_consumido
 
-        pagos_de_reclamaciones_list = []
-        for rec in reclamaciones_con_sus_pagos:
-            pagos_de_esta_reclamacion = list(
-                getattr(rec, 'pagos_activos_de_reclamacion', []))
-            pagos_de_reclamaciones_list.extend(pagos_de_esta_reclamacion)
-            logger.info(
-                f"  Reclamación PK {rec.pk} procesada, {len(pagos_de_esta_reclamacion)} pagos activos encontrados.")
-
-        monto_total_pagado_reclamaciones = sum(
-            p.monto_pago for p in pagos_de_reclamaciones_list if p.monto_pago) or Decimal('0.0')
-        logger.info(
-            f"  Total pagos de reclamaciones para el contexto: {len(pagos_de_reclamaciones_list)}, Monto: {monto_total_pagado_reclamaciones}")
-
-        monto_total_reclamado_general = sum(
-            r.monto_reclamado for r in reclamaciones_con_sus_pagos if r.monto_reclamado
-        ) or Decimal('0.00')
-        saldo_cobertura = (contrato.suma_asegurada or Decimal(
-            '0.00')) - monto_total_reclamado_general
-        porcentaje_consumido = 0
-        if contrato.suma_asegurada and contrato.suma_asegurada > 0:
-            try:
-                porcentaje_consumido = int(
-                    (monto_total_reclamado_general / contrato.suma_asegurada * 100).quantize(Decimal('1.'), rounding=ROUND_HALF_UP))
-                porcentaje_consumido = min(max(porcentaje_consumido, 0), 100)
-            except (ZeroDivisionError, InvalidOperation):
-                porcentaje_consumido = 0 if monto_total_reclamado_general == Decimal(
-                    '0.00') else 100
-
+        # Permisos para los botones.
         user_permissions = {
-            'can_view_reclamaciones': self.request.user.has_perm('myapp.view_reclamacion'),
             'can_view_facturas': self.request.user.has_perm('myapp.view_factura'),
+            'can_view_reclamaciones': self.request.user.has_perm('myapp.view_reclamacion'),
             'can_view_pagos': self.request.user.has_perm('myapp.view_pago'),
-            'can_view_intermediarios': self.request.user.has_perm('myapp.view_intermediario'),
-            'can_view_afiliados_ind': self.request.user.has_perm('myapp.view_afiliadoindividual'),
+            'can_view_afiliadoindividual': self.request.user.has_perm('myapp.view_afiliadoindividual'),
+            'can_view_intermediario': self.request.user.has_perm('myapp.view_intermediario'),
+            'can_view_tarifa': self.request.user.has_perm('myapp.view_tarifa'),
         }
+
+        # 4. Construir el contexto final para que coincida con tu template.
         context.update({
-            'page_title': f"Detalle CI: {contrato.numero_contrato or '(Sin número)'}",
-            'afiliado': contrato.afiliado,
-            'intermediario': contrato.intermediario,
-            'user_perms': user_permissions,
-            'tarifa_aplicada_obj': contrato.tarifa_aplicada,
-            'duracion_contrato_meses': contrato.periodo_vigencia_meses or contrato.duracion_calculada_meses,
-            'dias_desde_ingreso_afiliado': contrato.dias_transcurridos_ingreso,
-            'esta_vigente_contrato': contrato.esta_vigente,
-            'monto_total_contrato': contrato.monto_total,
-            'importe_anual_referencial': contrato.importe_anual_contrato,
-            'cantidad_cuotas_calculada': contrato.cantidad_cuotas_estimadas,
-            'importe_recibo_calculado': contrato.monto_cuota_estimada,
-            'forma_pago_display': contrato.get_forma_pago_display(),
-            'estatus_emision_recibo_display': contrato.get_estatus_emision_recibo_display() if hasattr(contrato, 'get_estatus_emision_recibo_display') else contrato.estatus_emision_recibo,
-            'suma_asegurada_contrato': contrato.suma_asegurada,
-            'prima_anual_contrato': contrato.importe_anual_contrato,
-            'facturas_asociadas': facturas_asociadas,
-            'total_facturas': len(facturas_asociadas),
-            'monto_total_pagado_facturas': monto_total_pagado_facturas,
-            'saldo_pendiente_facturas': saldo_pendiente_facturas,
-            'saldo_pendiente_anual': max(Decimal('0.00'), (contrato.importe_anual_contrato or Decimal('0.00')) - monto_total_pagado_facturas),
-            'reclamaciones_asociadas': reclamaciones_con_sus_pagos,
-            'total_reclamaciones': len(reclamaciones_con_sus_pagos),
-            'monto_total_reclamado_general': monto_total_reclamado_general,
-            'pagos_de_reclamaciones': pagos_de_reclamaciones_list,
-            'total_pagos_reclamaciones': len(pagos_de_reclamaciones_list),
+            'object': contrato,
+
+            # Variables para la sección de resumen financiero
+            'total_pagado_a_facturas': total_pagado_a_facturas,
+            'saldo_pendiente_anual': saldo_pendiente_anual,
+
+            # Variables para la sección de consumo de cobertura
             'monto_total_pagado_reclamaciones': monto_total_pagado_reclamaciones,
-            'saldo_cobertura': saldo_cobertura,
-            'porcentaje_consumido': porcentaje_consumido,
+            'saldo_disponible_cobertura': saldo_disponible_cobertura,
+            'porcentaje_cobertura_consumido': porcentaje_cobertura_consumido,
+
+            # Listas para las tablas de relaciones
+            'reclamaciones_asociadas': reclamaciones_asociadas,
+            'pagos_de_reclamaciones': pagos_de_reclamaciones,
+            'facturas_asociadas': facturas_asociadas,
+
+            # Permisos
+            'perms': self.request.user.get_all_permissions(),
+            'user_perms': user_permissions,
         })
 
         return context
@@ -1873,133 +1857,99 @@ class ContratoColectivoListView(IntermediarioDataMixin, BaseListView):
         return context
 
 
-class ContratoColectivoDetailView(BaseDetailView):  # O directamente DetailView
+class ContratoColectivoDetailView(BaseDetailView):
     model = ContratoColectivo
     template_name = 'contrato_colectivo_detail.html'
-    context_object_name = 'contrato'
+    context_object_name = 'object'
     permission_required = 'myapp.view_contratocolectivo'
-    # model_manager_name = 'all_objects' # Si es necesario
+    model_manager_name = 'all_objects'
 
     def get_queryset(self):
-        # queryset = super().get_queryset() # Si BaseDetailView usa model_manager_name
-        # O ContratoColectivo.objects.all()
-        queryset = ContratoColectivo.all_objects.all()
-
-        return queryset.select_related(
-            'intermediario',
-            'tarifa_aplicada'
-        ).prefetch_related(
-            Prefetch('afiliados_colectivos',
-                     queryset=AfiliadoColectivo.objects.only('pk', 'razon_social', 'rif')),
-            Prefetch('reclamacion_set',
-                     queryset=Reclamacion.objects.filter(
-                         contrato_colectivo__isnull=False)
-                     .select_related('usuario_asignado')
-                     .prefetch_related(
-                         Prefetch('pagos',
-                                  queryset=Pago.objects.filter(
-                                      activo=True).order_by('-fecha_pago'),
-                                  to_attr='pagos_activos_de_reclamacion')
-                     ).only('pk', 'monto_reclamado', 'estado', 'fecha_reclamo', 'tipo_reclamacion', 'usuario_asignado_id', 'contrato_colectivo_id'),
-                     to_attr='reclamaciones_con_pagos'),
-            Prefetch('factura_set',
-                     queryset=Factura.objects.filter(
-                         contrato_colectivo__isnull=False)
-                     .select_related('intermediario')
-                     .prefetch_related(
-                         Prefetch('pagos',
-                                  queryset=Pago.objects.filter(
-                                      activo=True).only('pk', 'monto_pago'),
-                                  to_attr='pagos_activos_de_factura')
-                     ).only('pk', 'monto', 'monto_pendiente', 'pagada', 'vigencia_recibo_desde', 'vigencia_recibo_hasta', 'numero_recibo', 'intermediario_id', 'contrato_colectivo_id'))
-        )
+        """
+        Optimiza la consulta inicial.
+        """
+        queryset = super().get_queryset()
+        return queryset.select_related('intermediario', 'tarifa_aplicada').prefetch_related('afiliados_colectivos')
 
     def get_context_data(self, **kwargs):
+        """
+        Prepara el contexto completo para la plantilla, realizando cálculos explícitos
+        para garantizar que los datos mostrados sean 100% precisos y actuales.
+        """
         context = super().get_context_data(**kwargs)
         contrato = self.object
-        logger.info(
-            f"--- ContratoColectivoDetailView.get_context_data para Contrato PK: {contrato.pk} ---")
 
-        facturas_asociadas = list(contrato.factura_set.all())
-        monto_total_pagado_facturas = Decimal('0.00')
-        for factura_obj in facturas_asociadas:
-            for pago_obj in getattr(factura_obj, 'pagos_activos_de_factura', []):
-                if pago_obj.monto_pago:
-                    monto_total_pagado_facturas += pago_obj.monto_pago
+        # 1. Refrescar el objeto principal. Esto es CLAVE para obtener el contador `pagos_realizados`.
+        contrato.refresh_from_db()
 
-        saldo_pendiente_facturas = sum(
-            f.monto_pendiente for f in facturas_asociadas if f.monto_pendiente is not None
+        # 2. Obtener las facturas y sus pagos con una consulta fresca.
+        facturas_asociadas = list(Factura.objects.filter(
+            contrato_colectivo=contrato
+        ).prefetch_related(
+            Prefetch('pagos', queryset=Pago.objects.filter(activo=True))
+        ))
+
+        # 3. Calcular los totales financieros agregados para la sección de resumen.
+        total_pagado_a_facturas = sum(
+            pago.monto_pago for factura in facturas_asociadas for pago in factura.pagos.all()
         ) or Decimal('0.00')
 
-        reclamaciones_con_sus_pagos = list(
-            getattr(contrato, 'reclamaciones_con_pagos', []))
-        pagos_de_reclamaciones_list = []
-        for rec in reclamaciones_con_sus_pagos:
-            pagos_de_esta_reclamacion = list(
-                getattr(rec, 'pagos_activos_de_reclamacion', []))
-            pagos_de_reclamaciones_list.extend(pagos_de_esta_reclamacion)
+        saldo_pendiente_contrato = (
+            contrato.monto_total or Decimal('0.00')) - total_pagado_a_facturas
 
-        monto_total_pagado_reclamaciones = sum(
-            p.monto_pago for p in pagos_de_reclamaciones_list if p.monto_pago) or Decimal('0.0')
+        # 4. Calcular el resto de los datos para el contexto, usando properties del modelo donde sea seguro.
+        reclamaciones_asociadas = list(contrato.reclamacion_set.all())
+        pagos_de_reclamaciones = list(Pago.objects.filter(
+            reclamacion__contrato_colectivo=contrato, activo=True))
+        # Usando la property
+        monto_total_pagado_reclamaciones = contrato.monto_total_pagado_reclamaciones
+        saldo_disponible_cobertura = contrato.saldo_disponible_cobertura  # Usando la property
+        # Usando la property
+        porcentaje_cobertura_consumido = contrato.porcentaje_cobertura_consumido
 
-        monto_total_reclamado_general = sum(
-            r.monto_reclamado for r in reclamaciones_con_sus_pagos if r.monto_reclamado and r.estado in ['APROBADA', 'PAGADA', 'CERRADA']
-        ) or Decimal('0.00')
+        # 5. Preparar los permisos para los botones de acción en el template.
+        user_permissions = {
+            'can_view_facturas': self.request.user.has_perm('myapp.view_factura'),
+            'can_view_reclamaciones': self.request.user.has_perm('myapp.view_reclamacion'),
+            'can_view_pagos': self.request.user.has_perm('myapp.view_pago'),
+            'can_view_afiliadocolectivo': self.request.user.has_perm('myapp.view_afiliadocolectivo'),
+        }
 
-        saldo_cobertura = (contrato.suma_asegurada or Decimal(
-            '0.00')) - monto_total_reclamado_general
-        porcentaje_consumido = 0
-        if contrato.suma_asegurada and contrato.suma_asegurada > 0:
-            try:
-                porcentaje_consumido = int(
-                    (monto_total_reclamado_general / contrato.suma_asegurada * 100).quantize(Decimal('1.'), rounding=ROUND_HALF_UP))
-                porcentaje_consumido = min(max(porcentaje_consumido, 0), 100)
-            except (ZeroDivisionError, InvalidOperation):
-                porcentaje_consumido = 0 if monto_total_reclamado_general == Decimal(
-                    '0.00') else 100
-
-        prima_anual = contrato.importe_anual_contrato or Decimal(
-            '0.00')  # Usar la propiedad del modelo
-
+        # 6. Construir el contexto final con todas las variables que el template espera.
         context.update({
-            'page_title': f"Detalle CC: {contrato.numero_contrato or contrato.razon_social}",
-            'intermediario': contrato.intermediario,
-            'tarifa_aplicada_obj': contrato.tarifa_aplicada,
+            # Objeto principal, ya está en el contexto como 'object', ahora refrescado
 
-            'duracion_contrato_meses': contrato.periodo_vigencia_meses or contrato.duracion_calculada_meses,
-            'esta_vigente_contrato': contrato.esta_vigente,
-            'monto_total_contrato': contrato.monto_total,
-            'importe_anual_referencial': contrato.importe_anual_contrato,  # Usar la propiedad
-            'cantidad_cuotas_calculada': contrato.cantidad_cuotas_estimadas,
-            'importe_recibo_calculado': contrato.monto_cuota_estimada,
-            'forma_pago_display': contrato.get_forma_pago_display(),
-            'suma_asegurada_contrato': contrato.suma_asegurada,
-            'prima_anual_contrato': prima_anual,
+            # Variables para la sección de resumen financiero
+            'total_pagado_a_facturas': total_pagado_a_facturas,
+            # <-- Pasamos el valor calculado
+            'saldo_pendiente_contrato': saldo_pendiente_contrato,
+
+            # La property del modelo `saldo_pendiente_contrato` usará el cálculo anterior,
+            # por lo que no es necesario pasarla explícitamente si el template usa `object.saldo_pendiente_contrato`.
+
+            # Variables para la sección de consumo de cobertura
+            'monto_total_pagado_reclamaciones': monto_total_pagado_reclamaciones,
+            'saldo_disponible_cobertura': saldo_disponible_cobertura,
+            'porcentaje_cobertura_consumido': porcentaje_cobertura_consumido,
+
+            # Listas completas de objetos para las tablas
+            'afiliados_asociados': list(contrato.afiliados_colectivos.all()),
+            'total_afiliados_asociados': contrato.afiliados_colectivos.count(),
+
+            'reclamaciones_asociadas': reclamaciones_asociadas,
+            'total_reclamaciones': len(reclamaciones_asociadas),
+
+            'pagos_de_reclamaciones': pagos_de_reclamaciones,
+            'total_pagos_reclamaciones': len(pagos_de_reclamaciones),
 
             'facturas_asociadas': facturas_asociadas,
             'total_facturas': len(facturas_asociadas),
-            'monto_total_pagado_facturas': monto_total_pagado_facturas,
-            'saldo_pendiente_facturas': saldo_pendiente_facturas,
-            'saldo_pendiente_anual': max(Decimal('0.00'), prima_anual - monto_total_pagado_facturas),
 
-            'reclamaciones_asociadas': reclamaciones_con_sus_pagos,
-            'total_reclamaciones': len(reclamaciones_con_sus_pagos),
-            'monto_total_reclamado_general': monto_total_reclamado_general,
-
-            'pagos_de_reclamaciones': pagos_de_reclamaciones_list,
-            'total_pagos_reclamaciones': len(pagos_de_reclamaciones_list),
-            'monto_total_pagado_reclamaciones': monto_total_pagado_reclamaciones,
-
-            'saldo_cobertura': saldo_cobertura,
-            'porcentaje_consumido': porcentaje_consumido,
-
-            # Ya prefetched
-            'afiliados_asociados': list(contrato.afiliados_colectivos.all()),
-            'total_afiliados_asociados': contrato.afiliados_colectivos.count(),
-            'porcentaje_ejecucion_vigencia': contrato.porcentaje_ejecucion_vigencia,
-
-            # 'active_tab': 'contratos_colectivos_detail', # Tu active_tab
+            # Permisos
+            'perms': self.request.user.get_all_permissions(),
+            'user_perms': user_permissions,
         })
+
         return context
 
 
@@ -2726,43 +2676,34 @@ class ReclamacionStatusAPIView(View):
 
 class PagoListView(IntermediarioDataMixin, BaseListView):
     model = Pago
-    model_manager_name = 'objects'
+    # <-- Cambio clave: parte de TODOS los pagos.
+    model_manager_name = 'all_objects'
     template_name = 'pago_list.html'
     filterset_class = PagoFilter
     context_object_name = 'pagos'
     permission_required = 'myapp.view_pago'
     search_fields = [
         'referencia_pago', 'observaciones_pago',
-        # Búsqueda por número de reclamación
         'reclamacion__id', 'reclamacion__numero_reclamacion',
         'reclamacion__descripcion_reclamo',
         'factura__numero_recibo',
         'factura__contrato_individual__numero_contrato',
         'factura__contrato_colectivo__numero_contrato',
-        'forma_pago'  # Si quieres buscar por el código de forma_pago, si es por display, necesitas anotación
+        'forma_pago'
     ]
     ordering_fields = [
-        'id',  # ID del Pago
-        'activo',
-        'forma_pago',
-        'fecha_pago',
-        'monto_pago',
-        'referencia_pago',
-        'fecha_notificacion_pago',
-        # 'observaciones_pago', # TextField
-        'reclamacion__id',
-        'reclamacion__numero_reclamacion',  # Ya añadido
-        'reclamacion__fecha_reclamo',
-        'factura__numero_recibo',
-        'factura__monto',
-        'factura__fecha_creacion',
-        'fecha_creacion',  # Fecha creación del Pago
-        'fecha_modificacion'  # Fecha modificación del Pago
+        'id', 'activo', 'forma_pago', 'fecha_pago', 'monto_pago',
+        'referencia_pago', 'fecha_notificacion_pago',
+        'reclamacion__id', 'reclamacion__numero_reclamacion', 'reclamacion__fecha_reclamo',
+        'factura__numero_recibo', 'factura__monto', 'factura__fecha_creacion',
+        'fecha_creacion', 'fecha_modificacion'
     ]
     ordering = ['-fecha_pago', '-fecha_creacion']
 
     def get_queryset(self):
-        queryset = self.model.objects.select_related(
+        # El manager `all_objects` es usado por `super().get_queryset()` gracias a la configuración de la clase.
+        # Aquí, simplemente optimizamos la consulta.
+        queryset = super().get_queryset().select_related(
             'reclamacion__contrato_individual__afiliado',
             'reclamacion__contrato_colectivo',
             'reclamacion__usuario_asignado',
@@ -2770,54 +2711,9 @@ class PagoListView(IntermediarioDataMixin, BaseListView):
             'factura__contrato_colectivo',
             'factura__intermediario'
         )
+        return queryset
 
-        self.filterset = self.filterset_class(
-            self.request.GET, queryset=queryset)
-        queryset = self.filterset.qs
-
-        search_query = escape(self.request.GET.get('search', '')).strip()
-        if search_query:
-            filters = Q()
-            # Anotación para forma_pago_display
-            forma_pago_cases = [When(forma_pago=key, then=Value(
-                display)) for key, display in CommonChoices.FORMA_PAGO_RECLAMACION]
-            if forma_pago_cases:
-                queryset = queryset.annotate(forma_pago_display=Case(
-                    *forma_pago_cases, default=Value(''), output_field=CharField()))
-                filters |= Q(forma_pago_display__icontains=search_query)
-
-            # Búsqueda en otros campos (excluyendo forma_pago directo)
-            for field in self.search_fields:
-                try:
-                    if field == 'monto_pago':
-                        try:
-                            filters |= Q(
-                                **{f"{field}__exact": Decimal(search_query.replace(',', '.'))})
-                        except:
-                            pass
-                    elif field == 'reclamacion__id':
-                        try:
-                            filters |= Q(**{f"{field}": int(search_query)})
-                        except:
-                            pass
-                    else:
-                        # Validar ruta antes de añadir __icontains
-                        self._validate_lookup_path(self.model, field)
-                        filters |= Q(**{f"{field}__icontains": search_query})
-                except FieldDoesNotExist:
-                    logger.warning(f"Campo búsqueda '{field}' inválido.")
-                except Exception as e:
-                    logger.error(
-                        f"Error procesando campo búsqueda {field}: {e}")
-
-            if filters:
-                queryset = queryset.filter(filters).distinct()
-
-        # Ordenamiento (heredado/reutilizado de BaseListView)
-        # Llama a un método helper de ordenación
-        return super(PagoListView, self)._apply_ordering(queryset)
-
-    # Método auxiliar para validar rutas (puede estar en BaseListView)
+    # Este método auxiliar es necesario para tu lógica de búsqueda.
     def _validate_lookup_path(self, model, field_path):
         related_model = model
         parts = field_path.split('__')
@@ -2830,90 +2726,13 @@ class PagoListView(IntermediarioDataMixin, BaseListView):
                     raise FieldDoesNotExist(
                         f"'{part}' no es relación en '{field_path}'")
             else:
-                related_model._meta.get_field(part)  # Validar campo final
-
-    # Método auxiliar para ordenar (puede estar en BaseListView)
-    def _apply_ordering(self, queryset):
-        sort_by = self.request.GET.get('sort')
-        default_sort = self.get_ordering() or ['-pk']
-        if not sort_by:
-            sort_by = default_sort[0]
-
-        order = self.request.GET.get(
-            'order', 'asc' if not sort_by.startswith('-') else 'desc')
-        prefix = '-' if order == 'desc' else ''
-        sort_field = sort_by.lstrip('-')
-
-        if sort_field and hasattr(self, 'ordering_fields') and sort_field in self.ordering_fields:
-            try:
-                self._validate_lookup_path(self.model, sort_field)
-                # Lógica de anotación específica si existe
-                if hasattr(self, f'_annotate_sort_{sort_field}'):
-                    queryset = getattr(self, f'_annotate_sort_{sort_field}')(
-                        queryset, prefix)
-                else:
-                    queryset = queryset.order_by(f'{prefix}{sort_field}')
-                self.current_sort = sort_field
-                self.current_order = order
-            except FieldDoesNotExist:
-                logger.warning(
-                    f"Campo orden '{sort_field}' inválido. Usando defecto.")
-                queryset = queryset.order_by(*default_sort)
-                self.current_sort = default_sort[0].lstrip('-')
-                self.current_order = 'desc' if default_sort[0].startswith(
-                    '-') else 'asc'
-        else:
-            if sort_by:
-                logger.warning(
-                    f"Campo orden '{sort_by}' no permitido/inválido. Usando defecto.")
-            queryset = queryset.order_by(*default_sort)
-            self.current_sort = default_sort[0].lstrip('-')
-            self.current_order = 'desc' if default_sort[0].startswith(
-                '-') else 'asc'
-        return queryset
+                related_model._meta.get_field(part)
 
     def get_context_data(self, **kwargs):
-        # BaseListView añade filter, current_sort, current_order
         context = super().get_context_data(**kwargs)
-        qs_stats = self.filterset.qs if self.filterset else self.object_list
 
-        # Recalcular filtros para estadísticas si hubo búsqueda general (incluye anotación)
-        search_query = escape(self.request.GET.get('search', '')).strip()
-        if qs_stats is not None and search_query:
-            filters_stats = Q()
-            forma_pago_cases_stats = [When(forma_pago=key, then=Value(
-                display)) for key, display in CommonChoices.FORMA_PAGO_RECLAMACION]
-            if forma_pago_cases_stats:
-                qs_stats_annotated = qs_stats.annotate(forma_pago_display_stats=Case(
-                    *forma_pago_cases_stats, default=Value(''), output_field=CharField()))
-                filters_stats |= Q(
-                    forma_pago_display_stats__icontains=search_query)
-                qs_stats = qs_stats_annotated  # Usar el anotado para el resto de filtros
-
-            if self.search_fields:
-                for field in self.search_fields:
-                    try:
-                        if field == 'monto_pago':
-                            try:
-                                filters_stats |= Q(
-                                    **{f"{field}__exact": Decimal(search_query.replace(',', '.'))})
-                            except:
-                                pass
-                        elif field == 'reclamacion__id':
-                            try:
-                                filters_stats |= Q(
-                                    **{f"{field}": int(search_query)})
-                            except:
-                                pass
-                        else:
-                            self._validate_lookup_path(self.model, field)
-                            filters_stats |= Q(
-                                **{f"{field}__icontains": search_query})
-                    except:
-                        pass  # Ignorar errores en stats
-            if filters_stats:
-                qs_stats = qs_stats.filter(filters_stats).distinct()
-        # FIN Recalcular filtros para estadísticas
+        # Tu lógica de estadísticas se mantiene, pero la aplicamos sobre el queryset ya filtrado.
+        qs_stats = self.object_list
 
         stats = qs_stats.aggregate(
             total_pagos=Count('id'),
@@ -2927,6 +2746,7 @@ class PagoListView(IntermediarioDataMixin, BaseListView):
             'promedio_monto', Decimal('0.0')) or Decimal('0.0')
         context['active_tab'] = 'pagos'
         context['formas_pago'] = CommonChoices.FORMA_PAGO_RECLAMACION
+
         return context
 
 
@@ -3041,87 +2861,95 @@ class PagoCreateView(BaseCreateView):
     template_name = 'pago_form.html'
     permission_required = 'myapp.add_pago'
 
-    # Definimos una URL de éxito estática como fallback seguro.
-    success_url = reverse_lazy('myapp:pago_list')
+    def get_success_url(self):
+        """Redirige a la vista de detalle del contrato asociado después de un pago exitoso."""
+        if hasattr(self, 'object') and self.object and self.object.factura:
+            contrato = self.object.factura.get_contrato_asociado
+            if isinstance(contrato, ContratoIndividual):
+                return reverse('myapp:contrato_individual_detail', kwargs={'pk': contrato.pk})
+            if isinstance(contrato, ContratoColectivo):
+                return reverse('myapp:contrato_colectivo_detail', kwargs={'pk': contrato.pk})
+        return reverse('myapp:pago_list')  # Fallback
 
     def form_valid(self, form):
         """
-        Este es el método correcto y estándar para una CreateView.
-        Guarda el formulario y luego redirige.
-        La lógica compleja está en las señales.
+        Maneja la creación del pago y la actualización de la factura y el contrato
+        de forma atómica, segura y explícita, usando .update() para el contador.
         """
+        pago_sin_guardar = form.save(commit=False)
+        factura_a_pagar_form = form.cleaned_data.get('factura')
+
+        if not factura_a_pagar_form:
+            # Lógica para otros tipos de pago (ej. reclamación)
+            return super().form_valid(form)
+
         try:
-            # Guardamos el objeto. La señal post_save se disparará automáticamente.
-            self.object = form.save()
+            with transaction.atomic():
+                # 1. Bloquear la factura para seguridad concurrente.
+                factura = Factura.objects.select_for_update().get(pk=factura_a_pagar_form.pk)
 
-            # --- Lógica de Mensajes Post-Guardado ---
-            # Refrescamos la reclamación para mostrar el mensaje correcto.
-            if self.object.reclamacion:
-                self.object.reclamacion.refresh_from_db()
-                if self.object.reclamacion.estado == 'PAGADA':
-                    messages.success(
-                        self.request,
-                        f"Pago registrado. La Reclamación #{self.object.reclamacion.pk} ha sido actualizada a PAGADA."
+                # 2. Re-validación final y definitiva del monto.
+                if pago_sin_guardar.monto_pago > (factura.monto_pendiente + factura.TOLERANCE):
+                    raise ValidationError(
+                        f"El monto del pago (${pago_sin_guardar.monto_pago:.2f}) excede el pendiente actual (${factura.monto_pendiente:.2f}). La operación ha sido cancelada.")
+
+                # 3. Guardar el nuevo pago.
+                pago_sin_guardar.factura = factura
+                pago_sin_guardar.save()
+                self.object = pago_sin_guardar
+
+                # 4. Actualizar la factura.
+                total_pagado_actualizado = factura.pagos.filter(activo=True).aggregate(
+                    total=Coalesce(Sum('monto_pago'), Value(
+                        Decimal('0.00')), output_field=DecimalField())
+                )['total']
+
+                factura.monto_pendiente = max(
+                    Decimal('0.00'), factura.monto - total_pagado_actualizado)
+                factura.pagada = factura.monto_pendiente <= factura.TOLERANCE
+
+                if factura.pagada:
+                    factura.estatus_factura = 'PAGADA'
+
+                factura.save(update_fields=[
+                             'monto_pendiente', 'pagada', 'estatus_factura'])
+                logger.info(
+                    f"Factura PK {factura.pk} actualizada en BD. Pagada={factura.pagada}")
+
+                # 5. Actualizar el contador del contrato usando .update()
+                contrato = factura.get_contrato_asociado
+                if contrato:
+                    contrato_model = type(contrato)
+
+                    numero_facturas_pagadas = Factura.objects.filter(
+                        contrato_colectivo_id=contrato.pk if isinstance(
+                            contrato, ContratoColectivo) else None,
+                        contrato_individual_id=contrato.pk if isinstance(
+                            contrato, ContratoIndividual) else None,
+                        pagada=True,
+                        activo=True
+                    ).count()
+
+                    filas_afectadas = contrato_model.objects.filter(pk=contrato.pk).update(
+                        pagos_realizados=numero_facturas_pagadas
                     )
-                else:
-                    messages.success(
-                        self.request, "Pago parcial registrado exitosamente.")
-            else:
-                messages.success(
-                    self.request, "Pago de factura registrado exitosamente.")
 
-            # Devolvemos la redirección. super().form_valid() hace esto, pero
-            # ser explícito es más claro.
-            return HttpResponseRedirect(self.get_success_url())
+                    logger.info(
+                        f"ÉXITO: Se ejecutó .update() para Contrato PK {contrato.pk}. Nuevo valor: {numero_facturas_pagadas}. Filas afectadas: {filas_afectadas}")
+
+            messages.success(self.request, "Pago procesado exitosamente.")
+            return redirect(self.get_success_url())
 
         except ValidationError as e:
-            # Si el modelo o el form lanzan un error de validación
-            logger.warning(f"ValidationError al guardar Pago: {e}")
+            logger.warning(
+                f"Error de validación durante el proceso de pago: {e}")
             form.add_error(None, e)
             return self.form_invalid(form)
         except Exception as e:
-            # Para cualquier otro error inesperado
-            logger.exception(f"Error inesperado al guardar Pago: {e}")
+            logger.exception(f"Error inesperado al procesar el pago: {e}")
             messages.error(
-                self.request, "Ocurrió un error inesperado al guardar el pago.")
+                self.request, "Ocurrió un error inesperado. La operación ha sido cancelada.")
             return self.form_invalid(form)
-
-    def get_success_url(self):
-        """
-        Redirige al detalle del contrato asociado después de crear el pago.
-        """
-        if self.object.reclamacion and self.object.reclamacion.contrato_individual:
-            return reverse('myapp:contrato_individual_detail', kwargs={'pk': self.object.reclamacion.contrato_individual.pk})
-        elif self.object.reclamacion and self.object.reclamacion.contrato_colectivo:
-            return reverse('myapp:contrato_colectivo_detail', kwargs={'pk': self.object.reclamacion.contrato_colectivo.pk})
-        elif self.object.factura and self.object.factura.contrato_individual:
-            return reverse('myapp:contrato_individual_detail', kwargs={'pk': self.object.factura.contrato_individual.pk})
-        elif self.object.factura and self.object.factura.contrato_colectivo:
-            return reverse('myapp:contrato_colectivo_detail', kwargs={'pk': self.object.factura.contrato_colectivo.pk})
-
-        # Si no hay contrato, vuelve a la lista de pagos.
-        return reverse('myapp:pago_list')
-
-    def enviar_notificacion_creacion(self, pago):
-        mensaje = f"Nuevo pago (Ref: {pago.referencia_pago or pago.pk}) por ${pago.monto_pago:.2f}."
-        url_name = 'myapp:pago_detail'
-        url_k = {'pk': pago.pk}
-        destinatarios = []
-        if pago.reclamacion and pago.reclamacion.usuario_asignado:
-            destinatarios.append(pago.reclamacion.usuario_asignado)
-            mensaje += f" Asoc. a Reclamo #{pago.reclamacion.pk}."
-        elif pago.factura:
-            # Lógica para intermediario de la factura
-            if pago.factura.intermediario and hasattr(pago.factura.intermediario, 'usuarios'):
-                destinatarios.extend(
-                    list(pago.factura.intermediario.usuarios.filter(is_active=True)))
-            mensaje += f" Asoc. a Factura {pago.factura.numero_recibo}."
-        # Siempre notificar admins?
-        destinatarios.extend(
-            list(Usuario.objects.filter(is_superuser=True, is_active=True)))
-        if destinatarios:
-            crear_notificacion(list(set(destinatarios)), mensaje,
-                               tipo='success', url_path_name=url_name, url_kwargs=url_k)
 
 
 @method_decorator(csrf_protect, name='dispatch')
@@ -4475,39 +4303,53 @@ class FacturaDetailView(BaseDetailView):
 @method_decorator(csrf_protect, name='dispatch')
 class FacturaCreateView(BaseCreateView):
     model = Factura
-    model_manager_name = 'all_objects'
     form_class = FacturaForm
     template_name = 'factura_form.html'
-    success_url = reverse_lazy('myapp:factura_list')
     permission_required = 'myapp.add_factura'
 
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        # O solo para GET si es pre-llenado inicial
-        if self.request.method in ('POST', 'PUT'):
-            pass  # No pasar para POST para no sobreescribir datos del usuario
-        else:  # Para GET (carga inicial del formulario)
-            contrato_id = self.request.GET.get(
-                'contrato_id_param')  # Elige un nombre de parámetro
-            contrato_tipo = self.request.GET.get('contrato_tipo_param')
-            if contrato_id and contrato_tipo:
-                kwargs['contrato_id'] = contrato_id
-                kwargs['contrato_tipo'] = contrato_tipo
-        return kwargs
+    def get_initial(self):
+        """
+        Pre-llena el formulario con el contrato si viene de la página de detalle.
+        """
+        initial = super().get_initial()
+        contrato_id = self.kwargs.get('contrato_id')
+        tipo_contrato = self.kwargs.get('tipo_contrato')
 
-    def enviar_notificacion_creacion(self, factura):
-        mensaje = f"Nueva Factura generada: {factura.numero_recibo} por ${factura.monto:.2f}."
-        url_k = {'pk': factura.pk}
-        destinatarios = []
-        if factura.intermediario and hasattr(factura.intermediario, 'usuarios'):
-            destinatarios.extend(
-                list(factura.intermediario.usuarios.filter(is_active=True)))
-        # Lógica para notificar al cliente si es necesario...
-        destinatarios.extend(
-            list(Usuario.objects.filter(is_superuser=True, is_active=True)))
-        if destinatarios:
-            crear_notificacion(list(set(destinatarios)), mensaje, tipo='info',
-                               url_path_name='myapp:factura_detail', url_kwargs=url_k)
+        if tipo_contrato == 'colectivo':
+            initial['contrato_colectivo'] = contrato_id
+        elif tipo_contrato == 'individual':
+            initial['contrato_individual'] = contrato_id
+
+        return initial
+
+    def form_valid(self, form):
+        """
+        Asegura que el contrato se asigne correctamente a la factura.
+        """
+        context = self.get_context_data()
+        factura = form.save(commit=False)
+
+        # Asignar el contrato desde los kwargs de la URL
+        contrato_id = self.kwargs.get('contrato_id')
+        tipo_contrato = self.kwargs.get('tipo_contrato')
+
+        if tipo_contrato == 'colectivo':
+            factura.contrato_colectivo_id = contrato_id
+        elif tipo_contrato == 'individual':
+            factura.contrato_individual_id = contrato_id
+
+        # La lógica de `monto_pendiente` se maneja en el .save() del modelo
+        factura.save()
+        self.object = factura
+
+        messages.success(self.request, "Factura creada exitosamente.")
+        # Redirigir al detalle del contrato desde donde se creó
+        if tipo_contrato == 'colectivo':
+            return redirect(reverse('myapp:contrato_colectivo_detail', kwargs={'pk': contrato_id}))
+        elif tipo_contrato == 'individual':
+            return redirect(reverse('myapp:contrato_individual_detail', kwargs={'pk': contrato_id}))
+
+        return redirect(reverse('myapp:factura_list'))
 
 
 @method_decorator(csrf_protect, name='dispatch')
@@ -4645,9 +4487,10 @@ class FacturaDeleteView(BaseDeleteView):
     permission_required = 'myapp.delete_factura'
     success_url = reverse_lazy('myapp:factura_list')
 
-    def can_delete(self, obj):  # Devuelve (bool, str)
-        if hasattr(obj, 'pagos') and obj.pagos.exists():  # 'pagos' es el related_name
-            return False, f"No se puede eliminar: la factura '{obj.numero_recibo}' tiene pagos asociados."
+    def can_delete(self, obj):
+        # [CORRECCIÓN] Contamos solo los pagos activos.
+        if obj.pagos.filter(activo=True).exists():
+            return False, f"No se puede eliminar: la factura '{obj.numero_recibo}' tiene pagos activos asociados."
         return True, ""
 
     def get_context_data(self, **kwargs):
