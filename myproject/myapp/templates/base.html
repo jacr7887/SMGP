@@ -1,13 +1,10 @@
 <!DOCTYPE html>
 <html lang="es">
-  <head>
+<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}🧙 SMGP ✨{% endblock %}</title>
-    {% load i18n %}
-    {% load static %}
-    {% load humanize %}
-    {# {% load querystring_tags %} #}
+    {% load static i18n humanize %}
 
     <link rel="stylesheet" href="{% static 'styles.css' %}" />
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
@@ -32,8 +29,6 @@
       .nav_icon { margin-right: 10px; display: inline-block; width: 1.5em; text-align: center; }
       .nav_link-sidebar { display: flex; align-items: center; }
       img.emoji { height: 1.1em; width: 1.1em; margin: 0 .07em 0 .1em; vertical-align: -0.15em; display: inline-block; }
-
-      /* Estilos para el menú de notificaciones */
       .notification_item { position: relative; padding-right: 30px; }
       .notification_item a.notification_link_content { display: flex; align-items: flex-start; text-decoration: none; color: inherit; padding: 8px 10px; }
       .notification_item a.notification_link_content:hover { background-color: rgba(255,255,255,0.05); }
@@ -51,8 +46,8 @@
     </style>
     {% block extra_css %}{% endblock %}
     {% block extra_head %}{% endblock %}
-  </head>
-  <body>
+</head>
+<body>
     <div class="loading" id="loadingIndicator" style="display: none">
       <div class="spinner"></div>
     </div>
@@ -69,64 +64,61 @@
         <div class="sidebar_content">
           <ul class="nav_menu">
             
-            <!-- === [CORRECCIÓN] LÓGICA DE DASHBOARDS === -->
+            {# --- INICIO DE LA LÓGICA CORREGIDA DEL SIDEBAR --- #}
+            
+            {# 1. Enlace de Inicio Principal #}
             {% if user.is_superuser %}
-              <li class="nav_item {% if active_tab == 'dashboard' or request.resolver_match.url_name == 'home' %}active{% endif %}">
-                  <a href="{% url 'myapp:home' %}" class="nav_link-sidebar"><span class="nav_icon">🏠</span><span class="nav_text">Inicio (Admin)</span></a>
-              </li>
-              <li class="nav_item {% if active_tab == 'reportes' %}active{% endif %}">
-                  <a href="{% url 'myapp:reporte_general' %}" class="nav_link-sidebar"><span class="nav_icon">📊</span><span class="nav_text">Reporte General</span></a>
+              <li class="nav_item {% if request.resolver_match.url_name == 'home' %}active{% endif %}">
+                  <a href="{% url 'myapp:home' %}" class="nav_link-sidebar"><span class="nav_icon">👑</span><span class="nav_text">Dashboard Admin</span></a>
               </li>
             {% elif user.intermediario %}
               <li class="nav_item {% if request.resolver_match.url_name == 'intermediario_dashboard' %}active{% endif %}">
                   <a href="{% url 'myapp:intermediario_dashboard' %}" class="nav_link-sidebar"><span class="nav_icon">🏠</span><span class="nav_text">Mi Dashboard</span></a>
               </li>
             {% else %}
-              <li class="nav_item {% if active_tab == 'dashboard' or request.resolver_match.url_name == 'home' %}active{% endif %}">
+              <li class="nav_item {% if request.resolver_match.url_name == 'home' %}active{% endif %}">
                   <a href="{% url 'myapp:home' %}" class="nav_link-sidebar"><span class="nav_icon">🏠</span><span class="nav_text">Inicio</span></a>
               </li>
             {% endif %}
-            
+
+            {# 2. Resto de los menús basados en permisos #}
+            {% if user.is_staff %}
+            <li class="nav_item {% if active_tab == 'reportes' %}active{% endif %}">
+                <a href="{% url 'myapp:reporte_general' %}" class="nav_link-sidebar"><span class="nav_icon">📊</span><span class="nav_text">Reporte General</span></a>
+            </li>
+            {% endif %}
+
             {% if perms.myapp.view_usuario %}
                <li class="nav_item {% if active_tab == 'usuarios' %}active{% endif %}">
                    <a href="{% url 'myapp:usuario_list' %}" class="nav_link-sidebar"><span class="nav_icon">👤</span><span class="nav_text">Usuarios</span></a>
                </li>
             {% endif %}
 
-            <!-- === [CORRECCIÓN] MENÚ INTERMEDIARIO === -->
-            {% if user.is_authenticated %}
-            <li class="nav_item {% if active_tab == 'intermediarios' or request.resolver_match.url_name == 'intermediario_dashboard' %}open active{% endif %}">
-              <a href="#" class="nav_link-sidebar submenu_toggle">
-                <span class="nav_icon">🤝</span><span class="nav_text">Intermediario</span><span class="nav_arrow">▼</span>
-              </a>
-              <ul class="submenu">
-                {% if not request.user.is_superuser and request.user.intermediario %}
-                    <li><a href="{% url 'myapp:intermediario_dashboard' %}" class="submenu_link {% if request.resolver_match.url_name == 'intermediario_dashboard' %}active{% endif %}">Mi Dashboard</a></li>
-                {% endif %}
-                {% if perms.myapp.view_intermediario %}
-                    <li><a href="{% url 'myapp:intermediario_list' %}" class="submenu_link {% if active_tab == 'intermediarios' %}active{% endif %}">Lista de Intermediarios</a></li>
-                {% endif %}
-              </ul>
+            {% if perms.myapp.view_intermediario %}
+            <li class="nav_item {% if active_tab == 'intermediarios' %}active{% endif %}">
+                <a href="{% url 'myapp:intermediario_list' %}" class="nav_link-sidebar"><span class="nav_icon">🤝</span><span class="nav_text">Intermediarios</span></a>
+            </li>
+            {% endif %}
+            
+            {% if perms.myapp.view_registrocomision %}
+            <li class="nav_item {% if active_tab == 'comisiones' or active_tab == 'liquidacion_comisiones' or active_tab == 'historial_liquidaciones' %}open active{% endif %}">
+                <a href="#" class="nav_link-sidebar submenu_toggle"><span class="nav_icon">💸</span><span class="nav_text">Comisiones</span><span class="nav_arrow">▼</span></a>
+                <ul class="submenu">
+                    <li><a href="{% url 'myapp:registro_comision_list' %}" class="submenu_link {% if active_tab == 'comisiones' %}active{% endif %}">Registros de Comisión</a></li>
+                    <li><a href="{% url 'myapp:liquidacion_comisiones' %}" class="submenu_link {% if active_tab == 'liquidacion_comisiones' %}active{% endif %}">Liquidación Pendientes</a></li>
+                    <li><a href="{% url 'myapp:historial_liquidaciones_list' %}" class="submenu_link {% if active_tab == 'historial_liquidaciones' %}active{% endif %}">Historial de Liquidaciones</a></li>
+                </ul>
+            </li>
+            {% elif user.intermediario %}
+            <li class="nav_item {% if request.resolver_match.url_name == 'mis_comisiones_list' %}active{% endif %}">
+                <a href="{% url 'myapp:mis_comisiones_list' %}" class="nav_link-sidebar"><span class="nav_icon">💸</span><span class="nav_text">Mis Comisiones</span></a>
             </li>
             {% endif %}
 
-            {% if perms.myapp.view_registrocomision %}
-                <li class="nav_item {% if active_tab == 'comisiones' or active_tab == 'liquidacion_comisiones' %}open active{% endif %}">
-                    <a href="#" class="nav_link-sidebar submenu_toggle">
-                        <span class="nav_icon">💸</span><span class="nav_text">Comisiones</span><span class="nav_arrow">▼</span>
-                    </a>
-                    <ul class="submenu">
-                        <li><a href="{% url 'myapp:registro_comision_list' %}" class="submenu_link {% if active_tab == 'comisiones' %}active{% endif %}">Registros de Comisión</a></li>
-                        <li><a href="{% url 'myapp:liquidacion_comisiones' %}" class="submenu_link {% if active_tab == 'liquidacion_comisiones' %}active{% endif %}">Liquidación Pendientes</a></li>
-                        <li><a href="{% url 'myapp:historial_liquidaciones_list' %}" class="submenu_link {% if active_tab == 'historial_liquidaciones' %}active{% endif %}">Historial de Liquidaciones</a></li>
-                    </ul>
-                </li>
-            {% endif %}
-
             {% if perms.myapp.view_tarifa %}
-                <li class="nav_item {% if active_tab == 'tarifas' %}active{% endif %}">
-                    <a href="{% url 'myapp:tarifa_list' %}" class="nav_link-sidebar"><span class="nav_icon">🏷️</span><span class="nav_text">Tarifas</span></a>
-                </li>
+            <li class="nav_item {% if active_tab == 'tarifas' %}active{% endif %}">
+                <a href="{% url 'myapp:tarifa_list' %}" class="nav_link-sidebar"><span class="nav_icon">🏷️</span><span class="nav_text">Tarifas</span></a>
+            </li>
             {% endif %}
 
             {% if perms.myapp.view_afiliadoindividual or perms.myapp.view_afiliadocolectivo %}
@@ -138,7 +130,7 @@
               </ul>
             </li>
             {% endif %}
-
+            
             {% if perms.myapp.view_contratoindividual or perms.myapp.view_contratocolectivo %}
             <li class="nav_item {% if active_tab == 'contratos_individuales' or active_tab == 'contratos_colectivos' %}open active{% endif %}">
               <a href="#" class="nav_link-sidebar submenu_toggle"><span class="nav_icon">📝</span><span class="nav_text">Contratos</span><span class="nav_arrow">▼</span></a>
@@ -148,25 +140,25 @@
               </ul>
             </li>
             {% endif %}
-
+            
             {% if perms.myapp.view_factura %}
-                <li class="nav_item {% if active_tab == 'facturas' %}active{% endif %}">
-                    <a href="{% url 'myapp:factura_list' %}" class="nav_link-sidebar"><span class="nav_icon">🧾</span><span class="nav_text">Facturas</span></a>
-                </li>
+            <li class="nav_item {% if active_tab == 'facturas' %}active{% endif %}">
+                <a href="{% url 'myapp:factura_list' %}" class="nav_link-sidebar"><span class="nav_icon">🧾</span><span class="nav_text">Facturas</span></a>
+            </li>
             {% endif %}
-
+            
             {% if perms.myapp.view_reclamacion %}
-                <li class="nav_item {% if active_tab == 'reclamaciones' %}active{% endif %}">
-                    <a href="{% url 'myapp:reclamacion_list' %}" class="nav_link-sidebar"><span class="nav_icon">🆘</span><span class="nav_text">Reclamaciones</span></a>
-                </li>
+            <li class="nav_item {% if active_tab == 'reclamaciones' %}active{% endif %}">
+                <a href="{% url 'myapp:reclamacion_list' %}" class="nav_link-sidebar"><span class="nav_icon">🆘</span><span class="nav_text">Reclamaciones</span></a>
+            </li>
             {% endif %}
-
+            
             {% if perms.myapp.view_pago %}
-                <li class="nav_item {% if active_tab == 'pagos' %}active{% endif %}">
-                    <a href="{% url 'myapp:pago_list' %}" class="nav_link-sidebar"><span class="nav_icon">💰</span><span class="nav_text">Pagos</span></a>
-                </li>
+            <li class="nav_item {% if active_tab == 'pagos' %}active{% endif %}">
+                <a href="{% url 'myapp:pago_list' %}" class="nav_link-sidebar"><span class="nav_icon">💰</span><span class="nav_text">Pagos</span></a>
+            </li>
             {% endif %}
-
+            
             {% if user.is_staff %}
             <li class="nav_item {% if active_tab == 'auditorias' or active_tab == 'licencia' %}open active{% endif %}">
                 <a href="#" class="nav_link-sidebar submenu_toggle"><span class="nav_icon">🔒</span><span class="nav_text">Admin</span><span class="nav_arrow">▼</span></a>
@@ -176,7 +168,7 @@
                 </ul>
             </li>
             {% endif %}
-
+            
              <li class="nav_item">
                 <form id="logout-form-sidebar" method="post" action="{% url 'myapp:logout' %}" style="display: none;">{% csrf_token %}</form>
                 <a href="#" onclick="event.preventDefault(); document.getElementById('logout-form-sidebar').submit();" class="nav_link-sidebar">
@@ -191,56 +183,34 @@
         <header class="topbar">
             <div class="topbar_left">
               <button class="sidebar_toggle mobile_only" id="mobileSidebarToggle" aria-label="Alternar menú móvil">☰</button>
-              <div class="breadcrumbs"><span class="breadcrumb_item">Home</span>{% block breadcrumbs %}{% endblock %}</div>
+              <div class="breadcrumbs"><a href="{% url 'myapp:home' %}" class="breadcrumb_item">Home</a>{% block breadcrumbs %}{% endblock %}</div>
             </div>
             <div class="topbar_right">
-              <div class="notification_menu"> {# El contenedor principal del menú de notificaciones #}
+              <div class="notification_menu">
                   <button class="notification_toggle" aria-label="Ver notificaciones" aria-expanded="false">
                       <span class="notification_icon">🔔</span>
-                      <span class="notification_badge" {% if notifications_count <= 0 %}style="display: none;"{% endif %}>
-                          {{ notifications_count|default:"0" }}
-                      </span>
+                      <span class="notification_badge" {% if notifications_count <= 0 %}style="display: none;"{% endif %}>{{ notifications_count|default:"0" }}</span>
                   </button>
-                  <div class="notification_dropdown" aria-labelledby="notificationToggleBtn"> {# El dropdown en sí #}
-                      <div class="notification_header">
-                          <h3>Notificaciones</h3>
-                      </div>
-                      <div class="notification_list"> {# El contenedor de los items individuales #}
+                  <div class="notification_dropdown">
+                      <div class="notification_header"><h3>Notificaciones</h3></div>
+                      <div class="notification_list">
                           {% for notification in notifications %}
-                          <div class="notification_item {% if not notification.leida %}unread{% endif %}"
-                               id="notification-item-{{ notification.pk }}"
-                               style="position: relative; padding: 0;"> {# Ajuste de padding para que el <a> ocupe todo #}
-                              
-                              <a href="{{ notification.url_destino|default:'#' }}" 
-                                 class="notification_link_content" 
-                                 data-notification-id="{{ notification.pk }}" {# El ID para la acción de clic en el contenido #}
-                                 style="display: flex; align-items: flex-start; text-decoration: none; color: inherit; padding: 8px 30px 8px 10px;"> {# Padding derecho para el botón X #}
-                                  <div class="notification_icon" style="margin-right: 8px; flex-shrink: 0;">
-                                      {% if notification.tipo == 'warning' %}⚠️
-                                      {% elif notification.tipo == 'success' %}✅
-                                      {% elif notification.tipo == 'error' %}❌
-                                      {% elif notification.tipo == 'system' %}⚙️
-                                      {% else %}ℹ️
-                                      {% endif %}
+                          <div class="notification_item {% if not notification.leida %}unread{% endif %}" id="notification-item-{{ notification.pk }}">
+                              <a href="{{ notification.url_destino|default:'#' }}" class="notification_link_content" data-notification-id="{{ notification.pk }}">
+                                  <div class="notification_icon">
+                                      {% if notification.tipo == 'warning' %}⚠️{% elif notification.tipo == 'success' %}✅{% elif notification.tipo == 'error' %}❌{% elif notification.tipo == 'system' %}⚙️{% else %}ℹ️{% endif %}
                                   </div>
-                                  <div class="notification_content" style="flex-grow: 1;">
-                                      <p class="notification_text" style="margin: 0 0 3px 0; font-size: 0.9em; word-break: break-word;">{{ notification.mensaje|escape|truncatewords_html:10 }}</p>
-                                      <p class="notification_time" style="margin: 0; font-size: 0.75em; color: #888;">{{ notification.fecha_creacion|timesince }} atrás</p>
+                                  <div class="notification_content">
+                                      <p class="notification_text">{{ notification.mensaje|escape|truncatewords_html:10 }}</p>
+                                      <p class="notification_time">{{ notification.fecha_creacion|timesince }} atrás</p>
                                   </div>
                               </a>
-                              <button type="button" class="mark-notification-as-read-btn" 
-                                      aria-label="Marcar como leída" 
-                                      data-notification-id="{{ notification.pk }}"
-                                      style="position: absolute; top: 2px; right: 2px; background: none; border: none; color: #aaa; font-size: 1.2rem; line-height: 1; cursor: pointer; padding: 0.1rem 0.3rem; z-index: 2;">
-                                  ×
-                              </button>
+                              <button type="button" class="mark-notification-as-read-btn" aria-label="Marcar como leída" data-notification-id="{{ notification.pk }}">×</button>
                           </div>
                           {% empty %}
                                <div class="notification_empty">No hay notificaciones nuevas</div>
                           {% endfor %}
-                           {# Este 'notification_empty' podría ser redundante si el de arriba funciona bien #}
-                           {# <div class="notification_empty" style="display: none;">No hay notificaciones nuevas</div> #}
-                           {% if notifications_count > 0 %} {# Mostrar solo si hay notificaciones en total #}
+                           {% if notifications_count > 0 %}
                            <div class="notification_footer">
                                <a href="#" id="mark-all-notifications-read">Marcar todas como leídas</a>
                            </div>
@@ -254,8 +224,8 @@
                       <span class="user_name">{{ request.user.get_full_name|default:request.user.username }}</span>
                   </button>
                   <div class="user_menu_dropdown">
-                    {% if request.user.is_authenticated and request.user.pk is not None %}  {# Condición para ambos enlaces de usuario #}
-                        <a href="{% url 'myapp:usuario_detail' request.user.pk %}" class="user_menu_item"> {# Usar request.user consistentemente #}
+                    {% if request.user.is_authenticated and request.user.pk is not None %}
+                        <a href="{% url 'myapp:usuario_detail' request.user.pk %}" class="user_menu_item">
                             <span class="item_icon">👤</span><span class="item_text">Mi Perfil</span>
                         </a>
                         <a href="{% url 'myapp:usuario_update' request.user.pk %}" class="user_menu_item">
@@ -270,33 +240,39 @@
                           </button>
                       </form>
                   </div>
+              </div>
+            </div>
         </header>
         
         <div class="main_content_scroll_wrapper"> 
-        <main class="page_content" role="main">
-          {% if messages %}
+          <main class="page_content" role="main">
+            {% if messages %}
              <div class="messages_container" aria-live="polite">
                {% for message in messages %}
                <div class="alert alert-{{ message.tags|default:'info' }} fade show" role="alert">
-                    {% if message.tags == 'success' %}<i class="fas fa-check-circle me-2"></i>
-                    {% elif message.tags == 'warning' %}<i class="fas fa-exclamation-triangle me-2"></i>
-                    {% elif message.tags == 'error' or message.tags == 'danger' %}<i class="fas fa-times-circle me-2"></i>
-                    {% elif message.tags == 'info' %}<i class="fas fa-info-circle me-2"></i>
-                    {% endif %}
+                    {% if message.tags == 'success' %}<i class="fas fa-check-circle me-2"></i>{% elif message.tags == 'warning' %}<i class="fas fa-exclamation-triangle me-2"></i>{% elif message.tags == 'error' or message.tags == 'danger' %}<i class="fas fa-times-circle me-2"></i>{% elif message.tags == 'info' %}<i class="fas fa-info-circle me-2"></i>{% endif %}
                     <span>{{ message }}</span>
                </div>
                {% endfor %}
              </div>
-          {% endif %}
-          {% block content %}{% endblock %}
-        </main>
+            {% endif %}
+            
+            {% block content %}{% endblock %}
+            
+          </main>
 
-        <footer class="footer">
-          <img src="{% static 'favicon-96x96.png' %}" alt="SMGP Logo" class="footer-brand-logo" style="height: 96px; width: auto;">
-          <p style="margin: 0;">© {% now "Y" %} Sistema Mágico de Gestión de Pólizas 🧙‍♀️✨</p>
-        </footer>
+          <footer class="footer">
+            <img src="{% static 'favicon-96x96.png' %}" alt="SMGP Logo" class="footer-brand-logo" style="height: 96px; width: auto;">
+            <p style="margin: 0;">© {% now "Y" %} Sistema Mágico de Gestión de Pólizas 🧙‍♀️✨</p>
+          </footer>
+        </div>
       </div>
     </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    {% if form.media.js %}{{ form.media.js }}{% endif %}
+    <script id="mark-notification-read-url" data-url="{% url 'myapp:mark_notification_read' %}" type="application/json"></script>
+    <script src="{% static 'scripts.js' %}"></script>
 
     {# Scripts generales que ya tenías #}
     <script>

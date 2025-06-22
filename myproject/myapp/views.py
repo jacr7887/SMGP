@@ -1,7 +1,7 @@
 
 # views.py
 from myapp.commons import CommonChoices  # Ajusta la ruta de importación
-# Ajusta según necesidad
+from .signals import calcular_y_registrar_comisiones
 from myapp.models import ContratoIndividual, ContratoColectivo, Reclamacion, Intermediario, Pago, Factura
 import collections  # Para defaultdict si se usa en ReporteGeneralView
 from decimal import Decimal, ROUND_HALF_UP
@@ -2855,8 +2855,13 @@ class PagoCreateView(BaseCreateView):
     permission_required = 'myapp.add_pago'
 
     def get_success_url(self):
-        if hasattr(self, 'object') and self.object and self.object.factura:
-            contrato = self.object.factura.get_contrato_asociado
+        if hasattr(self, 'object') and self.object:
+            contrato = None
+            if self.object.factura:
+                contrato = self.object.factura.get_contrato_asociado
+            elif self.object.reclamacion:
+                contrato = self.object.reclamacion.contrato_individual or self.object.reclamacion.contrato_colectivo
+
             if isinstance(contrato, ContratoIndividual):
                 return reverse('myapp:contrato_individual_detail', kwargs={'pk': contrato.pk})
             if isinstance(contrato, ContratoColectivo):
@@ -2865,38 +2870,34 @@ class PagoCreateView(BaseCreateView):
 
     def form_valid(self, form):
         """
-        [VERSIÓN FINAL Y DEFINITIVA]
-        Maneja la creación de pagos para Facturas y Reclamaciones, actualizando
-        todos los estados y contadores de forma atómica.
+        [VERSIÓN FINAL CON LLAMADA A COMISIONES RESTAURADA Y GARANTIZADA]
         """
-        pago_sin_guardar = form.save(commit=False)
         factura_a_pagar = form.cleaned_data.get('factura')
         reclamacion_a_pagar = form.cleaned_data.get('reclamacion')
 
         try:
             with transaction.atomic():
-                # Primero, guardamos el pago para que tenga un PK.
-                # La asociación a factura o reclamación ya viene del formulario.
+                # Guardar el pago
                 self.object = form.save()
 
                 # --- LÓGICA PARA PAGOS A FACTURAS ---
                 if factura_a_pagar:
                     factura = Factura.objects.select_for_update().get(pk=factura_a_pagar.pk)
 
+                    # Actualizar factura (lógica que ya funciona)
                     total_pagado = factura.pagos.filter(activo=True).aggregate(
                         total=Coalesce(Sum('monto_pago'), Value(Decimal('0.00'))))['total']
                     monto_pendiente = (
                         factura.monto or Decimal('0.00')) - total_pagado
-                    factura.monto_pendiente = max(
-                        Decimal('0.00'), monto_pendiente)
+                    factura.monto_pendiente = max(Decimal('0.00'), monto_pendiente.quantize(
+                        Decimal('0.01'), rounding=ROUND_HALF_UP))
                     factura.pagada = factura.monto_pendiente <= factura.TOLERANCE
-
                     if factura.pagada:
                         factura.estatus_factura = 'PAGADA'
-
                     factura.save(update_fields=[
                                  'monto_pendiente', 'pagada', 'estatus_factura'])
 
+                    # Actualizar contrato (lógica que ya funciona)
                     contrato = factura.get_contrato_asociado
                     if contrato:
                         numero_facturas_pagadas = Factura.objects.filter(
@@ -2906,42 +2907,33 @@ class PagoCreateView(BaseCreateView):
                                 contrato, ContratoColectivo) else None,
                             pagada=True, activo=True
                         ).count()
-                        contrato_model = type(contrato)
-                        contrato_model.objects.filter(pk=contrato.pk).update(
+                        type(contrato).objects.filter(pk=contrato.pk).update(
                             pagos_realizados=numero_facturas_pagadas)
 
-                # =========================================================================
-                # === LÓGICA CORREGIDA PARA PAGOS A RECLAMACIONES ===
-                # =========================================================================
+                    # =========================================================================
+                    # === PASO CRUCIAL: LLAMADA EXPLÍCITA A LA LÓGICA DE COMISIONES ===
+                    # =========================================================================
+                    # Después de que todo se ha guardado, llamamos a tu función.
+                    # Le pasamos la instancia del pago que acabamos de crear (`self.object`).
+                    logger.info(
+                        f"Invocando lógica de comisiones para Pago PK {self.object.pk}...")
+                    calcular_y_registrar_comisiones(self.object)
+                    # =========================================================================
+                # --- LÓGICA PARA PAGOS A RECLAMACIONES ---
                 elif reclamacion_a_pagar:
                     reclamacion = Reclamacion.objects.select_for_update().get(pk=reclamacion_a_pagar.pk)
-
-                    # Calcular el total pagado para ESTA reclamación
                     total_pagado_reclamacion = reclamacion.pagos.filter(activo=True).aggregate(
-                        total=Coalesce(Sum('monto_pago'),
-                                       Value(Decimal('0.00')))
-                    )['total']
-
+                        total=Coalesce(Sum('monto_pago'), Value(Decimal('0.00'))))['total']
                     monto_reclamado = reclamacion.monto_reclamado or Decimal(
                         '0.00')
-
-                    # Añadimos una constante de tolerancia si no está en el modelo
                     TOLERANCE_RECLAMACION = Decimal('0.01')
-
-                    # Comprobar si el monto pagado cubre el monto reclamado
                     if total_pagado_reclamacion >= (monto_reclamado - TOLERANCE_RECLAMACION):
-                        # Solo actualizar si el estado no es ya uno final
                         if reclamacion.estado not in ['PAGADA', 'CERRADA', 'ANULADA']:
                             reclamacion.estado = 'PAGADA'
                             if not reclamacion.fecha_cierre_reclamo:
-                                reclamacion.fecha_cierre_reclamo = django_timezone.now().date()
+                                reclamacion.fecha_cierre_reclamo = timezone.now().date()
                             reclamacion.save(
                                 update_fields=['estado', 'fecha_cierre_reclamo'])
-                            logger.info(
-                                f"ÉXITO: Reclamación PK {reclamacion.pk} actualizada a PAGADA.")
-                # =========================================================================
-                # === FIN DE LA CORRECCIÓN ===
-                # =========================================================================
 
             messages.success(self.request, "Pago procesado exitosamente.")
             return redirect(self.get_success_url())

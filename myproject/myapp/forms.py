@@ -377,11 +377,13 @@ class FormularioEdicionUsuario(AwareDateInputMixinVE, BaseModelForm):
 
     # El mixin lo hace aware, aquí validaciones adicionales
     def clean_fecha_nacimiento(self):
-        fecha_nac_aware = self.cleaned_data.get('fecha_nacimiento')
-        if fecha_nac_aware:
-            # El validador espera un objeto date, no datetime
-            validate_fecha_nacimiento(fecha_nac_aware.date())
-        return fecha_nac_aware
+        fecha_nacimiento_obj = self.cleaned_data.get('fecha_nacimiento')
+
+        if fecha_nacimiento_obj:
+            # Se pasa el objeto 'date' directamente, sin llamar a .date()
+            validate_fecha_nacimiento(fecha_nacimiento_obj)
+
+        return fecha_nacimiento_obj
 
 
 # --- Formulario de Login - SIN CAMBIOS ---
@@ -699,16 +701,7 @@ class AfiliadoIndividualForm(AwareDateInputMixinVE, BaseModelForm):
         if fecha_nacimiento_obj:
             # validate_fecha_nacimiento ya se llama desde el campo del modelo o el clean_<field> del mixin
             # Aquí solo validaciones cruzadas
-            if fecha_nacimiento_obj > hoy_date:  # Comparar date con date
-                self.add_error('fecha_nacimiento',
-                               "La fecha de nacimiento no puede ser futura.")
-            if fecha_ingreso_obj and fecha_ingreso_obj < fecha_nacimiento_obj:
-                self.add_error(
-                    'fecha_ingreso', "La fecha de ingreso no puede ser anterior a la fecha de nacimiento.")
-
-        if fecha_ingreso_obj and fecha_ingreso_obj > hoy_date:  # Comparar date con date
-            self.add_error('fecha_ingreso',
-                           "La fecha de ingreso no puede ser futura.")
+            validate_fecha_nacimiento(fecha_nacimiento_obj)
 
         return cleaned_data
 

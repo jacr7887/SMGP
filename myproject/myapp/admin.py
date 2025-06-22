@@ -32,7 +32,7 @@ from .models import (
     LicenseInfo
 )
 from django.contrib.admin.views.main import ChangeList
-from .forms import RegistroComisionForm
+from .forms import RegistroComisionForm, FormularioCreacionUsuario, FormularioEdicionUsuario
 from datetime import date
 import logging
 
@@ -100,68 +100,61 @@ class CustomModelAdmin(admin.ModelAdmin):
 
 
 @admin.register(Usuario)
-class UsuarioAdmin(UserAdmin):  # UserAdmin ya hereda de ModelAdmin
-    # actions = [importar_datos_action] # <- ELIMINADO
+class UsuarioAdmin(UserAdmin):
+    add_form = FormularioCreacionUsuario
+    form = FormularioEdicionUsuario
+
     list_display = (
         'email',
-        'get_full_name_display',  # Renombrado para claridad
+        'get_full_name_display',
         'tipo_usuario',
         'nivel_acceso',
-        'departamento',
-        'is_active',  # Debería ser 'activo' si ese es tu campo booleano principal
-        'telefono',
-        # 'direccion', # Puede ser muy largo para list_display
         'intermediario',
-        # 'primer_nombre', # Ya incluido en get_full_name_display
-        # 'segundo_nombre',
-        # 'primer_apellido',
-        # 'segundo_apellido',
+        'is_staff',
+        'activo'
     )
-    list_filter = (
-        'tipo_usuario',
-        'activo',  # Usa tu campo 'activo'
-        'nivel_acceso',
-        ('groups', admin.RelatedOnlyFieldListFilter),
-        'departamento'
-    )
-    search_fields = [
-        'email',
-        'primer_nombre',
-        'primer_apellido',
-        'telefono',
-        'username'  # Es bueno buscar por username también
-    ]
-    filter_horizontal = ('groups', 'user_permissions')
+    list_filter = ('nivel_acceso', 'tipo_usuario', 'is_staff',
+                   'is_superuser', 'activo', 'groups')
+    search_fields = ('email', 'primer_nombre', 'primer_apellido',
+                     'username', 'intermediario__nombre_completo')
+    ordering = ('-date_joined',)
+    filter_horizontal = ('groups', 'user_permissions',)
 
-    # Los fieldsets y add_fieldsets de UserAdmin suelen ser bastante buenos.
-    # Los tuyos personalizados están bien si se ajustan a tu modelo Usuario.
-    fieldsets = UserAdmin.fieldsets + (
-        (('Información Personal Adicional'), {
-            'fields': (
-                # Ya están en UserAdmin.fieldsets si los heredas
-                'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido',
-                'fecha_nacimiento', 'departamento', 'telefono', 'direccion',
-            )
-        }),
-        (('Configuración de App'), {
-            # 'activo' en lugar de 'is_active' si ese es tu campo principal
-            'fields': ('tipo_usuario', 'nivel_acceso', 'intermediario', 'activo')
-        }),
+    # Fieldsets para el formulario de EDICIÓN
+    fieldsets = (
+        ('Información de Cuenta', {
+         'fields': ('email', 'password', 'username')}),
+        ('Información Personal', {'fields': ('primer_nombre', 'segundo_nombre',
+         'primer_apellido', 'segundo_apellido', 'fecha_nacimiento', 'telefono', 'direccion')}),
+        ('Roles en la Aplicación', {
+         'fields': ('nivel_acceso', 'tipo_usuario', 'departamento', 'intermediario')}),
+        ('Permisos y Estado', {'fields': (
+            'activo', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
+        ('Fechas Importantes', {'fields': ('last_login', 'date_joined')}),
     )
-    add_fieldsets = UserAdmin.add_fieldsets + (
+
+    # Fieldsets para el formulario de CREACIÓN
+    add_fieldsets = (
         (None, {
-            'fields': ('primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido', 'tipo_usuario', 'nivel_acceso', 'activo'),
+            'classes': ('wide',),
+            'fields': ('email', 'password', 'password2', 'primer_nombre', 'primer_apellido', 'nivel_acceso', 'tipo_usuario', 'is_staff', 'is_superuser', 'activo'),
         }),
     )
 
+    # Campos de solo lectura en el formulario de EDICIÓN
+    readonly_fields = ('username', 'last_login', 'date_joined')
+
+    @admin.display(description='Nombre Completo', ordering='primer_apellido')
     def get_full_name_display(self, obj):
         return obj.get_full_name()
-    get_full_name_display.short_description = 'Nombre Completo'
-    # Asumiendo que primer_apellido es el campo principal para ordenar nombres
-    get_full_name_display.admin_order_field = 'primer_apellido'
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related('intermediario').prefetch_related('groups', 'user_permissions')
+        return super().get_queryset(request).select_related('intermediario').prefetch_related('groups')
+
+    def get_fieldsets(self, request, obj=None):
+        if not obj:
+            return self.add_fieldsets
+        return super().get_fieldsets(request, obj)
 
 
 @admin.register(Intermediario)

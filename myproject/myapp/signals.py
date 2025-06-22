@@ -15,7 +15,7 @@ from django.apps import apps
 from django.urls import reverse, NoReverseMatch
 # <--- Esto está bien, le diste un alias
 from django.utils import timezone as django_timezone
-
+from .notifications import crear_notificacion
 
 # Modelos de tu app
 from .models import (
@@ -425,8 +425,9 @@ def calcular_y_registrar_comisiones(pago_instance):
         if created:
             logger.info(
                 f"[COMISIONES] Creada comisión DIRECTA de ${rc_directa.monto_comision} para {intermediario_venta.nombre_completo}.")
-            # === NOTIFICACIÓN PARA INTERMEDIARIO DIRECTO ===
-            mensaje_directa = f"¡Felicidades! Has ganado una comisión directa de ${rc_directa.monto_comision:,.2f} por el pago de la factura {factura.numero_recibo}."
+
+            # La notificación AHORA ESTÁ DENTRO del `if created:`.
+            mensaje_directa = f"¡Has ganado una comisión directa de ${rc_directa.monto_comision:,.2f} por el pago de la factura {factura.numero_recibo}!"
             usuarios_a_notificar = intermediario_venta.usuarios_asignados.filter(
                 is_active=True)
             if usuarios_a_notificar.exists():
@@ -465,7 +466,8 @@ def calcular_y_registrar_comisiones(pago_instance):
             if created_override:
                 logger.info(
                     f"[COMISIONES] Creada comisión OVERRIDE de ${rc_override.monto_comision} para {intermediario_padre.nombre_completo}.")
-                # === NOTIFICACIÓN PARA INTERMEDIARIO PADRE ===
+
+                # La notificación también debe estar DENTRO del `if created_override:`.
                 mensaje_override = f"¡Has ganado una comisión de override de ${rc_override.monto_comision:,.2f} por una venta de {intermediario_venta.nombre_completo}!"
                 usuarios_padre_a_notificar = intermediario_padre.usuarios_asignados.filter(
                     is_active=True)
@@ -482,8 +484,9 @@ def calcular_y_registrar_comisiones(pago_instance):
 
     logger.info(f"[COMISIONES] Finalizado para Pago PK: {pago_instance.pk}\n")
 
-
 # @receiver(post_save, sender=Pago, dispatch_uid="pago_post_save_main_handler")
+
+
 @prevent_recursion
 def pago_post_save_handler(sender, instance, created, **kwargs):
     """
