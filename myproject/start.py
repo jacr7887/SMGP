@@ -27,7 +27,6 @@ def load_env_from_file():
         env_path = base_path / '.env'
         DEFAULT_ENV_CONTENT = """# .env - Creado automáticamente.
 SECRET_KEY='Xgfei34531#$&/$234fGHYtfhuY&6%$33rf#FfHUu7854fd"S3F%6HrR2dfdgG%6(5##3rfDfv-t4342345F$26fd6/%$#)'
-FERNET_KEY=O-t7odMmAyH46P50x0la-31lTONkFuYOUWb4kF-llP4=
 DEBUG=False
 ALLOWED_HOSTS=*
 DATABASE_URL=postgres://postgres:7319@localhost:5432/smgp
