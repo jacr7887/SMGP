@@ -7,7 +7,7 @@
 {% block extra_css %}
 {{ block.super }}
 <style>
-  /* Tus estilos para .modal-custom, etc. (sin cambios) */
+  /* Estilos para el modal y otros elementos (sin cambios) */
   .modal-custom { display: none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(15, 18, 36, 0.9); }
   .modal-custom-content { background-color: #2a2f45; margin: 5% auto; padding: 20px; border: 1px solid var(--border-light, #555); width: 80%; max-width: 1000px; border-radius: var(--glass-border-radius, 8px); color: #fff; position: relative; box-shadow: var(--glass-box-shadow, 0 5px 15px rgba(0,0,0,0.5)); }
   .modal-custom-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-light, #444); padding-bottom: 10px; margin-bottom: 15px; }
@@ -15,10 +15,6 @@
   .modal-custom-close { color: #ccc; float: right; font-size: 30px; font-weight: bold; background: none; border: none; cursor: pointer; padding: 0 5px; }
   .modal-custom-close:hover, .modal-custom-close:focus { color: #fff; text-decoration: none; }
   .modal-custom-body { max-height: 65vh; overflow-y: auto; padding-right: 15px; }
-  .modal-custom-footer { border-top: 1px solid var(--border-light, #444); padding-top: 15px; margin-top: 20px; text-align: right; }
-  .modal-custom-footer .btn { margin-left: 10px; } /* Asumo que .btn tiene estilos base de tu styles.css global */
-  .modal-custom-content .data-table th, .modal-custom-content .data-table td { color: #e0e0e0; font-size: 0.9em; }
-  .modal-custom-content .data-table a { color: var(--link-blue, #9dbdff); }
   .fila-comision-pagada td { color: var(--text-muted, #6c757d) !important; text-decoration: line-through; }
   .switch { position: relative; display: inline-block; width: 50px; height: 24px; vertical-align: middle; }
   .switch input { opacity: 0; width: 0; height: 0; }
@@ -26,28 +22,48 @@
   .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; -webkit-transition: .4s; transition: .4s; border-radius: 50%; }
   input:checked + .slider { background-color: var(--success, #28a745); }
   input:focus + .slider { box-shadow: 0 0 1px var(--success, #28a745); }
-  input:checked + .slider:before { -webkit-transform: translateX(26px); -ms-transform: translateX(26px); transform: translateX(26px); } /* Corregido el 'transformtranslateX' */
-
-  /* === NUEVOS ESTILOS PARA BOTONES Y PAGINADOR === */
-
-  /* Contenedor para centrar los botones de acción del header */
-  .header-actions {
-    /* margin-left: auto; margin-right: auto; */ 
-    justify-content: center; 
-    gap: 1rem; /* Espacio entre botones */
+  input:checked + .slider:before { -webkit-transform: translateX(26px); -ms-transform: translateX(26px); transform: translateX(26px); }
+  .header-actions { justify-content: center; gap: 1rem; }
+  @media (max-width: 768px) {
+    .header-actions { flex-direction: column; align-items: center; }
+    .page-list-view .header-actions .nav_link { width: auto; min-width: 220px; margin-bottom: 0.8rem; }
   }
 
+  /* --- [NUEVO] Estilos para el pie de página del modal rediseñado --- */
+  .modal-custom-footer {
+    display: flex;
+    flex-wrap: wrap; /* Permite que los elementos pasen a la siguiente línea si no caben */
+    justify-content: space-between; /* Separa los grupos de inputs y botones */
+    align-items: flex-end; /* Alinea todo en la parte inferior */
+    gap: 1rem; /* Espacio entre los grupos */
+    border-top: 1px solid var(--border-light, #444);
+    padding-top: 15px;
+    margin-top: 20px;
+  }
 
-  @media (max-width: 768px) {
-    .header-actions {
-        flex-direction: column;
-        align-items: center; 
-    }
-    .page-list-view .header-actions .nav_link { /* Más específico para esta página */
-        width: auto;
-        min-width: 220px; /* Ancho mínimo para que se vean bien */
-        margin-bottom: 0.8rem;
-    }
+  .footer-inputs-group {
+    display: flex;
+    gap: 1rem; /* Espacio entre el campo de fecha y el de archivo */
+    flex-grow: 1; /* Permite que este grupo crezca para ocupar espacio */
+  }
+
+  .footer-actions-group {
+    display: flex;
+    gap: 0.5rem; /* Espacio entre los botones de acción */
+  }
+
+  /* Ajustes para que los botones del footer no sean gigantes */
+  .modal-custom-footer .btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  /* Estilo para el nombre del archivo */
+  .file-name-display {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-left: 10px;
+    vertical-align: middle;
   }
 </style>
 {% endblock extra_css %}
@@ -72,17 +88,13 @@
       {% endfor %}
     {% endif %}
 
-    {% csrf_token %}
-
-{% csrf_token %} {# Usualmente no es necesario para formularios GET, pero no hace daño si está #}
-
     <form method="get" class="search-form mb-3" action="." aria-label="Formulario de búsqueda de intermediarios">
       <input
         type="text"
-        name="search" {# Mantenemos el nombre del campo específico de esta vista #}
+        name="search"
         class="search-input"
         placeholder="🔍 Buscar Intermediario por Nombre, Código o RIF..."
-        value="{{ search_query_intermediario|default_if_none:'' }}"
+        value="{{ search_query_param_value|default_if_none:'' }}"
         aria-label="Campo de búsqueda de intermediarios"
       />
       <button type="submit" class="nav_link">Buscar</button>
@@ -90,26 +102,23 @@
     </form>
 
     {% if liquidacion_data %}
-
-    <div class="table-container glass-card">
-    <table class="data-table">
-        <thead>
-        <tr>
-            {% for field_key, field_label, is_sortable in ordering_options_display %}
-            <th class="sort-header">
+      <div class="table-container glass-card">
+        <table class="data-table">
+          <thead>
+            <tr>
+              {% for field_key, field_label, is_sortable in ordering_options_display %}
+              <th class="sort-header">
                 <a href="?{% query_transform sort=field_key order=current_order|toggle_order:'asc' search=search_query_param_value page=1 %}">
-                [{{ field_label }}]
-                [{{ field_key }}]
-                {% if current_sort == field_key %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% else %}<span>↕️</span>{% endif %}
+                  {{ field_label }}
+                  {% if current_sort == field_key %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% else %}<span>↕️</span>{% endif %}
                 </a>
-            </th>
-            {% endfor %}
-            <th class="actions-header">Acciones</th>
-        </tr>
-        </thead>
-
+              </th>
+              {% endfor %}
+              <th class="actions-header">Acciones</th>
+            </tr>
+          </thead>
           <tbody>
-            {% for item in liquidacion_data %} 
+            {% for item in liquidacion_data %}
             <tr id="intermediario-summary-row-{{ item.intermediario.id }}">
               <td>
                 <a href="{% url 'myapp:intermediario_detail' item.intermediario.pk %}" title="{{item.intermediario.nombre_completo}}">
@@ -121,12 +130,11 @@
               <td class="text-end" id="total-override-interm-{{ item.intermediario.id }}">{{ item.total_override_pendiente|floatformat:2|intcomma }}</td>
               <td class="text-end" id="total-general-interm-{{ item.intermediario.id }}"><strong>{{ item.total_general_pendiente|floatformat:2|intcomma }}</strong></td>
               <td class="actions" id="actions-cell-interm-{{ item.intermediario.id }}">
-                   <div class="action-group">
-                     <button type="button" class="nav_link btn-sm open-modal-button"
-                             data-modal-id="detalleComisionesModal-{{ item.intermediario.id }}">
-                       💲 Liquidar / Detalle
-                     </button>
-                   </div>
+                <div class="action-group">
+                  <button type="button" class="nav_link btn-sm open-modal-button" data-modal-id="detalleComisionesModal-{{ item.intermediario.id }}">
+                    💲 Liquidar / Detalle
+                  </button>
+                </div>
               </td>
             </tr>
             {% endfor %}
@@ -134,27 +142,23 @@
         </table>
       </div>
 
-    {# --- Paginación (CORREGIDA - SIN 'request') --- #}
-    {% if is_paginated %}
-    <nav aria-label="Navegación de páginas de facturas">
-      <div class="django-pagination">
-        <span class="pagination-current">
-          Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
-        </span>
-        {% if page_obj.has_previous %}
-          {# Removido 'request' como primer argumento #}
-          <a href="?{% query_transform page=1 %}" class="btn-pagination" aria-label="Primera página">« Primera</a>
-          <a href="?{% query_transform page=page_obj.previous_page_number %}" class="btn-pagination" aria-label="Página anterior">‹ Anterior</a>
-        {% endif %}
-        {% if page_obj.has_next %}
-           {# Removido 'request' como primer argumento #}
-          <a href="?{% query_transform page=page_obj.next_page_number %}" class="btn-pagination" aria-label="Siguiente página">Siguiente ›</a>
-          <a href="?{% query_transform page=page_obj.paginator.num_pages %}" class="btn-pagination" aria-label="Última página">Última »</a>
-        {% endif %}
-      </div>
-    </nav>
-    {% endif %}
-
+      {% if is_paginated %}
+      <nav aria-label="Navegación de páginas de liquidaciones">
+        <div class="django-pagination">
+          <span class="pagination-current">
+            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+          </span>
+          {% if page_obj.has_previous %}
+            <a href="?{% query_transform page=1 %}" class="btn-pagination" aria-label="Primera página">« Primera</a>
+            <a href="?{% query_transform page=page_obj.previous_page_number %}" class="btn-pagination" aria-label="Página anterior">‹ Anterior</a>
+          {% endif %}
+          {% if page_obj.has_next %}
+            <a href="?{% query_transform page=page_obj.next_page_number %}" class="btn-pagination" aria-label="Siguiente página">Siguiente ›</a>
+            <a href="?{% query_transform page=page_obj.paginator.num_pages %}" class="btn-pagination" aria-label="Última página">Última »</a>
+          {% endif %}
+        </div>
+      </nav>
+      {% endif %}
 
       {% for item in liquidacion_data %}
       <div class="modal-custom" id="detalleComisionesModal-{{ item.intermediario.id }}">
@@ -163,50 +167,76 @@
             <h5 class="modal-custom-title dark-label">Liquidar Comisiones: {{ item.intermediario.nombre_completo }} ({{ item.intermediario.codigo }})</h5>
             <button type="button" class="modal-custom-close close-modal-button" data-modal-id="detalleComisionesModal-{{ item.intermediario.id }}" aria-label="Close">×</button>
           </div>
-          <form method="post" action="{% url 'myapp:marcar_comisiones_pagadas' %}" class="compact-form liquidar-multiples-form">
+          
+          <form method="post" action="{% url 'myapp:marcar_comisiones_pagadas' %}" class="compact-form liquidar-multiples-form" enctype="multipart/form-data">
             {% csrf_token %}
             <input type="hidden" name="intermediario_id_pago" value="{{ item.intermediario.id }}">
+            
             <div class="modal-custom-body">
               {% if item.detalle_comisiones %}
-              <p><strong>Total Pendiente: {{ item.total_general_pendiente|floatformat:2|intcomma }} Bs.</strong></p>
-              <div class="dark-group mb-3">
-                <label for="fecha_pago_efectiva_modal_{{item.intermediario.id}}" class="dark-label">Fecha de Pago Efectiva (DD/MM/AAAA):</label>
-                <input type="text" name="fecha_pago_efectiva" id="fecha_pago_efectiva_modal_{{item.intermediario.id}}" class="search-input" placeholder="{% now 'd/m/Y' %}" value="{% now 'd/m/Y' %}">
-                <small class="form-text text-muted">Dejar actual o ingresar en formato DD/MM/AAAA.</small>
-              </div>
-              <div class="table-responsive mb-3">
-                <table class="data-table table-sm">
-                  <thead>
-                    <tr>
-                      <th><label class="switch" title="Seleccionar Todas"><input type="checkbox" class="select_all_comisiones_modal" data-modal-id="detalleComisionesModal-{{ item.intermediario.id }}"><span class="slider"></span></label></th>
-                      <th>ID</th><th>Tipo</th><th>Origen</th><th>Monto Pago Cliente</th><th>Vendedor (Override)</th><th>F. Cálculo</th><th class="text-end">Monto Comisión</th><th>Estado</th><th>F. Pago</th><th>Liquidó</th><th>Acción Indiv.</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {% for comision in item.detalle_comisiones %}
-                    <tr id="comision-row-{{ comision.pk }}" class="{% if comision.estatus_pago_comision == 'PAGADA' %}fila-comision-pagada{% endif %}">
-                      <td>{% if comision.estatus_pago_comision == 'PENDIENTE' %}<label class="switch"><input type="checkbox" name="comisiones_a_pagar_ids" value="{{ comision.id }}" class="comision_checkbox_modal_{{ item.intermediario.id }}"><span class="slider"></span></label>{% endif %}</td>
-                      <td>{{ comision.id }}</td><td>{{ comision.get_tipo_comision_display }}</td>
-                      <td>{% if comision.factura_origen %}F-{{ comision.factura_origen.numero_recibo|default_if_none:comision.factura_origen_id }}{% elif comision.pago_cliente %}P-{{ comision.pago_cliente.referencia_pago|default_if_none:comision.pago_cliente_id }}{% else %}N/A{% endif %}</td>
-                      <td>{{ comision.pago_cliente.monto_pago|floatformat:2|intcomma|default:"-" }}</td>
-                      <td>{{ comision.intermediario_vendedor.codigo|default:"-" }}</td>
-                      <td>{{ comision.fecha_calculo|date:"d/m/y" }}</td>
-                      <td class="text-end">{{ comision.monto_comision|floatformat:2|intcomma }}</td>
-                      <td id="estatus-comision-{{ comision.pk }}">{{ comision.get_estatus_pago_comision_display }}</td>
-                      <td id="fecha-pago-comision-{{ comision.pk }}">{{ comision.fecha_pago_a_intermediario|date:"d/m/y"|default:"-" }}</td>
-                      <td id="usuario-liquido-comision-{{ comision.pk }}">{{ comision.usuario_que_liquido.username|default:"-" }}</td>
-                      <td class="action-buttons-cell">{% if comision.estatus_pago_comision == 'PENDIENTE' %}<button type="button" class="btn btn-sm btn-success marcar-pagada-btn" data-comision-id="{{ comision.pk }}" data-url="{% url 'myapp:marcar_comision_pagada_ajax' %}">Pagar</button>{% endif %}</td>
-                    </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
-              </div>
-              {% else %}<p>No hay comisiones pendientes detalladas para este intermediario.</p>{% endif %}
+                <p><strong>Total Pendiente: {{ item.total_general_pendiente|floatformat:2|intcomma }} Bs.</strong></p>
+                
+                <div class="table-responsive mb-3">
+                  <table class="data-table table-sm">
+                    <thead>
+                      <tr>
+                        <th><label class="switch" title="Seleccionar Todas"><input type="checkbox" class="select_all_comisiones_modal" data-modal-id="detalleComisionesModal-{{ item.intermediario.id }}"><span class="slider"></span></label></th>
+                        <th>ID</th><th>Tipo</th><th>Origen</th><th>Monto Pago Cliente</th><th>Vendedor (Override)</th><th>F. Cálculo</th><th class="text-end">Monto Comisión</th><th>Estado</th><th>F. Pago</th><th>Liquidó</th><th>Comprobante</th><th>Acción Indiv.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for comision in item.detalle_comisiones %}
+                      <tr id="comision-row-{{ comision.pk }}" class="{% if comision.estatus_pago_comision == 'PAGADA' %}fila-comision-pagada{% endif %}">
+                        <td>{% if comision.estatus_pago_comision == 'PENDIENTE' %}<label class="switch"><input type="checkbox" name="comisiones_a_pagar_ids" value="{{ comision.id }}" class="comision_checkbox_modal_{{ item.intermediario.id }}"><span class="slider"></span></label>{% endif %}</td>
+                        <td>{{ comision.id }}</td><td>{{ comision.get_tipo_comision_display }}</td>
+                        <td>{% if comision.factura_origen %}<a href="{% url 'myapp:factura_detail' comision.factura_origen.pk %}">F-{{ comision.factura_origen.numero_recibo|default_if_none:comision.factura_origen_id }}</a>{% elif comision.pago_cliente %}<a href="{% url 'myapp:pago_detail' comision.pago_cliente.pk %}">P-{{ comision.pago_cliente.referencia_pago|default_if_none:comision.pago_cliente_id }}</a>{% else %}N/A{% endif %}</td>
+                        <td>{{ comision.pago_cliente.monto_pago|floatformat:2|intcomma|default:"-" }}</td>
+                        <td>{{ comision.intermediario_vendedor.codigo|default:"-" }}</td>
+                        <td>{{ comision.fecha_calculo|date:"d/m/y" }}</td>
+                        <td class="text-end">{{ comision.monto_comision|floatformat:2|intcomma }}</td>
+                        <td id="estatus-comision-{{ comision.pk }}">{{ comision.get_estatus_pago_comision_display }}</td>
+                        <td id="fecha-pago-comision-{{ comision.pk }}">{{ comision.fecha_pago_a_intermediario|date:"d/m/y"|default:"-" }}</td>
+                        <td id="usuario-liquido-comision-{{ comision.pk }}">{{ comision.usuario_que_liquido.username|default:"-" }}</td>
+                        <td id="comprobante-comision-{{ comision.pk }}">
+                          {% if comision.comprobante_pago %}
+                            <a href="{{ comision.comprobante_pago.url }}" class="file-popup-trigger" data-popup-title="Comprobante Comisión #{{ comision.pk }}">📎 Ver</a>
+                          {% else %}
+                            -
+                          {% endif %}
+                        </td>
+                        <td class="action-buttons-cell">{% if comision.estatus_pago_comision == 'PENDIENTE' %}<button type="button" class="btn btn-sm btn-success marcar-pagada-btn" data-comision-id="{{ comision.pk }}" data-url="{% url 'myapp:marcar_comision_pagada_ajax' %}">Pagar</button>{% endif %}</td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% else %}
+                <p>No hay comisiones pendientes detalladas para este intermediario.</p>
+              {% endif %}
             </div>
-            <div class="modal-custom-footer form-actions">
-               {% if item.detalle_comisiones %}<button type="submit" class="btn btn-success">✔️ Marcar Seleccionadas como Pagadas</button>{% endif %}
-              <button type="button" class="btn btn-danger close-modal-button" data-modal-id="detalleComisionesModal-{{ item.intermediario.id }}">🚫 Cancelar</button>
+
+            <!-- [INICIO] Pie de página del modal rediseñado -->
+            <div class="modal-custom-footer">
+              <div class="footer-inputs-group">
+                <div class="dark-group">
+                  <label for="fecha_pago_efectiva_modal_{{item.intermediario.id}}" class="dark-label" style="margin-bottom: 0.25rem;">Fecha de Pago:</label>
+                  <input type="text" name="fecha_pago_efectiva" id="fecha_pago_efectiva_modal_{{item.intermediario.id}}" class="search-input" placeholder="{% now 'd/m/Y' %}" value="{% now 'd/m/Y' %}">
+                </div>
+                <div class="dark-group">
+                  <label class="dark-label" style="margin-bottom: 0.25rem;">Comprobante:</label>
+                  <input type="file" name="comprobante_pago_liquidacion" id="comprobante_pago_liquidacion-{{ item.intermediario.id }}" style="display: none;" onchange="updateFileName(this)">
+                  <label for="comprobante_pago_liquidacion-{{ item.intermediario.id }}" class="btn btn-info" style="cursor: pointer;">📎 Seleccionar</label>
+                  <span id="file-name-{{ item.intermediario.id }}" class="file-name-display"></span>
+                </div>
+              </div>
+              <div class="footer-actions-group">
+                {% if item.detalle_comisiones %}
+                  <button type="submit" class="btn btn-success">✔️ Liquidar Seleccionadas</button>
+                {% endif %}
+                <button type="button" class="btn btn-danger close-modal-button" data-modal-id="detalleComisionesModal-{{ item.intermediario.id }}">🚫 Cancelar</button>
+              </div>
             </div>
+            <!-- [FIN] Pie de página del modal rediseñado -->
           </form>
         </div>
       </div>
@@ -214,8 +244,8 @@
 
     {% else %}
       <div class="alert alert-info mt-3">
-        {% if search_query_intermediario %}
-        No se encontraron intermediarios que coincidan con "{{ search_query_intermediario|escape }}" y tengan comisiones pendientes.
+        {% if search_query_param_value %}
+        No se encontraron intermediarios que coincidan con "{{ search_query_param_value|escape }}" y tengan comisiones pendientes.
         {% else %}
         🎉 ¡Excelente! No hay comisiones pendientes de liquidación en este momento.
         {% endif %}
@@ -227,9 +257,21 @@
 
 {% block extra_js %}
 <script>
+// Función para mostrar el nombre del archivo seleccionado
+function updateFileName(input) {
+    const fileId = input.id;
+    const intermediarioId = fileId.split('-').pop();
+    const fileNameDisplay = document.getElementById(`file-name-${intermediarioId}`);
+    
+    if (input.files && input.files.length > 0) {
+        fileNameDisplay.textContent = input.files[0].name;
+    } else {
+        fileNameDisplay.textContent = '';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     // --- Lógica para Modales Personalizados (Apertura/Cierre) ---
-    // Esta parte parece estar bien y la mantendremos como está en tu versión funcional.
     const openModalButtons = document.querySelectorAll('.open-modal-button');
     const closeModalButtons = document.querySelectorAll('.close-modal-button');
     openModalButtons.forEach(button => {button.addEventListener('click', () => {const modalId=button.dataset.modalId; const modal=document.getElementById(modalId); if(modal){modal.style.display='block'; modal.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked=false);}});});
@@ -275,13 +317,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 body: formData 
             })
             .then(response => { 
-                // Manejo de errores HTTP mejorado
                 if (!response.ok) { 
-                    return response.json() // Intenta parsear el cuerpo del error
+                    return response.json()
                         .then(errData => { 
                             throw new Error(errData.message || `Error del servidor: ${response.status} ${response.statusText}`); 
                         })
-                        .catch(() => { // Si el cuerpo del error no es JSON o response.json() falla
+                        .catch(() => {
                             throw new Error(`Error del servidor: ${response.status} ${response.statusText}`);
                         });
                 } 
@@ -297,10 +338,10 @@ document.addEventListener('DOMContentLoaded', function () {
                         
                         if (estatusCell) estatusCell.textContent = data.nuevo_estatus;
                         if (fechaPagoCell) { 
-                            if (data.fecha_pago) { // data.fecha_pago es YYYY-MM-DD
+                            if (data.fecha_pago) {
                                 const parts = data.fecha_pago.split('-');
                                 if (parts.length === 3) {
-                                    fechaPagoCell.textContent = `${parts[2]}/${parts[1]}/${parts[0]}`; // DD/MM/YYYY
+                                    fechaPagoCell.textContent = `${parts[2]}/${parts[1]}/${parts[0]}`;
                                 } else {
                                     fechaPagoCell.textContent = data.fecha_pago; 
                                 }
@@ -326,11 +367,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                     }
                     if (data.intermediario_id && data.nuevos_totales) {
-                        // Función CORREGIDA para formatear moneda
                         const formatCurrencyForDisplay = (valueStr) => {
-                            // El backend devuelve strings como "12345.67"
-                            const num = parseFloat(String(valueStr)); // parseFloat entiende '.' como decimal
-                            if (isNaN(num)) return '0,00'; // Fallback
+                            const num = parseFloat(String(valueStr));
+                            if (isNaN(num)) return '0,00';
                             return num.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                         };
 
@@ -342,7 +381,6 @@ document.addEventListener('DOMContentLoaded', function () {
                         if (overrideCell) overrideCell.textContent = formatCurrencyForDisplay(data.nuevos_totales.override);
                         if (generalCell) generalCell.innerHTML = `<strong>${formatCurrencyForDisplay(data.nuevos_totales.general)}</strong>`;
                         
-                        // parseFloat espera '.' como separador decimal.
                         if (parseFloat(String(data.nuevos_totales.general)) <= 0) { 
                             const iRow = document.getElementById(`intermediario-summary-row-${data.intermediario_id}`);
                             if (iRow) { 
@@ -365,7 +403,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                     }
                     console.log(data.status === 'success' ? 'Éxito AJAX:' : 'Info AJAX:', data.message);
-                } else { // data.status === 'error'
+                } else {
                     console.error('Error AJAX devuelto por el servidor:', data.message); 
                     alert('Error al procesar la solicitud: ' + data.message);
                     button.disabled = false; 
@@ -382,5 +420,4 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 </script>
-
 {% endblock extra_js %}

@@ -2931,7 +2931,7 @@ class PagoCreateView(BaseCreateView):
                         if reclamacion.estado not in ['PAGADA', 'CERRADA', 'ANULADA']:
                             reclamacion.estado = 'PAGADA'
                             if not reclamacion.fecha_cierre_reclamo:
-                                reclamacion.fecha_cierre_reclamo = timezone.now().date()
+                                reclamacion.fecha_cierre_reclamo = django_timezone.now().date()
                             reclamacion.save(
                                 update_fields=['estado', 'fecha_cierre_reclamo'])
 
@@ -3385,79 +3385,110 @@ class TarifaDeleteView(BaseDeleteView):
 
 class RegistroComisionListView(LoginRequiredMixin, FilterView):
     model = RegistroComision
-    model_manager_name = 'objects'
     template_name = 'registro_comision_list.html'
     context_object_name = 'object_list'
-    paginate_by = ITEMS_PER_PAGE
+    paginate_by = 15  # O el número que prefieras
     filterset_class = RegistroComisionFilter
 
     def get_queryset(self):
-        queryset = super().get_queryset().select_related(
-            'intermediario', 'factura_origen', 'pago_cliente',
-            'intermediario_vendedor', 'usuario_que_liquido'
-        )
+        """
+        Construye el queryset para la lista de comisiones, optimizando las consultas
+        y difiriendo la carga del campo de archivo para evitar errores.
+        """
+        # Partimos del manager por defecto, que debería traer todos los registros.
+        # Si usas soft delete, asegúrate de que esto sea `RegistroComision.all_objects.all()`
+        queryset = super().get_queryset()
 
-        # Búsqueda simple con el nuevo nombre de parámetro
-        self.search_query = self.request.GET.get(
-            'search_query', None)  # <--- CAMBIO AQUÍ
-        if self.search_query:
-            queryset = queryset.filter(
-                Q(id__icontains=self.search_query) |
-                Q(intermediario__nombre_completo__icontains=self.search_query) |
-                Q(intermediario__codigo__icontains=self.search_query) |
-                Q(factura_origen__numero_recibo__icontains=self.search_query) |
-                Q(pago_cliente__referencia_pago__icontains=self.search_query) |
-                Q(intermediario_vendedor__nombre_completo__icontains=self.search_query) |
-                Q(intermediario_vendedor__codigo__icontains=self.search_query) |
-                Q(usuario_que_liquido__username__icontains=self.search_query)
-            ).distinct()
+        # [CORRECCIÓN CLAVE]
+        # Optimizamos la consulta para incluir objetos relacionados,
+        # PERO le decimos explícitamente que NO traiga el campo del archivo en esta consulta inicial.
+        queryset = queryset.select_related(
+            'intermediario',
+            'factura_origen',
+            'pago_cliente',
+            'contrato_individual',
+            'contrato_colectivo',
+            'intermediario_vendedor',
+            'usuario_que_liquido'
+            # <-- Difiere la carga de este campo problemático
+        ).defer('comprobante_pago')
 
-        # Lógica de ordenación
-        self.current_sort = self.request.GET.get('sort', '-fecha_calculo')
-        self.current_order = self.request.GET.get('order', 'desc')
-        if self.current_order not in ['asc', 'desc']:
-            self.current_order = 'desc'
+        # El filtrado de `django-filter` se aplica automáticamente por la clase base FilterView.
+        # No es necesario llamarlo aquí.
 
-        sort_param = self.current_sort
-        if self.current_order == 'desc' and not self.current_sort.startswith('-'):
-            sort_param = f"-{self.current_sort}"
-        elif self.current_order == 'asc' and self.current_sort.startswith('-'):
-            sort_param = self.current_sort[1:]
+        # Lógica de Búsqueda General
+        search_query = self.request.GET.get('search_query', '').strip()
+        if search_query:
+            q_objects = (
+                Q(id__icontains=search_query) |
+                Q(intermediario__nombre_completo__icontains=search_query) |
+                Q(intermediario__codigo__icontains=search_query) |
+                Q(factura_origen__numero_recibo__icontains=search_query) |
+                Q(pago_cliente__referencia_pago__icontains=search_query) |
+                Q(intermediario_vendedor__nombre_completo__icontains=search_query) |
+                Q(intermediario_vendedor__codigo__icontains=search_query) |
+                Q(usuario_que_liquido__username__icontains=search_query)
+            )
+            # Manejar búsqueda por tipo o estado si el término coincide exactamente
+            if search_query.upper() in ['DIRECTA', 'OVERRIDE']:
+                q_objects |= Q(tipo_comision__iexact=search_query)
+            if search_query.upper() in ['PAGADA', 'PENDIENTE', 'ANULADA']:
+                q_objects |= Q(estatus_pago_comision__iexact=search_query)
 
-        if sort_param:
-            queryset = queryset.order_by(sort_param)
+            queryset = queryset.filter(q_objects).distinct()
+
+        # Lógica de Ordenamiento
+        sort_by = self.request.GET.get('sort', '-fecha_calculo')
+        order = self.request.GET.get('order', 'desc')
+
+        # Validar que el campo de ordenamiento sea uno de los permitidos
+        allowed_ordering_fields = [
+            'id', 'intermediario__nombre_completo', 'tipo_comision', 'monto_comision',
+            'monto_base_calculo', 'porcentaje_aplicado', 'factura_origen__numero_recibo',
+            'intermediario_vendedor__nombre_completo', 'estatus_pago_comision',
+            'fecha_calculo', 'fecha_pago_a_intermediario', 'usuario_que_liquido__username'
+        ]
+
+        if sort_by.lstrip('-') in allowed_ordering_fields:
+            if order == 'desc':
+                queryset = queryset.order_by(f'-{sort_by.lstrip("-")}')
+            else:
+                queryset = queryset.order_by(sort_by.lstrip('-'))
+        else:
+            # Orden por defecto si el parámetro no es válido
+            queryset = queryset.order_by('-fecha_calculo')
 
         return queryset
 
     def get_context_data(self, **kwargs):
+        """
+        Prepara el contexto para el template, incluyendo parámetros para la paginación y ordenamiento.
+        """
         context = super().get_context_data(**kwargs)
-        # Pasa el search_query actual
-        context['search_query'] = self.search_query or ''
-        context['current_sort'] = self.current_sort
-        context['current_order'] = self.current_order
 
-        # Construir filter_params_pagination para preservar solo los filtros de django-filter
-        # al usar los enlaces de ordenación/paginación generados por query_transform.
+        # Parámetros para la búsqueda y filtros
+        search_query = self.request.GET.get('search_query', '')
+        context['search_query'] = search_query
+
+        # Parámetros para el ordenamiento
+        context['current_sort'] = self.request.GET.get(
+            'sort', '-fecha_calculo').lstrip('-')
+        context['current_order'] = self.request.GET.get('order', 'desc')
+
+        # Parámetros para preservar los filtros de django-filter en la paginación y ordenamiento
         filter_params = {}
-        if self.filterset and self.filterset.form.is_valid():  # Usar self.filterset que es la instancia
+        if self.filterset and self.filterset.form.is_valid():
             for name, value in self.filterset.form.cleaned_data.items():
-                if value:  # Solo añadir si el filtro tiene un valor
-                    # Para campos que pueden tener múltiples valores (como ModelMultipleChoiceFilter)
+                if value:
                     if isinstance(value, list):
-                        # django-filter y los parámetros GET pueden manejar esto de diferentes maneras.
-                        # A menudo, necesitarás pasar el parámetro múltiples veces.
-                        # urlencode lo maneja bien si value es una lista de strings.
                         filter_params[name] = [str(v.pk) if hasattr(
                             v, 'pk') else str(v) for v in value]
                     else:
                         filter_params[name] = str(value.pk) if hasattr(
                             value, 'pk') else str(value)
 
-        context['filter_params_pagination'] = "&" + \
-            urlencode(filter_params, doseq=True) if filter_params else ""
-
-        # Ya no necesitas search_params_pagination y sort_params_pagination si query_transform los maneja
-        # y pasas search_query a query_transform.
+        context['filter_params_pagination'] = urlencode(
+            filter_params, doseq=True)
 
         return context
 
@@ -3732,77 +3763,158 @@ def liquidacion_comisiones_view(request):
     return render(request, 'liquidacion_comisiones.html', context)
 
 
+# myapp/views.py
+
 @login_required
 def marcar_comisiones_pagadas_view(request):
-    """
-    Vista para liquidar múltiples comisiones desde el modal, con notificaciones.
-    """
-    if request.method == 'POST':
-        comisiones_ids_a_pagar = request.POST.getlist('comisiones_a_pagar_ids')
-        fecha_pago_str = request.POST.get('fecha_pago_efectiva')
+    if request.method != 'POST':
+        messages.error(request, "Acción no permitida (solo se acepta POST).")
+        return redirect('myapp:liquidacion_comisiones')
 
-        fecha_pago = timezone.now().date()
-        if fecha_pago_str:
-            try:
-                fecha_pago = datetime.strptime(
-                    fecha_pago_str, '%d/%m/%Y').date()
-            except ValueError:
-                messages.error(
-                    request, "Formato de fecha de pago inválido. Se usará la fecha actual.")
+    comisiones_ids_str = request.POST.getlist('comisiones_a_pagar_ids')
+    fecha_pago_str = request.POST.get('fecha_pago_efectiva')
+    comprobante_archivo = request.FILES.get('comprobante_pago_liquidacion')
 
-        if not comisiones_ids_a_pagar:
-            messages.warning(
-                request, "No se seleccionaron comisiones para liquidar.")
-            return redirect('myapp:liquidacion_comisiones')
+    if not comisiones_ids_str:
+        messages.warning(
+            request, "No se seleccionaron comisiones para liquidar.")
+        return redirect('myapp:liquidacion_comisiones')
 
+    try:
+        comisiones_ids_int = [int(id_str) for id_str in comisiones_ids_str]
+    except ValueError:
+        messages.error(request, "La selección de comisiones es inválida.")
+        return redirect('myapp:liquidacion_comisiones')
+
+    fecha_pago = django_timezone.now().date()
+    if fecha_pago_str:
         try:
-            comisiones_ids_int = [int(id_str)
-                                  for id_str in comisiones_ids_a_pagar]
+            fecha_pago = datetime.strptime(fecha_pago_str, '%d/%m/%Y').date()
+            if fecha_pago > django_timezone.now().date():
+                messages.warning(
+                    request, "La fecha de pago no puede ser futura. Se usará la fecha actual.")
+                fecha_pago = django_timezone.now().date()
         except ValueError:
-            messages.error(request, "Selección de comisiones inválida.")
-            return redirect('myapp:liquidacion_comisiones')
+            messages.error(
+                request, "Formato de fecha de pago inválido (DD/MM/AAAA). Se usará la fecha actual.")
 
-        comisiones_a_liquidar = list(RegistroComision.objects.filter(
-            id__in=comisiones_ids_int, estatus_pago_comision='PENDIENTE'
-        ).select_related('intermediario'))
+    comisiones_a_liquidar = list(RegistroComision.objects.filter(
+        id__in=comisiones_ids_int,
+        estatus_pago_comision='PENDIENTE'
+    ).select_related('intermediario'))
 
-        if not comisiones_a_liquidar:
-            messages.warning(
-                request, "No se encontraron comisiones pendientes válidas para la selección.")
-            return redirect('myapp:liquidacion_comisiones')
+    if not comisiones_a_liquidar:
+        messages.warning(
+            request, "No se encontraron comisiones pendientes válidas en la selección.")
+        return redirect('myapp:liquidacion_comisiones')
 
+    comisiones_actualizadas_count = 0
+    try:
+        with transaction.atomic():
+            for comision in comisiones_a_liquidar:
+                comision.estatus_pago_comision = 'PAGADA'
+                comision.fecha_pago_a_intermediario = fecha_pago
+                comision.usuario_que_liquido = request.user
+
+                # --- [INICIO DE LA CORRECCIÓN] ---
+                if comprobante_archivo:
+                    # Rebobinamos el puntero del archivo al principio en cada iteración
+                    comprobante_archivo.seek(0)
+                    comision.comprobante_pago.save(
+                        comprobante_archivo.name, comprobante_archivo, save=False)
+                # --- [FIN DE LA CORRECCIÓN] ---
+
+                # Guardamos la comisión con todos los cambios
+                comision.save()
+                comisiones_actualizadas_count += 1
+
+    except Exception as e:
+        logger.error(
+            f"Error durante la transacción de liquidación de comisiones: {e}", exc_info=True)
+        messages.error(
+            request, f"Ocurrió un error inesperado durante la liquidación: {e}")
+        return redirect('myapp:liquidacion_comisiones')
+
+    fecha_pago = django_timezone.now().date()
+    if fecha_pago_str:
+        try:
+            fecha_pago = datetime.strptime(fecha_pago_str, '%d/%m/%Y').date()
+            if fecha_pago > django_timezone.now().date():
+                messages.warning(
+                    request, "La fecha de pago no puede ser futura. Se usará la fecha actual.")
+                fecha_pago = django_timezone.now().date()
+        except ValueError:
+            messages.error(
+                request, "Formato de fecha de pago inválido (DD/MM/AAAA). Se usará la fecha actual.")
+
+    # 3. Obtener los objetos de la base de datos
+    comisiones_a_liquidar = list(RegistroComision.objects.filter(
+        id__in=comisiones_ids_int,
+        estatus_pago_comision='PENDIENTE'
+    ).select_related('intermediario'))
+
+    if not comisiones_a_liquidar:
+        messages.warning(
+            request, "No se encontraron comisiones pendientes válidas en la selección.")
+        return redirect('myapp:liquidacion_comisiones')
+
+    # 4. Procesar la actualización dentro de una transacción atómica
+    comisiones_actualizadas_count = 0
+    try:
+        with transaction.atomic():
+            for comision in comisiones_a_liquidar:
+                comision.estatus_pago_comision = 'PAGADA'
+                comision.fecha_pago_a_intermediario = fecha_pago
+                comision.usuario_que_liquido = request.user
+
+                # Asignar el mismo archivo de comprobante a todas las comisiones del lote
+                if comprobante_archivo:
+                    comprobante_archivo.seek(0)
+                    comision.comprobante_pago = comprobante_archivo
+
+                # Guardar cada objeto individualmente para que el FileField se procese correctamente
+                comision.save()
+                comisiones_actualizadas_count += 1
+
+    except Exception as e:
+        logger.error(
+            f"Error durante la transacción de liquidación de comisiones: {e}", exc_info=True)
+        messages.error(
+            request, f"Ocurrió un error inesperado durante la liquidación: {e}")
+        return redirect('myapp:liquidacion_comisiones')
+
+    # 5. Enviar notificaciones y mensajes de éxito si todo salió bien
+    if comisiones_actualizadas_count > 0:
         intermediario = comisiones_a_liquidar[0].intermediario
         total_liquidado = sum(c.monto_comision for c in comisiones_a_liquidar)
 
-        count_updated = RegistroComision.objects.filter(id__in=[c.id for c in comisiones_a_liquidar]).update(
-            estatus_pago_comision='PAGADA',
-            fecha_pago_a_intermediario=fecha_pago,
-            usuario_que_liquido=request.user
+        messages.success(
+            request, f"{comisiones_actualizadas_count} comisión(es) para '{intermediario.nombre_completo}' han sido marcadas como pagadas.")
+
+        # Notificación para el administrador que realizó la acción
+        mensaje_admin = f"Liquidaste {comisiones_actualizadas_count} comisiones por un total de ${total_liquidado:,.2f} para {intermediario.nombre_completo}."
+        crear_notificacion(
+            usuario_destino=[request.user],
+            mensaje=mensaje_admin,
+            tipo='success',
+            url_path_name='myapp:historial_liquidaciones_list'
         )
 
-        if count_updated > 0:
-            messages.success(
-                request, f"{count_updated} comisión(es) para {intermediario.nombre_completo} marcada(s) como pagada(s).")
-
-            # Notificación para el admin
-            mensaje_admin = f"Liquidaste {count_updated} comisiones por un total de ${total_liquidado:,.2f} para {intermediario.nombre_completo}."
+        # Notificación para los usuarios del intermediario
+        mensaje_intermediario = f"Hemos procesado el pago de {comisiones_actualizadas_count} de tus comisiones por un total de ${total_liquidado:,.2f}."
+        usuarios_intermediario = intermediario.usuarios_asignados.filter(
+            is_active=True)
+        if usuarios_intermediario.exists():
             crear_notificacion(
-                usuario_destino=[
-                    request.user], mensaje=mensaje_admin, tipo='success',
-                url_path_name='myapp:historial_liquidaciones_list'
+                usuario_destino=usuarios_intermediario,
+                mensaje=mensaje_intermediario,
+                tipo='success',
+                url_path_name='myapp:mis_comisiones_list'
             )
 
-            # Notificación para el intermediario
-            mensaje_intermediario = f"Hemos procesado el pago de {count_updated} de tus comisiones por un total de ${total_liquidado:,.2f}."
-            usuarios_intermediario = intermediario.usuarios_asignados.filter(
-                is_active=True)
-            if usuarios_intermediario.exists():
-                crear_notificacion(
-                    usuario_destino=usuarios_intermediario, mensaje=mensaje_intermediario, tipo='success',
-                    url_path_name='myapp:mis_comisiones_list'
-                )
-
-        return redirect('myapp:liquidacion_comisiones')
+    else:
+        messages.warning(
+            request, "No se liquidó ninguna comisión. Es posible que ya estuvieran pagadas.")
 
     return redirect('myapp:liquidacion_comisiones')
 
@@ -3810,65 +3922,79 @@ def marcar_comisiones_pagadas_view(request):
 @login_required
 @require_POST
 def marcar_comision_pagada_ajax_view(request):
-    """
-    Vista para liquidar una comisión individual con AJAX, con notificaciones.
-    """
     try:
-        comision_id = int(request.POST.get('comision_id'))
+        comision_id_str = request.POST.get('comision_id')
+        if not comision_id_str:
+            return JsonResponse({'status': 'error', 'message': 'ID de comisión no proporcionado.'}, status=400)
+
+        comision_id = int(comision_id_str)
         comision = get_object_or_404(
             RegistroComision.objects.select_related('intermediario'), pk=comision_id)
 
-        if comision.estatus_pago_comision == 'PAGADA':
-            return JsonResponse({'status': 'info', 'message': 'Esta comisión ya estaba pagada.'})
+        intermediario_obj = comision.intermediario
 
-        intermediario = comision.intermediario
-        monto_comision = comision.monto_comision
+        if comision.estatus_pago_comision == 'PAGADA':
+            nuevos_totales_actuales = calcular_totales_pendientes_intermediario(
+                intermediario_obj)
+            return JsonResponse({
+                'status': 'info',
+                'message': 'Esta comisión ya estaba marcada como pagada.',
+                'comision_id': comision.pk,
+                'nuevo_estatus': comision.get_estatus_pago_comision_display(),
+                'fecha_pago': comision.fecha_pago_a_intermediario.strftime('%Y-%m-%d') if comision.fecha_pago_a_intermediario else None,
+                'usuario_liquido': comision.usuario_que_liquido.get_full_name() if comision.usuario_que_liquido else 'N/A',
+                'intermediario_id': intermediario_obj.id,
+                'nuevos_totales': nuevos_totales_actuales
+            })
 
         comision.estatus_pago_comision = 'PAGADA'
-        comision.fecha_pago_a_intermediario = timezone.now().date()
+        comision.fecha_pago_a_intermediario = django_timezone.now().date()
         comision.usuario_que_liquido = request.user
         comision.save(update_fields=[
                       'estatus_pago_comision', 'fecha_pago_a_intermediario', 'usuario_que_liquido'])
+        logger.info(
+            f"Comisión ID {comision.id} marcada como PAGADA (AJAX) por {request.user.username}")
 
-        # Notificación para el admin
-        mensaje_admin = f"Liquidaste la comisión #{comision.pk} de ${monto_comision:,.2f} para {intermediario.nombre_completo}."
-        crear_notificacion(
-            usuario_destino=[
-                request.user], mensaje=mensaje_admin, tipo='success',
-            url_path_name='myapp:registro_comision_detail', url_kwargs={'pk': comision.pk}
+        nuevos_totales_despues_pago = calcular_totales_pendientes_intermediario(
+            intermediario_obj)
+
+        mensaje_notif_backend = (
+            f"Liquidaste (AJAX) la comisión ID {comision.id} "
+            f"por {comision.monto_comision:.2f} Bs. "
+            f"al intermediario {intermediario_obj.nombre_completo} ({intermediario_obj.codigo})."
         )
+        crear_notificacion(
+            usuario_destino=request.user,
+            mensaje=mensaje_notif_backend,
+            tipo='success',
+            url_path_name='myapp:liquidacion_comisiones'
+        )
+        logger.info(
+            f"Notificación de backend creada para {request.user.username} por liquidación AJAX de comisión ID {comision.id}.")
 
-        # Notificación para el intermediario
-        mensaje_intermediario = f"Hemos procesado el pago de tu comisión #{comision.pk} por un monto de ${monto_comision:,.2f}."
-        usuarios_intermediario = intermediario.usuarios_asignados.filter(
-            is_active=True)
-        if usuarios_intermediario.exists():
-            crear_notificacion(
-                usuario_destino=usuarios_intermediario, mensaje=mensaje_intermediario, tipo='success',
-                url_path_name='myapp:mis_comisiones_list'
-            )
-
-        nuevos_totales = calcular_totales_pendientes_intermediario(
-            intermediario)
         return JsonResponse({
             'status': 'success',
             'message': f'Comisión ID {comision.pk} marcada como pagada.',
             'comision_id': comision.pk,
             'nuevo_estatus': comision.get_estatus_pago_comision_display(),
-            'fecha_pago': comision.fecha_pago_a_intermediario.strftime('%d/%m/%Y'),
-            'usuario_liquido': comision.usuario_que_liquido.get_full_name(),
-            'intermediario_id': intermediario.id,
-            'nuevos_totales': nuevos_totales
+            'fecha_pago': comision.fecha_pago_a_intermediario.strftime('%Y-%m-%d') if comision.fecha_pago_a_intermediario else None,
+            'usuario_liquido': comision.usuario_que_liquido.get_full_name() if comision.usuario_que_liquido else 'N/A',
+            'intermediario_id': intermediario_obj.id,
+            'nuevos_totales': nuevos_totales_despues_pago
         })
 
-    except (ValueError, TypeError):
+    except ValueError:
         return JsonResponse({'status': 'error', 'message': 'ID de comisión inválido.'}, status=400)
     except RegistroComision.DoesNotExist:
         return JsonResponse({'status': 'error', 'message': 'Comisión no encontrada.'}, status=404)
     except Exception as e:
+        # >>> INICIO DE LA CORRECCIÓN DE SEGURIDAD <<<
+        # Logueamos el error detallado para nosotros
         logger.error(
             f"Error en marcar_comision_pagada_ajax_view: {e}", exc_info=True)
-        return JsonResponse({'status': 'error', 'message': 'Ocurrió un error interno.'}, status=500)
+        # Devolvemos un mensaje genérico y seguro al cliente
+        return JsonResponse({'status': 'error', 'message': 'Ocurrió un error interno en el servidor.'}, status=500)
+        # >>> FIN DE LA CORRECCIÓN DE SEGURIDAD <<<
 
 
 @login_required
@@ -3895,6 +4021,158 @@ def marcar_comision_individual_pagada_view(request, pk):
     # Si no es segura o no existe, redirigir a un lugar seguro por defecto
     return redirect('myapp:registro_comision_detail', pk=comision.pk)
     # >>> FIN DE LA CORRECCIÓN DE SEGURIDAD <<<
+
+
+def calcular_totales_pendientes_intermediario(intermediario):
+    """
+    Calcula los totales de comisiones pendientes para un intermediario específico.
+    """
+    if not intermediario:
+        return {'directa': '0.00', 'override': '0.00', 'general': '0.00'}
+
+    # Sumar comisiones PENDIENTES para este intermediario
+    agregados = intermediario.comisiones_ganadas.filter(
+        estatus_pago_comision='PENDIENTE'
+    ).aggregate(
+        total_directa=Coalesce(Sum(Case(When(tipo_comision='DIRECTA', then=F(
+            'monto_comision')), default=Value(0))), Value(Decimal('0.00')), output_field=DecimalField()),
+        total_override=Coalesce(Sum(Case(When(tipo_comision='OVERRIDE', then=F(
+            'monto_comision')), default=Value(0))), Value(Decimal('0.00')), output_field=DecimalField())
+    )
+
+    total_directa_pendiente = agregados['total_directa']
+    total_override_pendiente = agregados['total_override']
+    total_general_pendiente = total_directa_pendiente + total_override_pendiente
+
+    return {
+        # Devolver como string formateado
+        'directa': f"{total_directa_pendiente:.2f}",
+        'override': f"{total_override_pendiente:.2f}",
+        'general': f"{total_general_pendiente:.2f}"
+    }
+
+
+class HistorialLiquidacionesListView(LoginRequiredMixin, ListView):
+    model = RegistroComision
+    template_name = 'historial_liquidaciones_list.html'
+    context_object_name = 'liquidaciones'
+    paginate_by = ITEMS_PER_PAGE
+
+    search_fields_config = {
+        'id_comision': ['pk'],
+        'intermediario': ['intermediario__nombre_completo__icontains', 'intermediario__codigo__icontains'],
+        'factura': ['factura_origen__numero_recibo__icontains'],
+        'liquidador': [
+            'usuario_que_liquido__username__icontains',
+            'usuario_que_liquido__primer_nombre__icontains',
+            'usuario_que_liquido__primer_apellido__icontains',
+            'usuario_que_liquido__segundo_nombre__icontains',
+            'usuario_que_liquido__segundo_apellido__icontains',
+            'usuario_que_liquido__email__icontains',
+        ],
+        'tipo': ['tipo_comision__iexact'],
+    }
+    ordering_options = {
+        'id': 'ID', 'intermediario__nombre_completo': 'Intermediario', 'monto_comision': 'Monto',
+        'tipo_comision': 'Tipo', 'fecha_pago_a_intermediario': 'Fecha Pago',
+        'usuario_que_liquido__username': 'Liquidado Por', 'fecha_calculo': 'F. Cálculo'
+    }
+    default_ordering = ['-fecha_pago_a_intermediario', '-id']
+
+    def get_queryset(self):
+        logger.debug(f"[{self.__class__.__name__}] Iniciando get_queryset.")
+
+        # 1. Queryset base: Solo comisiones pagadas
+        queryset = RegistroComision.objects.filter(
+            estatus_pago_comision='PAGADA')
+
+        # 2. Optimización de relaciones: Traer todo lo necesario
+        queryset = queryset.select_related(
+            'intermediario', 'usuario_que_liquido', 'factura_origen',
+            'pago_cliente', 'contrato_individual', 'contrato_colectivo',
+            'intermediario_vendedor'
+        )
+
+        # 3. Lógica de Búsqueda (sin cambios)
+        self.search_query = self.request.GET.get('search', '').strip()
+        if self.search_query:
+            q_objects = Q()
+            for field_group, lookups in self.search_fields_config.items():
+                for lookup in lookups:
+                    if field_group == 'id_comision':
+                        try:
+                            q_objects |= Q(pk=int(self.search_query))
+                        except ValueError:
+                            pass
+                    else:
+                        q_objects |= Q(**{lookup: self.search_query})
+            if q_objects:
+                queryset = queryset.filter(q_objects).distinct()
+
+        # 4. Lógica de Ordenamiento (sin cambios)
+        sort_param = self.request.GET.get('sort')
+        order_direction = self.request.GET.get('order', '').lower()
+        final_ordering_fields = list(self.default_ordering)
+
+        if sort_param and sort_param.lstrip('-') in self.ordering_options.keys():
+            self.current_sort = sort_param.lstrip('-')
+            if not order_direction:
+                order_direction = 'asc'
+                for default_o_field in self.default_ordering:
+                    if default_o_field.lstrip('-') == self.current_sort:
+                        order_direction = 'desc' if default_o_field.startswith(
+                            '-') else 'asc'
+                        break
+            self.current_order = order_direction
+            prefix = "-" if self.current_order == 'desc' else ""
+            final_ordering_fields = [f"{prefix}{self.current_sort}"]
+        else:
+            self.current_sort = self.default_ordering[0].lstrip(
+                '-') if self.default_ordering else 'id'
+            self.current_order = 'desc' if self.default_ordering and self.default_ordering[0].startswith(
+                '-') else 'asc'
+
+        queryset = queryset.order_by(*final_ordering_fields)
+
+        return queryset
+
+
+def get_context_data(self, **kwargs):
+    context = super().get_context_data(**kwargs)
+    context['page_title'] = "Historial de Liquidaciones de Comisiones"
+    context['active_tab'] = "comisiones"
+    context['search_query'] = getattr(self, 'search_query', '')
+    context['current_sort'] = getattr(self, 'current_sort', self.default_ordering[0].lstrip(
+        '-') if self.default_ordering else 'id')
+    context['current_order'] = getattr(
+        self, 'current_order', 'desc' if self.default_ordering and self.default_ordering[0].startswith('-') else 'asc')
+
+    # --- [INICIO DE LA CORRECCIÓN EN LA VISTA] ---
+
+    # Para los enlaces de ordenamiento (sort)
+    preserved_for_ordering = {}
+    if self.search_query:
+        preserved_for_ordering['search'] = self.search_query
+    # Este se queda como string, está bien.
+    context['preserved_filters_for_ordering'] = urlencode(
+        preserved_for_ordering)
+
+    # Para los enlaces de paginación
+    preserved_for_pagination = {}
+    if self.search_query:
+        preserved_for_pagination['search'] = self.search_query
+    if hasattr(self, 'current_sort') and self.current_sort:
+        preserved_for_pagination['sort'] = self.current_sort
+        preserved_for_pagination['order'] = getattr(
+            self, 'current_order', 'asc')
+
+    # ¡AQUÍ ESTÁ EL CAMBIO! Pasamos el diccionario directamente, no la cadena codificada.
+    context['preserved_filters_for_pagination'] = preserved_for_pagination
+
+    # --- [FIN DE LA CORRECCIÓN EN LA VISTA] ---
+
+    context['ordering_options'] = self.ordering_options
+    return context
 
 
 # ==========================
@@ -6461,364 +6739,6 @@ class MarkNotificationReadView(LoginRequiredMixin, View):
                 return JsonResponse({'status': 'error', 'message': 'Error al marcar notificación.'}, status=500)
         else:
             return JsonResponse({'status': 'error', 'message': 'Falta ID o parámetro mark_all.'}, status=400)
-
-
-@login_required
-# Esta es la que maneja el POST del modal
-def marcar_comisiones_pagadas_view(request):
-    if request.method == 'POST':
-        comisiones_ids_a_pagar = request.POST.getlist('comisiones_a_pagar_ids')
-        fecha_pago_efectiva_str = request.POST.get('fecha_pago_efectiva')
-        intermediario_id_pago = request.POST.get(
-            'intermediario_id_pago')  # Asegúrate que tu form lo envía
-
-        fecha_pago_a_usar = django_timezone.now().date()
-
-        if fecha_pago_efectiva_str:
-            try:
-                fecha_pago_a_usar = datetime.strptime(
-                    fecha_pago_efectiva_str, '%d/%m/%Y').date()
-                if fecha_pago_a_usar > django_timezone.now().date():  # Corregido para usar timezone.now()
-                    messages.error(
-                        request, "La fecha de pago no puede ser futura. Se usará la fecha actual.")
-                    fecha_pago_a_usar = django_timezone.now().date()
-            except ValueError:
-                messages.error(
-                    request, "Formato de fecha de pago inválido (DD/MM/AAAA). Se usará la fecha actual.")
-
-        if comisiones_ids_a_pagar:
-            try:
-                comisiones_ids_int = [int(id_str)
-                                      for id_str in comisiones_ids_a_pagar]
-            except ValueError:
-                messages.error(request, "Selección de comisiones inválida.")
-                return redirect('myapp:liquidacion_comisiones')
-
-            # Obtener info para notificación ANTES del update masivo
-            comisiones_a_procesar_qs = RegistroComision.objects.filter(
-                id__in=comisiones_ids_int,
-                estatus_pago_comision='PENDIENTE'
-                # Para obtener el nombre del intermediario
-            ).select_related('intermediario')
-
-            info_para_notificacion = []
-            intermediario_obj_para_notif = None
-
-            if intermediario_id_pago:
-                try:
-                    intermediario_obj_para_notif = Intermediario.objects.get(
-                        pk=intermediario_id_pago)
-                except Intermediario.DoesNotExist:
-                    logger.warning(
-                        f"Intermediario ID {intermediario_id_pago} no encontrado para notificación en pago múltiple.")
-            elif comisiones_a_procesar_qs.exists():
-                intermediario_obj_para_notif = comisiones_a_procesar_qs.first().intermediario
-
-            # Necesitamos iterar para construir el mensaje, incluso si usamos update masivo
-            # Esta lista es solo para el mensaje.
-            comisiones_procesadas_para_mensaje = list(comisiones_a_procesar_qs)
-
-            if not comisiones_procesadas_para_mensaje:
-                messages.warning(
-                    request, "No se encontraron comisiones pendientes válidas para la selección.")
-                return redirect('myapp:liquidacion_comisiones')
-
-            # Realizar el update masivo
-            count_updated = RegistroComision.objects.filter(
-                # Usar los IDs de las que realmente se procesarán
-                id__in=[c.id for c in comisiones_procesadas_para_mensaje],
-                estatus_pago_comision='PENDIENTE'  # Doble chequeo
-            ).update(
-                estatus_pago_comision='PAGADA',
-                fecha_pago_a_intermediario=fecha_pago_a_usar,
-                usuario_que_liquido=request.user  # Añadir quién liquidó
-            )
-
-            if count_updated > 0:
-                messages.success(
-                    request, f"{count_updated} comisión(es) marcada(s) como pagada(s) con fecha {fecha_pago_a_usar.strftime('%d/%m/%Y')}.")
-
-                # *** CREAR NOTIFICACIÓN EN EL BACKEND ***
-                # Construir info_para_notificacion a partir de comisiones_procesadas_para_mensaje
-                for com_obj in comisiones_procesadas_para_mensaje:  # Iterar sobre los objetos que se iban a pagar
-                    info_para_notificacion.append(
-                        f"ID {com_obj.id} (Monto: {com_obj.monto_comision:.2f})")
-
-                nombre_intermediario_str = "a un intermediario"  # Default
-                if intermediario_obj_para_notif:
-                    nombre_intermediario_str = f"al intermediario {intermediario_obj_para_notif.nombre_completo} ({intermediario_obj_para_notif.codigo})"
-
-                if info_para_notificacion:  # Asegurar que haya algo que notificar
-                    mensaje_notif_backend = (
-                        f"Liquidaste {count_updated} comisiones {nombre_intermediario_str}. "
-                        f"Detalles (hasta 3): {', '.join(info_para_notificacion[:3])}"
-                        f"{'...' if len(info_para_notificacion) > 3 else '.'}"
-                    )
-                    crear_notificacion(
-                        usuario_destino=request.user,
-                        mensaje=mensaje_notif_backend,
-                        tipo='success',
-                        url_path_name='myapp:liquidacion_comisiones'
-                    )
-                    logger.info(
-                        f"Notificación de backend creada para {request.user.username} por liquidación múltiple de {count_updated} comisiones.")
-            else:
-                messages.warning(
-                    request, "No se marcaron comisiones. Pueden haber sido pagadas previamente o la selección fue inválida.")
-        else:
-            messages.warning(
-                request, "No se seleccionaron comisiones para marcar como pagadas.")
-
-        return redirect('myapp:liquidacion_comisiones')
-
-    messages.error(request, "Acción no permitida (solo POST).")
-    return redirect('myapp:liquidacion_comisiones')
-
-
-@login_required
-@require_POST
-def marcar_comision_pagada_ajax_view(request):
-    try:
-        comision_id_str = request.POST.get('comision_id')
-        if not comision_id_str:
-            return JsonResponse({'status': 'error', 'message': 'ID de comisión no proporcionado.'}, status=400)
-
-        comision_id = int(comision_id_str)
-        comision = get_object_or_404(
-            RegistroComision.objects.select_related('intermediario'), pk=comision_id)
-
-        intermediario_obj = comision.intermediario
-
-        if comision.estatus_pago_comision == 'PAGADA':
-            nuevos_totales_actuales = calcular_totales_pendientes_intermediario(
-                intermediario_obj)
-            return JsonResponse({
-                'status': 'info',
-                'message': 'Esta comisión ya estaba marcada como pagada.',
-                'comision_id': comision.pk,
-                'nuevo_estatus': comision.get_estatus_pago_comision_display(),
-                'fecha_pago': comision.fecha_pago_a_intermediario.strftime('%Y-%m-%d') if comision.fecha_pago_a_intermediario else None,
-                'usuario_liquido': comision.usuario_que_liquido.get_full_name() if comision.usuario_que_liquido else 'N/A',
-                'intermediario_id': intermediario_obj.id,
-                'nuevos_totales': nuevos_totales_actuales
-            })
-
-        comision.estatus_pago_comision = 'PAGADA'
-        comision.fecha_pago_a_intermediario = django_timezone.now().date()
-        comision.usuario_que_liquido = request.user
-        comision.save(update_fields=[
-                      'estatus_pago_comision', 'fecha_pago_a_intermediario', 'usuario_que_liquido'])
-        logger.info(
-            f"Comisión ID {comision.id} marcada como PAGADA (AJAX) por {request.user.username}")
-
-        nuevos_totales_despues_pago = calcular_totales_pendientes_intermediario(
-            intermediario_obj)
-
-        mensaje_notif_backend = (
-            f"Liquidaste (AJAX) la comisión ID {comision.id} "
-            f"por {comision.monto_comision:.2f} Bs. "
-            f"al intermediario {intermediario_obj.nombre_completo} ({intermediario_obj.codigo})."
-        )
-        crear_notificacion(
-            usuario_destino=request.user,
-            mensaje=mensaje_notif_backend,
-            tipo='success',
-            url_path_name='myapp:liquidacion_comisiones'
-        )
-        logger.info(
-            f"Notificación de backend creada para {request.user.username} por liquidación AJAX de comisión ID {comision.id}.")
-
-        return JsonResponse({
-            'status': 'success',
-            'message': f'Comisión ID {comision.pk} marcada como pagada.',
-            'comision_id': comision.pk,
-            'nuevo_estatus': comision.get_estatus_pago_comision_display(),
-            'fecha_pago': comision.fecha_pago_a_intermediario.strftime('%Y-%m-%d') if comision.fecha_pago_a_intermediario else None,
-            'usuario_liquido': comision.usuario_que_liquido.get_full_name() if comision.usuario_que_liquido else 'N/A',
-            'intermediario_id': intermediario_obj.id,
-            'nuevos_totales': nuevos_totales_despues_pago
-        })
-
-    except ValueError:
-        return JsonResponse({'status': 'error', 'message': 'ID de comisión inválido.'}, status=400)
-    except RegistroComision.DoesNotExist:
-        return JsonResponse({'status': 'error', 'message': 'Comisión no encontrada.'}, status=404)
-    except Exception as e:
-        # >>> INICIO DE LA CORRECCIÓN DE SEGURIDAD <<<
-        # Logueamos el error detallado para nosotros
-        logger.error(
-            f"Error en marcar_comision_pagada_ajax_view: {e}", exc_info=True)
-        # Devolvemos un mensaje genérico y seguro al cliente
-        return JsonResponse({'status': 'error', 'message': 'Ocurrió un error interno en el servidor.'}, status=500)
-        # >>> FIN DE LA CORRECCIÓN DE SEGURIDAD <<<
-
-
-def calcular_totales_pendientes_intermediario(intermediario):
-    """
-    Calcula los totales de comisiones pendientes para un intermediario específico.
-    """
-    if not intermediario:
-        return {'directa': '0.00', 'override': '0.00', 'general': '0.00'}
-
-    # Sumar comisiones PENDIENTES para este intermediario
-    agregados = intermediario.comisiones_ganadas.filter(
-        estatus_pago_comision='PENDIENTE'
-    ).aggregate(
-        total_directa=Coalesce(Sum(Case(When(tipo_comision='DIRECTA', then=F(
-            'monto_comision')), default=Value(0))), Value(Decimal('0.00')), output_field=DecimalField()),
-        total_override=Coalesce(Sum(Case(When(tipo_comision='OVERRIDE', then=F(
-            'monto_comision')), default=Value(0))), Value(Decimal('0.00')), output_field=DecimalField())
-    )
-
-    total_directa_pendiente = agregados['total_directa']
-    total_override_pendiente = agregados['total_override']
-    total_general_pendiente = total_directa_pendiente + total_override_pendiente
-
-    return {
-        # Devolver como string formateado
-        'directa': f"{total_directa_pendiente:.2f}",
-        'override': f"{total_override_pendiente:.2f}",
-        'general': f"{total_general_pendiente:.2f}"
-    }
-
-
-class HistorialLiquidacionesListView(LoginRequiredMixin, ListView):
-    model = RegistroComision
-    template_name = 'historial_liquidaciones_list.html'
-    context_object_name = 'liquidaciones'
-    paginate_by = ITEMS_PER_PAGE
-
-    search_fields_config = {
-        'id_comision': ['pk'],
-        'intermediario': ['intermediario__nombre_completo__icontains', 'intermediario__codigo__icontains'],
-        'factura': ['factura_origen__numero_recibo__icontains'],
-        'liquidador': [
-            'usuario_que_liquido__username__icontains',
-            'usuario_que_liquido__primer_nombre__icontains',
-            'usuario_que_liquido__primer_apellido__icontains',
-            'usuario_que_liquido__segundo_nombre__icontains',
-            'usuario_que_liquido__segundo_apellido__icontains',
-            'usuario_que_liquido__email__icontains',
-        ],
-        'tipo': ['tipo_comision__iexact'],
-    }
-    ordering_options = {
-        'id': 'ID', 'intermediario__nombre_completo': 'Intermediario', 'monto_comision': 'Monto',
-        'tipo_comision': 'Tipo', 'fecha_pago_a_intermediario': 'Fecha Pago',
-        'usuario_que_liquido__username': 'Liquidado Por', 'fecha_calculo': 'F. Cálculo'
-    }
-    default_ordering = ['-fecha_pago_a_intermediario', '-id']
-
-    def get_queryset(self):
-        logger.debug(f"[{self.__class__.__name__}] Iniciando get_queryset.")
-        queryset = RegistroComision.objects.filter(
-            estatus_pago_comision='PAGADA')
-
-        queryset = queryset.select_related(
-            'intermediario', 'usuario_que_liquido', 'factura_origen',
-            'pago_cliente', 'contrato_individual', 'contrato_colectivo',
-            'intermediario_vendedor'
-        )
-
-        self.search_query = self.request.GET.get('search', '').strip()
-        logger.debug(f"Término de búsqueda recibido: '{self.search_query}'")
-
-        if self.search_query:
-            q_objects = Q()
-            for field_group, lookups in self.search_fields_config.items():
-                for lookup in lookups:
-                    if field_group == 'id_comision':
-                        try:
-                            q_objects |= Q(pk=int(self.search_query))
-                            logger.debug(
-                                f"Añadido filtro de búsqueda por PK: {self.search_query}")
-                        except ValueError:
-                            pass
-                    else:
-                        q_objects |= Q(**{lookup: self.search_query})
-                        logger.debug(
-                            f"Añadido filtro de búsqueda: {lookup} = {self.search_query}")
-
-            if q_objects:
-                queryset = queryset.filter(q_objects).distinct()
-                logger.info(
-                    f"Queryset filtrado por búsqueda. Nuevo count: {queryset.count()}")
-            else:
-                logger.info("No se generaron Q objects para la búsqueda.")
-        else:
-            logger.debug(
-                "No hay término de búsqueda, no se aplica filtro de búsqueda.")
-
-        sort_param = self.request.GET.get('sort')
-        order_direction = self.request.GET.get(
-            'order', '').lower()  # Default a '' para chequear luego
-
-        # Usar el ordering por defecto de la clase si no hay parámetros GET específicos
-        # O si el sort_param no es válido
-        final_ordering_fields = list(
-            self.default_ordering)  # Empezar con el default
-
-        if sort_param and sort_param.lstrip('-') in self.ordering_options.keys():
-            self.current_sort = sort_param.lstrip('-')
-            # Si no se especifica order, tomar el del default_ordering para ese campo si existe, o 'asc'
-            if not order_direction:
-                for default_o_field in self.default_ordering:
-                    if default_o_field.lstrip('-') == self.current_sort:
-                        order_direction = 'desc' if default_o_field.startswith(
-                            '-') else 'asc'
-                        break
-                if not order_direction:  # Si no estaba en los defaults
-                    order_direction = 'asc'
-
-            self.current_order = order_direction
-
-            prefix = "-" if self.current_order == 'desc' else ""
-            final_ordering_fields = [f"{prefix}{self.current_sort}"]
-            logger.debug(f"Aplicando orden: {final_ordering_fields}")
-        else:
-            self.current_sort = self.default_ordering[0].lstrip(
-                '-') if self.default_ordering else 'id'
-            self.current_order = 'desc' if self.default_ordering and self.default_ordering[0].startswith(
-                '-') else 'asc'
-            logger.debug(f"Usando orden por defecto: {final_ordering_fields}")
-
-        queryset = queryset.order_by(*final_ordering_fields)
-
-        return queryset
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['page_title'] = "Historial de Liquidaciones de Comisiones"
-        context['active_tab'] = "comisiones"
-
-        context['search_query'] = getattr(self, 'search_query', '')
-        context['current_sort'] = getattr(self, 'current_sort', self.default_ordering[0].lstrip(
-            '-') if self.default_ordering else 'id')
-        context['current_order'] = getattr(
-            self, 'current_order', 'desc' if self.default_ordering and self.default_ordering[0].startswith('-') else 'asc')
-
-        query_params = self.request.GET.copy()
-        # Preservar search para ordenamiento y paginación
-        preserved_for_ordering = {}
-        if self.search_query:
-            preserved_for_ordering['search'] = self.search_query
-        context['preserved_filters_for_ordering'] = urlencode(
-            preserved_for_ordering)
-
-        # Preservar search y orden para paginación
-        preserved_for_pagination = {}
-        if self.search_query:
-            preserved_for_pagination['search'] = self.search_query
-        if hasattr(self, 'current_sort') and self.current_sort:  # Usar el atributo de instancia
-            preserved_for_pagination['sort'] = self.current_sort
-            preserved_for_pagination['order'] = getattr(
-                self, 'current_order', 'asc')  # Usar el atributo de instancia
-
-        context['preserved_filters_for_pagination'] = urlencode(
-            preserved_for_pagination)
-
-        context['ordering_options'] = self.ordering_options
-        return context
 
 
 def license_invalid_view(request):

@@ -69,6 +69,18 @@
                                 -
                             {% endif %}
                         </span>
+                        </div>
+                                        <div class="dark-group">
+                        <span class="dark-label">Comprobante de Pago:</span>
+                        <span>
+                            {% if comision.comprobante_pago %}
+                                <a href="{{ comision.comprobante_pago.url }}" class="file-popup-trigger" data-popup-title="Comprobante de Comisión #{{ comision.pk }}">
+                                    📎 Ver Comprobante
+                                </a>
+                            {% else %}
+                                <span class="text-muted">No se adjuntó comprobante.</span>
+                            {% endif %}
+                        </span>
                     </div>
                 </div>
             </fieldset>

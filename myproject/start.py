@@ -1,48 +1,33 @@
-# start.py (Versión Final, a prueba de todo, con lector de .env integrado)
-
+# start.py - VERSIÓN FINAL A PRUEBA DE RACE CONDITIONS
 import os
 import sys
 import multiprocessing
-import subprocess
-from pathlib import Path
 import logging
+from pathlib import Path
 
 # --- PASO 1: Configurar el entorno ANTES DE CUALQUIER IMPORT DE DJANGO ---
+# (Esta parte está bien, no la cambiamos)
 if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-    # Modo Congelado (.exe)
-    # _MEIPASS es la carpeta temporal donde PyInstaller extrae los archivos
     project_path = sys._MEIPASS
 else:
-    # Modo Desarrollo (python manage.py ...)
-    # La ruta del script start.py
     project_path = os.path.dirname(os.path.abspath(__file__))
-
-# Añadimos la ruta del proyecto al path de Python para que encuentre los módulos
 sys.path.insert(0, project_path)
-# Establecemos la variable de entorno que Django usará para encontrar la configuración
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'myproject.settings')
 
+# --- PASO 2: Función para cargar .env (Esta parte está bien) ---
 
-# --- [SOLUCIÓN DEFINITIVA] Función para leer .env y cargar variables al entorno ---
+
 def load_env_from_file():
-    """
-    Busca el archivo .env, lo crea si no existe, y carga sus variables
-    directamente en el entorno de ejecución de Python (os.environ).
-    """
     print("Buscando y cargando archivo .env...")
     try:
-        # Determinar la ruta base donde debe estar el .env
         if getattr(sys, 'frozen', False):
-            # Si es un .exe, el .env debe estar junto al ejecutable
             base_path = Path(sys.executable).parent
         else:
-            # En desarrollo, el .env está en la carpeta raíz del proyecto (un nivel arriba de donde está start.py)
             base_path = Path(__file__).parent.parent
-
         env_path = base_path / '.env'
-
         DEFAULT_ENV_CONTENT = """# .env - Creado automáticamente.
 SECRET_KEY='Xgfei34531#$&/$234fGHYtfhuY&6%$33rf#FfHUu7854fd"S3F%6HrR2dfdgG%6(5##3rfDfv-t4342345F$26fd6/%$#)'
+FERNET_KEY=O-t7odMmAyH46P50x0la-31lTONkFuYOUWb4kF-llP4=
 DEBUG=False
 ALLOWED_HOSTS=*
 DATABASE_URL=postgres://postgres:7319@localhost:5432/smgp
@@ -58,8 +43,6 @@ DJANGO_SUPERUSER_PRIMER_APELLIDO='Chacon'
                 f"Archivo .env no encontrado. Creando uno nuevo en: {env_path}")
             with open(env_path, 'w', encoding='utf-8') as f:
                 f.write(DEFAULT_ENV_CONTENT)
-
-        # Leemos el archivo línea por línea y cargamos las variables
         with open(env_path, 'r', encoding='utf-8') as f:
             for line in f:
                 line = line.strip()
@@ -67,69 +50,24 @@ DJANGO_SUPERUSER_PRIMER_APELLIDO='Chacon'
                     key, value = line.split('=', 1)
                     key = key.strip()
                     value = value.strip()
-                    # Quitar comillas si las hay
                     if (value.startswith("'") and value.endswith("'")) or \
                        (value.startswith('"') and value.endswith('"')):
                         value = value[1:-1]
-                    # Establecer la variable de entorno si no existe ya
                     os.environ.setdefault(key, value)
         print("Variables de entorno cargadas con éxito desde .env")
-
     except Exception as e:
         print(f"ERROR CRÍTICO: No se pudo procesar el archivo .env: {e}")
         input("Presiona Enter para salir.")
         sys.exit(1)
 
-
-def initialize_database():
-    """
-    Verifica la conexión a la BD y ejecuta migraciones/poblado si es necesario.
-    """
-    import django
-    from django.core.management import call_command
-    from django.db import connection
-    from django.db.utils import OperationalError
-
-    # Llamar a django.setup() es crucial para que Django se configure
-    print("Llamando a django.setup() desde initialize_database...")
-    django.setup()
-    print("Configuración de Django completada.")
-
-    from myapp.models import Usuario, Tarifa
-
-    try:
-        connection.ensure_connection()
-        if not Usuario.objects.filter(is_superuser=True).exists() or not Tarifa.objects.exists():
-            print("\n[INICIALIZACIÓN DE BD REQUERIDA]")
-            print("Aplicando migraciones...")
-            call_command('migrate', interactive=False)
-            print("Poblando base de datos...")
-            call_command('seed_db', '--clean')
-            print("¡Inicialización completada!")
-        else:
-            print("La base de datos ya existe y está poblada.")
-
-    except OperationalError as oe:
-        print(f"ERROR DE CONEXIÓN A LA BASE DE DATOS: {oe}")
-        print("Por favor, asegúrese de que el servidor PostgreSQL esté corriendo y sea accesible.")
-        input("La aplicación no pudo conectarse a la base de datos. Presiona Enter para salir.")
-        sys.exit(1)
-    except Exception as e:
-        logging.exception(
-            f"ERROR CRÍTICO durante la inicialización de la BD: {e}")
-        input("La aplicación no pudo iniciarse correctamente. Presiona Enter para salir.")
-        sys.exit(1)
+# --- PASO 3: Funciones para los procesos hijos (Las mantenemos igual) ---
 
 
 def run_django_waitress():
-    """Inicia el servidor web Django."""
-    # [NUEVO] Cada proceso hijo debe configurar Django por su cuenta.
     import django
     django.setup()
-
     from waitress import serve
     from myproject.wsgi import application
-
     print(
         ">>> [Proceso 1/2] Iniciando servidor Django con Waitress en el puerto 8000...")
     try:
@@ -139,46 +77,75 @@ def run_django_waitress():
 
 
 def run_task_processor():
-    """Inicia el procesador de tareas de Django-Background-Tasks."""
-    # [NUEVO] Cada proceso hijo debe configurar Django por su cuenta.
     import django
     django.setup()
-
     from django.core.management import call_command
-
     print(
         ">>> [Proceso 2/2] Iniciando Procesador de Tareas (django-background-tasks)...")
     try:
         call_command('process_tasks')
     except Exception as e:
-        import traceback
         print(f"!!! Error al iniciar el procesador de tareas: {e}")
-        traceback.print_exc()
 
 
-# --- Punto de Entrada Principal (Corregido y a prueba de bucles) ---
+# --- PUNTO DE ENTRADA PRINCIPAL (LA VERSIÓN A PRUEBA DE TODO) ---
 if __name__ == '__main__':
     multiprocessing.freeze_support()
-
-    # [NUEVO] La carga del .env también debe hacerse aquí para el proceso principal.
     load_env_from_file()
 
     print("\n" + "="*50)
-    print("--- SMGP App - PROCESO PRINCIPAL INICIANDO ---")
+    print("--- SMGP App - FASE 1: INICIALIZACIÓN DE BASE DE DATOS ---")
     print("="*50, flush=True)
 
     try:
-        # La inicialización de la BD solo la hace el proceso principal.
-        initialize_database()
+        # Importamos Django y sus componentes aquí, en el proceso principal
+        import django
+        from django.core.management import call_command
+        from django.db import connection
+        from django.db.utils import OperationalError
 
-        print("\n" + "-"*50)
-        print("Iniciando servicios en paralelo...")
-        print("1. Servidor Web (Waitress)")
-        print("2. Procesador de Tareas (Background Tasks)")
-        print("La aplicación estará lista en http://localhost:8000")
-        print("Presiona Ctrl+C en esta ventana para detener todos los servicios.")
-        print("-"*50, flush=True)
+        # Configuramos Django UNA SOLA VEZ
+        django.setup()
 
+        # Importamos los modelos DESPUÉS de django.setup()
+        from myapp.models import Usuario, Tarifa
+
+        # 1. Verificamos conexión
+        print("Verificando conexión a la base de datos...")
+        connection.ensure_connection()
+        print("Conexión exitosa.")
+
+        # 2. Aplicamos migraciones
+        print("Aplicando migraciones (esto crea las tablas si no existen)...")
+        call_command('migrate', interactive=False)
+        print("Migraciones completadas.")
+
+        # 3. Verificamos si hay que poblar
+        print("Verificando si la base de datos necesita ser poblada...")
+        if not Usuario.objects.filter(is_superuser=True).exists() or not Tarifa.objects.exists():
+            print("\n[POBLADO DE BD REQUERIDO]")
+            print("Poblando base de datos con datos iniciales...")
+            call_command('seed_db', '--clean')
+            print("¡Poblado completado!")
+        else:
+            print("La base de datos ya contiene datos. No se requiere poblado.")
+
+    except OperationalError as oe:
+        print(f"ERROR DE CONEXIÓN A LA BASE DE DATOS: {oe}")
+        input("Presiona Enter para salir.")
+        sys.exit(1)
+    except Exception as e:
+        logging.exception(f"ERROR CRÍTICO durante la inicialización: {e}")
+        input("Presiona Enter para salir.")
+        sys.exit(1)
+
+    # --- FASE 2: LANZAR PROCESOS ---
+    # Solo si la inicialización fue exitosa, lanzamos los procesos hijos.
+    print("\n" + "="*50)
+    print("--- SMGP App - FASE 2: INICIANDO SERVICIOS ---")
+    print("="*50, flush=True)
+
+    try:
         process_django = multiprocessing.Process(
             target=run_django_waitress, name="Django-Waitress")
         process_tasks = multiprocessing.Process(
@@ -191,56 +158,7 @@ if __name__ == '__main__':
         process_tasks.join()
 
         print(">>> Todos los procesos han finalizado. Cerrando aplicación.")
-
     except Exception as e:
-        print("\n" + "="*70)
-        print("!!! LA APLICACIÓN HA FALLADO DURANTE EL ARRANQUE !!!")
-        logging.exception(f"ERROR: {e}")
-        print("="*70)
-        input("La aplicación ha fallado. Presiona Enter para cerrar esta ventana.")
-
-
-# --- Punto de Entrada Principal con Multiprocesamiento ---
-if __name__ == '__main__':
-    # Necesario para que el multiprocesamiento funcione correctamente con PyInstaller
-    multiprocessing.freeze_support()
-
-    # [CAMBIO CLAVE] Cargamos el .env ANTES de que Django o cualquier otra cosa se inicie
-    load_env_from_file()
-
-    print("\n" + "="*50)
-    print("--- SMGP App - PROCESO PRINCIPAL INICIANDO ---")
-    print("="*50, flush=True)
-
-    try:
-        # Se ejecuta la inicialización una sola vez en el proceso principal.
-        initialize_database()
-
-        print("\n" + "-"*50)
-        print("Iniciando procesos en paralelo...")
-        print("1. Servidor Web (Waitress)")
-        print("2. Procesador de Tareas (Background Tasks)")
-        print("La aplicación estará lista en http://localhost:8000")
-        print("Presiona Ctrl+C en esta ventana para detener todos los servicios.")
-        print("-"*50, flush=True)
-
-        # Se crean y lanzan los dos procesos necesarios.
-        process_django = multiprocessing.Process(
-            target=run_django_waitress, name="Django-Waitress")
-        process_tasks = multiprocessing.Process(
-            target=run_task_processor, name="Task-Processor")
-
-        process_django.start()
-        process_tasks.start()
-
-        process_django.join()
-        process_tasks.join()
-
-        print(">>> Todos los procesos han finalizado. Cerrando aplicación.")
-
-    except Exception as e:
-        print("\n" + "="*70)
-        print("!!! LA APLICACIÓN HA FALLADO DURANTE EL ARRANQUE !!!")
-        logging.exception(f"ERROR: {e}")
-        print("="*70)
-        input("La aplicación ha fallado. Presiona Enter para cerrar esta ventana.")
+        logging.exception(
+            f"ERROR CRÍTICO durante la ejecución de servicios: {e}")
+        input("Presiona Enter para salir.")

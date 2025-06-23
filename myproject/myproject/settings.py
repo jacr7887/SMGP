@@ -5,6 +5,9 @@ from pathlib import Path
 import environ
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.translation import gettext_lazy as _
+from decouple import config
+
+FERNET_KEY = config('FERNET_KEY')
 
 # --- LÓGICA DE RUTAS UNIFICADA Y ROBUSTA ---
 IS_FROZEN = getattr(sys, 'frozen', False)

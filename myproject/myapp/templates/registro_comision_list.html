@@ -123,19 +123,24 @@
                 <caption id="table-caption-comisiones" class="visually-hidden">Tabla de Registros de Comisiones</caption>
                 <thead>
                     <tr role="row">
-                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='id' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">🆔 ID {% if current_sort == 'id' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='intermediario__nombre_completo' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">👤 Benef. {% if current_sort == 'intermediario__nombre_completo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='tipo_comision' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">📋 Tipo {% if current_sort == 'tipo_comision' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-                        <th class="sort-header text-end" scope="col"><a href="?{% query_transform sort='monto_comision' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">💰 Monto {% if current_sort == 'monto_comision' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-                        <th class="sort-header text-end" scope="col"><a href="?{% query_transform sort='monto_base_calculo' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">💲 Base {% if current_sort == 'monto_base_calculo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-                        <th class="sort-header text-end" scope="col"><a href="?{% query_transform sort='porcentaje_aplicado' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">📊 % {% if current_sort == 'porcentaje_aplicado' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
+                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='id' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">🆔 ID {% if current_sort == 'id' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
+                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='intermediario__nombre_completo' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">👤 Benef. {% if current_sort == 'intermediario__nombre_completo' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
+                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='tipo_comision' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">📋 Tipo {% if current_sort == 'tipo_comision' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
+                        <th class="sort-header text-end" scope="col"><a href="?{% query_transform sort='monto_comision' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">💰 Monto {% if current_sort == 'monto_comision' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
+                        <th class="sort-header text-end" scope="col"><a href="?{% query_transform sort='monto_base_calculo' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">💲 Base {% if current_sort == 'monto_base_calculo' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
+                        <th class="sort-header text-end" scope="col"><a href="?{% query_transform sort='porcentaje_aplicado' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">📊 % {% if current_sort == 'porcentaje_aplicado' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
                         <th scope="col">🧾 Factura</th>
                         <th scope="col">💳 P. Cliente</th>
-                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='intermediario_vendedor__nombre_completo' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">👨‍💼 Vend. {% if current_sort == 'intermediario_vendedor__nombre_completo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='estatus_pago_comision' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">🚦 Estado {% if current_sort == 'estatus_pago_comision' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='fecha_calculo' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">📅 F. Cálculo {% if current_sort == 'fecha_calculo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='fecha_pago_a_intermediario' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">🗓️ F. Pago Int. {% if current_sort == 'fecha_pago_a_intermediario' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='usuario_que_liquido__username' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">🧑‍💻 Liquidó {% if current_sort == 'usuario_que_liquido__username' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
+                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='intermediario_vendedor__nombre_completo' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">👨‍💼 Vend. {% if current_sort == 'intermediario_vendedor__nombre_completo' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
+                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='estatus_pago_comision' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">🚦 Estado {% if current_sort == 'estatus_pago_comision' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
+                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='fecha_calculo' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">📅 F. Cálculo {% if current_sort == 'fecha_calculo' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
+                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='fecha_pago_a_intermediario' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">🗓️ F. Pago Int. {% if current_sort == 'fecha_pago_a_intermediario' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
+                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='usuario_que_liquido__username' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">🧑‍💻 Liquidó {% if current_sort == 'usuario_que_liquido__username' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
+                        
+                        {# === INICIO DE LA NUEVA COLUMNA === #}
+                        <th scope="col" class="text-center">📎 Comp.</th>
+                        {# === FIN DE LA NUEVA COLUMNA === #}
+                        
                         <th scope="col" class="actions-header">⚙️ Acciones</th>
                     </tr>
                 </thead>
@@ -143,34 +148,31 @@
                     {% for comision in object_list %}
                     <tr role="row" class="{% cycle 'row1' 'row2' %}">
                         <td role="cell" data-label="ID:"><a href="{% url 'myapp:registro_comision_detail' comision.pk %}">{{ comision.pk|escape }}</a></td>
-                        <td role="cell" data-label="Inter. Benef.:">
-                            {% if comision.intermediario %}<a href="{% url 'myapp:intermediario_detail' comision.intermediario.pk %}">{{ comision.intermediario.nombre_completo|truncatechars:20|default:comision.intermediario.codigo|escape }}</a>{% else %}N/A{% endif %}
-                        </td>
+                        <td role="cell" data-label="Inter. Benef.:">{% if comision.intermediario %}<a href="{% url 'myapp:intermediario_detail' comision.intermediario.pk %}">{{ comision.intermediario.nombre_completo|truncatechars:20|default:comision.intermediario.codigo|escape }}</a>{% else %}N/A{% endif %}</td>
                         <td role="cell" data-label="Tipo:">{{ comision.get_tipo_comision_display|escape }}</td>
                         <td class="text-end" role="cell" data-label="Monto Comisión:">{{ comision.monto_comision|floatformat:2|intcomma|default:"0.00" }}</td>
                         <td class="text-end" role="cell" data-label="Base Cálculo:">{{ comision.monto_base_calculo|floatformat:2|intcomma|default:"0.00" }}</td>
                         <td class="text-end" role="cell" data-label="% Aplic.:">{{ comision.porcentaje_aplicado|floatformat:2|default:"0.00" }}%</td>
-                        <td role="cell" data-label="Factura:">
-                            {% if comision.factura_origen %}<a href="{% url 'myapp:factura_detail' comision.factura_origen.pk %}">{{ comision.factura_origen.numero_recibo|default_if_none:"Ver"|truncatechars:15|escape }}</a>{% else %}N/A{% endif %}
-                        </td>
-                        <td role="cell" data-label="Pago Cliente:">
-                            {% if comision.pago_cliente %}<a href="{% url 'myapp:pago_detail' comision.pago_cliente.pk %}">{{ comision.pago_cliente.referencia_pago|default_if_none:"Ver"|truncatechars:10|escape }}</a>{% else %}N/A{% endif %}
-                        </td>
-                        <td role="cell" data-label="Inter. Vendedor:">
-                            {% if comision.intermediario_vendedor %}<a href="{% url 'myapp:intermediario_detail' comision.intermediario_vendedor.pk %}">{{ comision.intermediario_vendedor.nombre_completo|truncatechars:20|default:comision.intermediario_vendedor.codigo|escape }}</a>{% else %}N/A{% endif %}
-                        </td>
-                        <td role="cell" data-label="Estado Pago:">
-                            <span class="badge {% if comision.estatus_pago_comision == 'PAGADA' %}badge-success{% elif comision.estatus_pago_comision == 'PENDIENTE' %}badge-warning{% elif comision.estatus_pago_comision == 'ANULADA' %}badge-danger{% else %}badge-secondary{% endif %}">{{ comision.get_estatus_pago_comision_display|escape }}</span>
-                        </td>
+                        <td role="cell" data-label="Factura:">{% if comision.factura_origen %}<a href="{% url 'myapp:factura_detail' comision.factura_origen.pk %}">{{ comision.factura_origen.numero_recibo|default_if_none:"Ver"|truncatechars:15|escape }}</a>{% else %}N/A{% endif %}</td>
+                        <td role="cell" data-label="Pago Cliente:">{% if comision.pago_cliente %}<a href="{% url 'myapp:pago_detail' comision.pago_cliente.pk %}">{{ comision.pago_cliente.referencia_pago|default_if_none:"Ver"|truncatechars:10|escape }}</a>{% else %}N/A{% endif %}</td>
+                        <td role="cell" data-label="Inter. Vendedor:">{% if comision.intermediario_vendedor %}<a href="{% url 'myapp:intermediario_detail' comision.intermediario_vendedor.pk %}">{{ comision.intermediario_vendedor.nombre_completo|truncatechars:20|default:comision.intermediario_vendedor.codigo|escape }}</a>{% else %}N/A{% endif %}</td>
+                        <td role="cell" data-label="Estado Pago:"><span class="badge {% if comision.estatus_pago_comision == 'PAGADA' %}badge-success{% elif comision.estatus_pago_comision == 'PENDIENTE' %}badge-warning{% elif comision.estatus_pago_comision == 'ANULADA' %}badge-danger{% else %}badge-secondary{% endif %}">{{ comision.get_estatus_pago_comision_display|escape }}</span></td>
                         <td role="cell" data-label="Fecha Cálculo:">{{ comision.fecha_calculo|date:"d/m/y H:i"|default:"-" }}</td>
                         <td role="cell" data-label="Fecha Pago Int.:">{{ comision.fecha_pago_a_intermediario|date:"d/m/y"|default:"-" }}</td>
-                        <td role="cell" data-label="Liquidó:">
-                            {% if comision.usuario_que_liquido %}
-                                {{ comision.usuario_que_liquido.username|default:"N/A" }}
+                        <td role="cell" data-label="Liquidó:">{% if comision.usuario_que_liquido %}{{ comision.usuario_que_liquido.username|default:"N/A" }}{% else %}-{% endif %}</td>
+                        
+                        {# === INICIO DEL CONTENIDO DE LA NUEVA CELDA === #}
+                        <td role="cell" data-label="Comprobante:" class="text-center">
+                            {% if comision.comprobante_pago %}
+                                <a href="{{ comision.comprobante_pago.url }}" class="file-popup-trigger action-icon" data-popup-title="Comprobante Comisión #{{ comision.pk }}">
+                                    📎
+                                </a>
                             {% else %}
                                 -
                             {% endif %}
                         </td>
+                        {# === FIN DEL CONTENIDO DE LA NUEVA CELDA === #}
+                        
                         <td class="actions" role="cell" data-label="Acciones:">
                             <div class="action-group">
                                 {% if perms.myapp.view_registrocomision %}<a href="{% url 'myapp:registro_comision_detail' comision.pk %}" class="action-icon" title="Ver Detalles">👁️</a>{% endif %}
@@ -185,7 +187,7 @@
                         </td>
                     </tr>
                     {% empty %}
-                    <tr role="row"><td colspan="14" class="no-results" role="cell">🚫 No se encontraron registros de comisiones que coincidan con los criterios.</td></tr>
+                    <tr role="row"><td colspan="15" class="no-results" role="cell">🚫 No se encontraron registros de comisiones que coincidan con los criterios.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -218,7 +220,6 @@
           </div>
         </nav>
         {% endif %}
-
     </section>
 </div>
 {% endblock content %}

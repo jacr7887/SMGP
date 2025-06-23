@@ -80,11 +80,6 @@
                             <a href="{% url 'myapp:factura_detail' comision_item.factura_origen.pk %}">{{ comision_item.factura_origen.numero_recibo|default_if_none:"Ver Factura"|escape }}</a>
                         {% else %}N/A{% endif %}
                     </td>
-                    {# La columna "Venta de" se renderiza condicionalmente por filter_has_override en tu plantilla original,
-                       lo cual es bueno. Si quieres controlarlo aquí, necesitarías pasar esa info.
-                       Por simplicidad, la cabecera se muestra siempre si es un campo ordenable, 
-                       y el contenido de la celda decide qué mostrar.
-                    #}
                     <td>
                         {% if comision_item.tipo_comision == 'OVERRIDE' and comision_item.intermediario_vendedor %}
                             {{ comision_item.intermediario_vendedor.nombre_completo|escape|default:"N/A" }}

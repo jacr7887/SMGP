@@ -3324,6 +3324,15 @@ class RegistroComision(models.Model):
         verbose_name="Usuario que Liquidó la Comisión"
     )
 
+    comprobante_pago = models.FileField(
+        upload_to='comprobantes_comisiones/',
+        validators=[validate_file_size, validate_file_type],
+        verbose_name="Comprobante de Pago de Comisión",
+        null=True,
+        blank=True,
+        help_text="Comprobante de la liquidación (PDF, JPG, PNG. Max 10MB)."
+    )
+
     def __str__(self):
         # ... (tu método __str__) ...
         contrato_str = ""

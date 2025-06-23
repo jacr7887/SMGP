@@ -14,7 +14,7 @@
                 <i class="fas fa-hand-holding-usd me-1"></i> Ir a Liquidaciones Pendientes
             </a>
              <a href="{% url 'myapp:registro_comision_list' %}" class="nav_link">
-                <i class="fas fa-list-alt me-1"></i> Ver Todos los Registros (Incl. Pendientes)
+                <i class="fas fa-list-alt me-1"></i> Ver Todos los Registros
             </a>
         </div>
     </div>
@@ -48,7 +48,8 @@
                 <tr>
                     {% for field, label in ordering_options.items %}
                     <th class="sort-header">
-                        <a href="?{% query_transform sort=field order=current_order|toggle_order:'asc' search=search_query page=1 %}">
+                        {# [CORREGIDO] Se simplifica la llamada a query_transform #}
+                        <a href="?{% query_transform sort=field order=current_order|toggle_order:'asc' %}">
                             {{ label }} 
                             {% if current_sort == field %}
                                 <span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>
@@ -58,7 +59,9 @@
                         </a>
                     </th>
                     {% endfor %}
+                    
                     <th>Factura Origen</th>
+                    <th>Comprobante</th>
                     <th>Acciones</th>
                 </tr>
             </thead>
@@ -82,6 +85,7 @@
                             Sistema/N.A.
                         {% endif %}
                     </td>
+                    <td>{{ liquidacion_item.fecha_calculo|date:"d/m/y H:i"|default:"-" }}</td>
                     <td>
                         {% if liquidacion_item.factura_origen %}
                             <a href="{% url 'myapp:factura_detail' liquidacion_item.factura_origen.pk %}">
@@ -89,7 +93,20 @@
                             </a>
                         {% else %} N/A {% endif %}
                     </td>
-                    <td>{{ liquidacion_item.fecha_calculo|date:"d/m/y H:i"|default:"-" }}</td>
+                    <td>
+                        {% if liquidacion_item.comprobante_pago %}
+                            <a href="{{ liquidacion_item.comprobante_pago.url }}" 
+                               class="file-popup-trigger action-icon" 
+                               data-popup-title="Comprobante Comisión #{{ liquidacion_item.pk }}"
+                               target="_blank" 
+                               rel="noopener noreferrer"
+                               title="Ver Comprobante">
+                                📎 Ver
+                            </a>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
                     <td class="actions">
                         <a href="{% url 'myapp:registro_comision_detail' liquidacion_item.pk %}" class="action-icon" title="Ver Detalle Comisión">👁️</a>
                     </td>
@@ -104,16 +121,20 @@
         </div>
         {% endif %}
     </div>
-        {% if is_paginated %}
-    <nav aria-label="Navegación de páginas de pagos">
+    
+    {# --- [INICIO DE LA CORRECCIÓN FINAL] --- #}
+    {% if is_paginated %}
+    <nav aria-label="Navegación de páginas de liquidaciones">
       <div class="django-pagination">
         {% if page_obj.has_previous %}
           <a href="?{% query_transform page=1 %}" class="btn-pagination" aria-label="Primera página">« Primera</a>
           <a href="?{% query_transform page=page_obj.previous_page_number %}" class="btn-pagination" aria-label="Página anterior">‹ Anterior</a>
         {% endif %}
+        
         <span class="pagination-current">
           Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
         </span>
+        
         {% if page_obj.has_next %}
           <a href="?{% query_transform page=page_obj.next_page_number %}" class="btn-pagination" aria-label="Siguiente página">Siguiente ›</a>
           <a href="?{% query_transform page=page_obj.paginator.num_pages %}" class="btn-pagination" aria-label="Última página">Última »</a>
@@ -121,11 +142,29 @@
       </div>
     </nav>
     {% endif %}
+    {# --- [FIN DE LA CORRECCIÓN FINAL] --- #}
 
   </section>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-{# Si tienes JS específico para esta página, como inicializar tooltips o algo así #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const popupTriggers = document.querySelectorAll('.file-popup-trigger');
+    popupTriggers.forEach(function(trigger) {
+        trigger.addEventListener('click', function(event) {
+            event.preventDefault();
+            const url = this.href;
+            const title = this.getAttribute('data-popup-title') || 'Archivo Adjunto';
+            const width = 800;
+            const height = 600;
+            const left = (screen.width / 2) - (width / 2);
+            const top = (screen.height / 2) - (height / 2);
+            const windowFeatures = `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes,status=yes`;
+            window.open(url, title, windowFeatures);
+        });
+    });
+});
+</script>
 {% endblock %}
