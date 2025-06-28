@@ -6200,7 +6200,10 @@ class IntermediarioDashboardView(LoginRequiredMixin, TemplateView):
         user = self.request.user
         intermediario_a_filtrar = None
 
+        # --- LÓGICA PARA DETERMINAR QUÉ DASHBOARD MOSTRAR ---
         if user.is_superuser:
+            # Si es superusuario, puede ver el dashboard de CUALQUIER intermediario
+            # pasando un ID en la URL (ej. /mi-dashboard/?intermediario_id=5)
             intermediario_id = self.request.GET.get('intermediario_id')
             if intermediario_id:
                 try:
@@ -6210,8 +6213,11 @@ class IntermediarioDashboardView(LoginRequiredMixin, TemplateView):
                 except Intermediario.DoesNotExist:
                     context['dashboard_title'] = "Reporte General (Intermediario no encontrado)"
             else:
+                # Si es superusuario pero no especifica un ID, puede ver los datos globales
                 context['dashboard_title'] = "Reporte General (Agregado)"
         else:
+            # Si NO es superusuario, SIEMPRE verá su propio dashboard.
+            # No necesita pasar ningún ID. La vista lo toma de request.user.
             intermediario_a_filtrar = user.intermediario
             context['dashboard_title'] = "Mi Dashboard de Intermediario"
 

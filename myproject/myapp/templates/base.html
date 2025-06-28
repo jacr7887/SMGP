@@ -72,20 +72,24 @@
           <ul class="nav_menu">
             
             {# --- INICIO DE LA LÓGICA CORREGIDA DEL SIDEBAR --- #}
+                    
+            {# 1. El superusuario y el admin ven el Dashboard de Admin #}
+            {% if user.is_superuser or user.tipo_usuario == 'ADMIN' %}
+            <li class="nav_item {% i request.resolver_match.url_name == 'home' %}active{% endif %}">
+                <a href="{% url 'myapp:home' %}" class="nav_link-sidebar"><span class="nav_icon">👑</span><span class="nav_text">Dashboard Admin</span></a>
+            </li>
             
-            {# 1. Enlace de Inicio Principal #}
-            {% if user.is_superuser %}
-              <li class="nav_item {% if request.resolver_match.url_name == 'home' %}active{% endif %}">
-                  <a href="{% url 'myapp:home' %}" class="nav_link-sidebar"><span class="nav_icon">👑</span><span class="nav_text">Dashboard Admin</span></a>
-              </li>
-            {% elif user.intermediario %}
-              <li class="nav_item {% if request.resolver_match.url_name == 'intermediario_dashboard' %}active{% endif %}">
-                  <a href="{% url 'myapp:intermediario_dashboard' %}" class="nav_link-sidebar"><span class="nav_icon">🏠</span><span class="nav_text">Mi Dashboard</span></a>
-              </li>
+            {# 2. El intermediario ve su propio dashboard #}
+            {% elif user.tipo_usuario == 'INTERMEDIARIO' %}
+            <li class="nav_item {% if request.resolver_match.url_name == 'intermediario_dashboard' %}active{% endif %}">
+                <a href="{% url 'myapp:intermediario_dashboard' %}" class="nav_link-sidebar"><span class="nav_icon">🏠</span><span class="nav_text">Mi Dashboard</span></a>
+            </li>
+
+            {# 3. El cliente y el auditor (u otros) ven una página de inicio genérica #}
             {% else %}
-              <li class="nav_item {% if request.resolver_match.url_name == 'home' %}active{% endif %}">
-                  <a href="{% url 'myapp:home' %}" class="nav_link-sidebar"><span class="nav_icon">🏠</span><span class="nav_text">Inicio</span></a>
-              </li>
+            <li class="nav_item {% if request.resolver_match.url_name == 'home' %}active{% endif %}">
+                <a href="{% url 'myapp:home' %}" class="nav_link-sidebar"><span class="nav_icon">🏠</span><span class="nav_text">Inicio</span></a>
+            </li>
             {% endif %}
 
             {# 2. Resto de los menús basados en permisos #}

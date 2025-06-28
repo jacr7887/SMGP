@@ -94,7 +94,7 @@ urlpatterns = [
          views.IntermediarioUpdateView.as_view(), name='intermediario_update'),
     path('intermediarios/eliminar/<int:pk>/',
          views.IntermediarioDeleteView.as_view(), name='intermediario_delete'),
-    path('intermediario/dashboard/', IntermediarioDashboardView.as_view(),
+    path('mi-dashboard/', views.IntermediarioDashboardView.as_view(),
          name='intermediario_dashboard'),
 
     # Vistas de Reclamación
