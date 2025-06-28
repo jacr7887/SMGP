@@ -1,0 +1,23 @@
+{% load admin_list %}
+{% load i18n %}
+{% load querystring_tags %} {# <-- Cargamos nuestro tag #}
+
+<div class="pagination">
+  <span class="page-links">
+    {% if cl.page_num > 1 %}
+      <a href="?{% querystring p=None %}" class="first">{% trans "First" %}</a>
+      <a href="?{% querystring p=cl.page_num|add:'-1' %}" class="prev">‹ {% trans "Previous" %}</a>
+    {% endif %}
+
+    <span class="page-current">
+      {% blocktrans with cl.page_num as page_num and cl.paginator.num_pages as num_pages %}
+        Page {{ page_num }} of {{ num_pages }}
+      {% endblocktrans %}
+    </span>
+
+    {% if cl.page_num < cl.paginator.num_pages %}
+      <a href="?{% querystring p=cl.page_num|add:'1' %}" class="next">{% trans "Next" %} ›</a>
+      <a href="?{% querystring p=cl.paginator.num_pages %}" class="last">{% trans "Last" %}</a>
+    {% endif %}
+  </span>
+</div>

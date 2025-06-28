@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 from . import views
@@ -212,10 +212,13 @@ urlpatterns = [
     path('error/', views.error_page, name='error_page'),
 
 
+    re_path(r'^media/(?P<file_path>.*)$',
+            views.serve_media_file, name='serve_media_file'),
+
 
 ]
 handler500 = 'myapp.views.handler500'
-# Configuración de archivos estáticos en modo de desarrollo
-if settings.DEBUG:
-    urlpatterns += static(settings.STATIC_URL,
-                          document_root=settings.STATIC_ROOT)
+# # Configuración de archivos estáticos en modo de desarrollo
+# if settings.DEBUG:
+#     urlpatterns += static(settings.STATIC_URL,
+#                           document_root=settings.STATIC_ROOT)

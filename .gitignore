@@ -126,3 +126,4 @@ myproject/myapp/ModelosPrompt.md
 myproject/myapp/ModelosPrompt.yaml
 myproject/myapp/.env_generator_keys
 myproject/myapp/Caracteristicas.md
+myproject/encryption_keys.py

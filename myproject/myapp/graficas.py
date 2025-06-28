@@ -98,6 +98,19 @@ GRAPH_CACHE_CONFIG = {
 # --- FUNCIONES PRINCIPALES CON MODIFICACIONES RESPONSIVE ---
 
 
+def calcular_edad(fecha_nacimiento):
+    """Calcula la edad a partir de una fecha de nacimiento."""
+    if not fecha_nacimiento:
+        return None
+    # Asegurarse de que es un objeto date, no datetime
+    if isinstance(fecha_nacimiento, datetime):
+        fecha_nacimiento = fecha_nacimiento.date()
+
+    hoy = django_timezone.now().date()
+    # Lógica de cálculo de edad precisa
+    return hoy.year - fecha_nacimiento.year - ((hoy.month, hoy.day) < (fecha_nacimiento.month, fecha_nacimiento.day))
+
+
 def obtener_configuracion_graficas(request):
     config = {"glassConfig": copy.deepcopy(
         BASE_LAYOUT), "colors": COLOR_PALETTE.copy()}
@@ -445,24 +458,32 @@ def grafico_03():
 
 def grafico_04():
     try:
-        edades_queryset = (AfiliadoIndividual.objects.annotate(
-            edad=ExtractYear(Now()) - ExtractYear('fecha_nacimiento')).order_by('edad'))
-        if not edades_queryset.exists():
-            fig_error = generar_figura_sin_datos("No hay datos de edades")
+        # 1. Traer solo las fechas de nacimiento a Python
+        fechas_nacimiento = AfiliadoIndividual.objects.values_list(
+            'fecha_nacimiento', flat=True)
+
+        if not fechas_nacimiento:
+            fig_error = generar_figura_sin_datos("No hay datos de afiliados")
             return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
-        edades = edades_queryset.values_list('edad', flat=True)
-        np_edades = np.array(list(filter(None, edades)))
-        if np_edades.size == 0:
+
+        # 2. Calcular edades en Python
+        edades = [calcular_edad(fn) for fn in fechas_nacimiento if fn]
+
+        if not edades:
             fig_error = generar_figura_sin_datos("No hay edades válidas")
             return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
+
+        # 3. Continuar con la lógica original usando la lista de edades
+        np_edades = np.array(edades)
         mean_age = np.mean(np_edades)
         hist, bins = np.histogram(np_edades, bins=15, range=(0, 100))
+
         fig = go.Figure()
         fig.add_trace(go.Bar(
             x=bins[:-1], y=hist, marker_color=COLOR_PALETTE['info'], opacity=0.8,
             width=np.diff(bins), hoverinfo='y+text',
             hovertext=[
-                f'Rango: {bins[i]}-{bins[i+1]} años' for i in range(len(bins)-1)]
+                f'Rango: {int(bins[i])}-{int(bins[i+1])} años' for i in range(len(bins)-1)]
         ))
         fig.add_vline(x=mean_age, line_dash="dot",
                       line_color=COLOR_PALETTE['secondary'], annotation_text=f'Media: {mean_age:.1f} años')
@@ -473,7 +494,6 @@ def grafico_04():
         layout_actualizado['xaxis']['title_text'] = 'Edad'
         layout_actualizado['xaxis']['dtick'] = 10
         layout_actualizado['xaxis']['range'] = [0, 100]
-        layout_actualizado['xaxis']['fixedrange'] = True
         layout_actualizado['yaxis']['title_text'] = 'Cantidad de Afiliados'
         layout_actualizado['bargap'] = 0.05
         layout_actualizado['hovermode'] = 'x'
@@ -700,28 +720,33 @@ def grafico_08():
 
 def grafico_09():
     try:
-        data_qs = (Reclamacion.objects.filter(contrato_individual__afiliado__fecha_nacimiento__isnull=False)
-                   .annotate(edad=ExtractYear(Now()) - ExtractYear('contrato_individual__afiliado__fecha_nacimiento'))
-                   .values('edad'))
-        if not data_qs.exists():
+        # 1. Traer las fechas de nacimiento de los afiliados con reclamaciones
+        fechas_nacimiento_qs = Reclamacion.objects.filter(
+            contrato_individual__afiliado__fecha_nacimiento__isnull=False
+        ).values_list('contrato_individual__afiliado__fecha_nacimiento', flat=True)
+
+        if not fechas_nacimiento_qs:
             fig_error = generar_figura_sin_datos(
                 "No hay reclamaciones con edad de afiliado")
             return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
-        edades = [d['edad'] for d in data_qs if d['edad'] is not None]
+
+        # 2. Calcular edades en Python
+        edades = [calcular_edad(fn) for fn in fechas_nacimiento_qs if fn]
+
         if not edades:
             fig_error = generar_figura_sin_datos(
                 "No hay edades válidas para mostrar")
             return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
+
+        # 3. Continuar con la lógica del histograma
         fig = go.Figure(data=[go.Histogram(
             x=edades, marker_color=COLOR_PALETTE.get('secondary'),
-            xbins=dict(start=min(edades) if edades else 0,
-                       end=max(edades) + 5 if edades else 100, size=5)
+            xbins=dict(start=min(edades), end=max(edades) + 5, size=5)
         )])
         layout_actualizado = copy.deepcopy(BASE_LAYOUT)
         layout_actualizado['title'] = {
             'text': 'Distribución de Reclamaciones por Edad del Afiliado', 'x': 0.5, 'font': {'size': 11}}
-        layout_actualizado['xaxis'][
-            'title_text'] = 'Edad del Afiliado (al momento de la reclamación)'
+        layout_actualizado['xaxis']['title_text'] = 'Edad del Afiliado'
         layout_actualizado['yaxis']['title_text'] = 'Cantidad de Reclamaciones'
         layout_actualizado['bargap'] = 0.1
         fig.update_layout(**layout_actualizado)
@@ -869,34 +894,51 @@ def grafico_12():
 
 def grafico_13():
     try:
-        data = (ContratoIndividual.objects.select_related('afiliado')
-                .annotate(
-                    edad=ExtractYear(Now()) -
-            ExtractYear('afiliado__fecha_nacimiento'),
-                    rango_edad=Case(
-                        *[When(edad__gte=min_val, edad__lt=max_val, then=Value(f"{min_val}-{max_val}"))
-                          for min_val, max_val in [(18, 25), (25, 35), (35, 45), (45, 55), (55, 65)]],
-                        # Manejar edades fuera de rango explícitamente
-                        default=Value(None),
-                        output_field=CharField()
-                    )
-        )
-            # Excluir los que no cayeron en un rango
-            .filter(rango_edad__isnull=False)
-            .values('rango_edad', 'ramo').annotate(total=Count('id')))
+        # 1. Traer los datos necesarios a Python
+        contratos_data = ContratoIndividual.objects.select_related('afiliado').filter(
+            afiliado__fecha_nacimiento__isnull=False
+        ).values('afiliado__fecha_nacimiento', 'ramo')
 
-        if not data.exists():
+        if not contratos_data:
             fig_error = generar_figura_sin_datos(
                 "No hay datos para Edad vs Ramo")
             return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
 
-        df = pd.DataFrame(list(data))
-        # Mapear códigos de ramo a etiquetas legibles
+        # 2. Procesar en Python
+        rangos_def = [(18, 25), (25, 35), (35, 45), (45, 55), (55, 65)]
+        processed_data = []
+        for contrato in contratos_data:
+            edad = calcular_edad(contrato['afiliado__fecha_nacimiento'])
+            if edad is not None:
+                rango_edad = None
+                for min_val, max_val in rangos_def:
+                    if min_val <= edad < max_val:
+                        # Ajuste para que sea inclusivo
+                        rango_edad = f"{min_val}-{max_val-1}"
+                        break
+                if rango_edad:
+                    processed_data.append(
+                        {'rango_edad': rango_edad, 'ramo': contrato['ramo']})
+
+        if not processed_data:
+            fig_error = generar_figura_sin_datos(
+                "No hay datos válidos tras procesar para Edad vs Ramo")
+            return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
+
+        df = pd.DataFrame(processed_data)
         ramo_map = dict(CommonChoices.RAMO)
         df['ramo_label'] = df['ramo'].map(ramo_map).fillna(df['ramo'])
 
-        pivot = df.pivot_table(
+        # Contar las ocurrencias
+        df_counts = df.groupby(['rango_edad', 'ramo_label']
+                               ).size().reset_index(name='total')
+
+        pivot = df_counts.pivot_table(
             index='rango_edad', columns='ramo_label', values='total', fill_value=0)
+
+        # Ordenar el índice
+        pivot = pivot.reindex(
+            [f"{min_val}-{max_val-1}" for min_val, max_val in rangos_def], fill_value=0)
 
         if pivot.empty:
             fig_error = generar_figura_sin_datos(
@@ -912,7 +954,6 @@ def grafico_13():
             'text': 'Distribución de Contratos por Edad y Ramo', 'x': 0.5, 'font': {'size': 11}}
         layout_actualizado['xaxis']['title_text'] = 'Ramo'
         layout_actualizado['yaxis']['title_text'] = 'Rango de Edad'
-        # layout_actualizado['height'] = 500 # Puedes descomentar si necesitas altura fija
         fig.update_layout(**layout_actualizado)
         return plot(fig, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
     except Exception as e:
@@ -920,142 +961,96 @@ def grafico_13():
         fig_excepcion = generar_figura_sin_datos("Error al generar Gráfico 13")
         return plot(fig_excepcion, output_type='div', config=GRAPH_CONFIG)
 
-# ------------------------------
-# Gráfico 14: Estado de Continuidad de Contratos del Último Mes Completo
-# ------------------------------
 
-
-def grafico_14():  # Reemplazando el gráfico 14
+def grafico_14():
     try:
         logger.debug(
             "G14_Reemplazo - Iniciando Concentración Suma Asegurada por Ramo y Edad")
+        N_TOP_RAMOS = 5
 
-        N_TOP_RAMOS = 5  # Mostrar los 5 ramos con mayor suma asegurada
-        hoy = django_timezone.now().date()
+        # 1. Traer los datos necesarios a Python
+        contratos_data = ContratoIndividual.objects.filter(
+            activo=True, estatus='VIGENTE', suma_asegurada__isnull=False, suma_asegurada__gt=Decimal('0.00'),
+            afiliado__fecha_nacimiento__isnull=False
+        ).values('ramo', 'suma_asegurada', 'afiliado__fecha_nacimiento')
 
-        # 1. Identificar los Top N Ramos por Suma Asegurada Total (Contratos Individuales)
-        top_ramos_qs = (ContratoIndividual.objects
-                        .filter(
-                            activo=True,
-                            estatus='VIGENTE',  # O los estados que consideres "en riesgo"
-                            suma_asegurada__isnull=False,
-                            suma_asegurada__gt=Decimal('0.00')
-                        )
-                        .values('ramo')
-                        .annotate(total_suma_asegurada_ramo=Sum('suma_asegurada'))
-                        .order_by('-total_suma_asegurada_ramo')[:N_TOP_RAMOS]
-                        )
+        if not contratos_data:
+            fig_error = generar_figura_sin_datos(
+                "No hay contratos para analizar.")
+            return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
 
-        top_ramos_codigos = [item['ramo']
-                             for item in top_ramos_qs if item['ramo']]
+        df = pd.DataFrame(list(contratos_data))
+        df['suma_asegurada'] = pd.to_numeric(df['suma_asegurada'])
+
+        # 2. Identificar los Top N Ramos en Python
+        top_ramos_df = df.groupby('ramo')['suma_asegurada'].sum().nlargest(
+            N_TOP_RAMOS).reset_index()
+        top_ramos_codigos = top_ramos_df['ramo'].tolist()
 
         if not top_ramos_codigos:
             fig_error = generar_figura_sin_datos(
-                "No hay ramos con suma asegurada significativa para analizar.")
+                "No hay ramos con suma asegurada significativa.")
             return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
 
-        # 2. Para esos Top N Ramos, obtener Suma Asegurada por Rango Etario
-        # Definir rangos etarios (puedes ajustar estos)
-        # (min_edad_inclusive, max_edad_exclusive, label)
+        # 3. Filtrar el DataFrame y calcular edades y rangos en Python
+        df_filtrado = df[df['ramo'].isin(top_ramos_codigos)].copy()
+        df_filtrado['edad'] = df_filtrado['afiliado__fecha_nacimiento'].apply(
+            calcular_edad)
+
         rangos_etarios_defs = [
-            (0, 18, '0-17 años'),
-            (18, 26, '18-25 años'),
-            (26, 36, '26-35 años'),
-            (36, 46, '36-45 años'),
-            (46, 56, '46-55 años'),
-            (56, 66, '56-65 años'),
-            (66, 120, '66+ años')  # 120 como límite superior grande
-        ]
+            (0, 18, '0-17 años'), (18, 26, '18-25 años'), (26, 36, '26-35 años'),
+            (36, 46, '36-45 años'), (46, 56, '46-55 años'), (56, 66, '56-65 años'),
+            (66, 120, '66+ años')]
 
-        when_edad_clauses = []
-        for min_e, max_e, label_e in rangos_etarios_defs:
-            when_edad_clauses.append(
-                When(edad__gte=min_e, edad__lt=max_e, then=Value(label_e)))
+        def asignar_rango(edad):
+            if pd.isnull(edad):
+                return 'Otros'
+            for min_e, max_e, label_e in rangos_etarios_defs:
+                if min_e <= edad < max_e:
+                    return label_e
+            return 'Otros'
 
-        # Query para obtener los datos detallados
-        data_qs = (ContratoIndividual.objects
-                   .filter(
-                       activo=True,
-                       estatus='VIGENTE',
-                       ramo__in=top_ramos_codigos,
-                       afiliado__fecha_nacimiento__isnull=False,
-                       suma_asegurada__isnull=False,
-                       suma_asegurada__gt=Decimal('0.00')
-                   )
-                   .annotate(
-                       edad=ExtractYear(
-                           # Edad simple
-                           Value(hoy)) - ExtractYear('afiliado__fecha_nacimiento'),
-                       rango_etario_calc=Case(
-                           *when_edad_clauses, default=Value('Otros'), output_field=CharField())
-                   )
-                   # Excluir los que no caen en rangos definidos
-                   .exclude(rango_etario_calc='Otros')
-                   .values('ramo', 'rango_etario_calc')
-                   .annotate(suma_asegurada_segmento=Sum('suma_asegurada'))
-                   .order_by('ramo', 'rango_etario_calc')
-                   )
+        df_filtrado['rango_etario_calc'] = df_filtrado['edad'].apply(
+            asignar_rango)
+        df_filtrado = df_filtrado[df_filtrado['rango_etario_calc'] != 'Otros']
 
-        if not data_qs.exists():
+        if df_filtrado.empty:
             fig_error = generar_figura_sin_datos(
-                "No hay datos suficientes de suma asegurada por ramo y edad.")
+                "No hay datos suficientes por ramo y edad.")
             return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
 
-        df = pd.DataFrame(list(data_qs))
-
+        # 4. Agrupar y preparar para el gráfico
+        df_agrupado = df_filtrado.groupby(['ramo', 'rango_etario_calc'])[
+            'suma_asegurada'].sum().reset_index()
         ramo_map = dict(CommonChoices.RAMO)
-        df['ramo_label'] = df['ramo'].map(ramo_map).fillna(df['ramo'])
-        df['suma_asegurada_segmento'] = pd.to_numeric(
-            df['suma_asegurada_segmento'], errors='coerce').fillna(0.0)
+        df_agrupado['ramo_label'] = df_agrupado['ramo'].map(
+            ramo_map).fillna(df_agrupado['ramo'])
 
-        # Ordenar las categorías de rango etario para el gráfico
         rango_order = [label for _, _, label in rangos_etarios_defs]
-        df['rango_etario_calc'] = pd.Categorical(
-            df['rango_etario_calc'], categories=rango_order, ordered=True)
-        df = df.sort_values(['ramo_label', 'rango_etario_calc'])
-
-        if df.empty or df['suma_asegurada_segmento'].sum() == 0:
-            fig_error = generar_figura_sin_datos(
-                "No hay sumas aseguradas válidas tras procesar.")
-            return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
-
-        # Gráfico de Barras Apiladas
-        fig = px.bar(df,
-                     x='ramo_label',
-                     y='suma_asegurada_segmento',
-                     color='rango_etario_calc',
-                     barmode='stack',  # O 'group' si prefieres barras agrupadas
-                     # Formato para mostrar valores en las barras (ej. 1.2M, 500k)
-                     text_auto='.2s',
-                     labels={'suma_asegurada_segmento': 'Suma Asegurada (USD)',
-                             'ramo_label': 'Ramo del Contrato',
-                             'rango_etario_calc': 'Rango Etario Afiliado'},
-                     color_discrete_sequence=px.colors.qualitative.Pastel)  # O cualquier otra paleta
-
+        df_agrupado['rango_etario_calc'] = pd.Categorical(
+            df_agrupado['rango_etario_calc'], categories=rango_order, ordered=True)
+        df_agrupado = df_agrupado.sort_values(
+            ['ramo_label', 'rango_etario_calc'])
+        fig = px.bar(df_agrupado, x='ramo_label', y='suma_asegurada', color='rango_etario_calc', barmode='stack', text_auto='.2s',
+                     labels={
+                         'suma_asegurada': 'Suma Asegurada (USD)', 'ramo_label': 'Ramo del Contrato', 'rango_etario_calc': 'Rango Etario Afiliado'},
+                     color_discrete_sequence=px.colors.qualitative.Pastel)
         fig.update_traces(
             textposition='inside', hovertemplate="<b>%{x}</b><br>%{fullData.name}<br>Suma Asegurada: $%{y:,.0f}<extra></extra>")
-
         layout_actualizado = copy.deepcopy(BASE_LAYOUT)
         layout_actualizado['title'] = {
-            'text': f'Concentración Suma Asegurada por Ramo y Edad (Top {N_TOP_RAMOS} Ramos)',
-            'x': 0.5,
-            'font': {'size': 10}
-        }
+            'text': f'Concentración Suma Asegurada por Ramo y Edad (Top {N_TOP_RAMOS} Ramos)', 'x': 0.5, 'font': {'size': 10}}
         layout_actualizado['xaxis']['title_text'] = 'Ramo del Contrato'
-        # Ordenar ramos por suma total
         layout_actualizado['xaxis']['categoryorder'] = 'total descending'
         layout_actualizado['yaxis']['title_text'] = 'Suma Asegurada Total (USD)'
         layout_actualizado['yaxis']['tickprefix'] = '$'
         layout_actualizado['legend']['title_text'] = 'Rango Etario'
-        layout_actualizado['height'] = 550  # Ajustar según necesidad
-        # Más espacio para etiquetas de ramo
+        layout_actualizado['height'] = 550
         layout_actualizado['margin']['b'] = 100
-
         fig.update_layout(**layout_actualizado)
         logger.info(
-            f"G14_Reemplazo - Concentración Suma Asegurada por Ramo y Edad generado.")
+            "G14_Reemplazo - Concentración Suma Asegurada por Ramo y Edad generado.")
         return plot(fig, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
-
     except Exception as e:
         logger.error(
             f"Error G14_Reemplazo (Suma Asegurada Ramo/Edad): {str(e)}", exc_info=True)
@@ -1063,51 +1058,65 @@ def grafico_14():  # Reemplazando el gráfico 14
             f"Error al generar Gráfico 14 ({type(e).__name__})")
         return plot(fig_excepcion, output_type='div', config=GRAPH_CONFIG)
 
-# ------------------------------
-# Gráfico 15: Monto Asegurado Promedio y Máximo por Rango de Edad
-# ------------------------------
-
 
 def grafico_15():
     try:
         logger.debug(
             "G15 - Iniciando Monto Asegurado Promedio/Máximo por Rango Edad (Barras)")
+
+        # 1. Traer los datos necesarios a Python
+        contratos_data = ContratoIndividual.objects.filter(
+            activo=True, afiliado__fecha_nacimiento__isnull=False, monto_total__isnull=False, monto_total__gt=0
+        ).values('afiliado__fecha_nacimiento', 'monto_total')
+
+        if not contratos_data:
+            fig_error = generar_figura_sin_datos(
+                "No hay contratos individuales con montos y edad para analizar")
+            return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
+
+        # 2. Procesar en Python
+        df = pd.DataFrame(list(contratos_data))
+        df['monto_total'] = pd.to_numeric(df['monto_total'])
+        df['edad'] = df['afiliado__fecha_nacimiento'].apply(calcular_edad)
+
         rangos_edad_definidos = [
             (0, 17, '0-17 años'), (18, 25, '18-25 años'), (26, 35, '26-35 años'),
             (36, 45, '36-45 años'), (46, 55, '46-55 años'), (56, 65, '56-65 años'),
             (66, 75, '66-75 años'), (76, 120, '76+ años')]
-        when_edad_clauses = [When(edad__gte=min_e, edad__lte=max_e, then=Value(
-            lbl)) for min_e, max_e, lbl in rangos_edad_definidos]
-        data_qs = (ContratoIndividual.objects
-                   .filter(activo=True, afiliado__fecha_nacimiento__isnull=False, monto_total__isnull=False, monto_total__gt=0)
-                   .annotate(edad=ExtractYear(Now()) - ExtractYear('afiliado__fecha_nacimiento'),
-                             rango_edad_label=Case(*when_edad_clauses, default=Value('Otros'), output_field=CharField()))
-                   .exclude(rango_edad_label='Otros').values('rango_edad_label')
-                   .annotate(monto_asegurado_promedio=Coalesce(Avg('monto_total'), Value(Decimal('0.0'))),
-                             monto_asegurado_maximo=Coalesce(Max('monto_total'), Value(Decimal('0.0'))))
-                   .order_by(Case(*[When(rango_edad_label=label, then=Value(i)) for i, (_, _, label) in enumerate(rangos_edad_definidos)])))
-        if not data_qs.exists():
-            fig_error = generar_figura_sin_datos(
-                "No hay contratos individuales con montos y edad para analizar")
-            return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
-        df = pd.DataFrame(list(data_qs))
-        df['monto_asegurado_promedio'] = pd.to_numeric(
-            df['monto_asegurado_promedio'], errors='coerce').fillna(0.0)
-        df['monto_asegurado_maximo'] = pd.to_numeric(
-            df['monto_asegurado_maximo'], errors='coerce').fillna(0.0)
-        if df.empty or (df['monto_asegurado_promedio'].sum() == 0 and df['monto_asegurado_maximo'].sum() == 0):
+
+        def asignar_rango(edad):
+            if pd.isnull(edad):
+                return 'Otros'
+            for min_e, max_e, lbl in rangos_edad_definidos:
+                if min_e <= edad <= max_e:
+                    return lbl
+            return 'Otros'
+
+        df['rango_edad_label'] = df['edad'].apply(asignar_rango)
+        df = df[df['rango_edad_label'] != 'Otros']
+
+        if df.empty:
             fig_error = generar_figura_sin_datos(
                 "No hay datos de montos asegurados válidos tras procesar")
             return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
-        fig = go.Figure()
-        fig.add_trace(go.Bar(x=df['rango_edad_label'], y=df['monto_asegurado_promedio'], name='Monto Asegurado Promedio', marker_color=COLOR_PALETTE.get(
-            'info'), text=df['monto_asegurado_promedio'], texttemplate='$%{text:,.0f}', textposition='auto', hovertemplate="<b>Rango Edad:</b> %{x}<br>Promedio: $%{y:,.0f}<extra></extra>"))
-        fig.add_trace(go.Bar(x=df['rango_edad_label'], y=df['monto_asegurado_maximo'], name='Monto Asegurado Máximo', marker_color=COLOR_PALETTE.get(
-            'primary'), text=df['monto_asegurado_maximo'], texttemplate='$%{text:,.0f}', textposition='auto', hovertemplate="<b>Rango Edad:</b> %{x}<br>Máximo: $%{y:,.0f}<extra></extra>"))
 
+        # 3. Agrupar para obtener estadísticas
+        df_agrupado = df.groupby('rango_edad_label')[
+            'monto_total'].agg(['mean', 'max']).reset_index()
+        df_agrupado.rename(columns={
+                           'mean': 'monto_asegurado_promedio', 'max': 'monto_asegurado_maximo'}, inplace=True)
+
+        rango_order = [lbl for _, _, lbl in rangos_edad_definidos]
+        df_agrupado['rango_edad_label'] = pd.Categorical(
+            df_agrupado['rango_edad_label'], categories=rango_order, ordered=True)
+        df_agrupado = df_agrupado.sort_values('rango_edad_label')
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=df_agrupado['rango_edad_label'], y=df_agrupado['monto_asegurado_promedio'], name='Monto Asegurado Promedio', marker_color=COLOR_PALETTE.get(
+            'info'), text=df_agrupado['monto_asegurado_promedio'], texttemplate='$%{text:,.0f}', textposition='auto', hovertemplate="<b>Rango Edad:</b> %{x}<br>Promedio: $%{y:,.0f}<extra></extra>"))
+        fig.add_trace(go.Bar(x=df_agrupado['rango_edad_label'], y=df_agrupado['monto_asegurado_maximo'], name='Monto Asegurado Máximo', marker_color=COLOR_PALETTE.get(
+            'primary'), text=df_agrupado['monto_asegurado_maximo'], texttemplate='$%{text:,.0f}', textposition='auto', hovertemplate="<b>Rango Edad:</b> %{x}<br>Máximo: $%{y:,.0f}<extra></extra>"))
         layout_actualizado = copy.deepcopy(BASE_LAYOUT)
         layout_actualizado['title'] = {
-            # Título más corto
             'text': 'Monto Asegurado Prom./Max. por Rango Edad (Cont. Ind.)', 'x': 0.5, 'font': {'size': 10}}
         layout_actualizado['xaxis']['title_text'] = 'Rango de Edad del Afiliado'
         layout_actualizado['xaxis']['type'] = 'category'
@@ -1115,9 +1124,7 @@ def grafico_15():
         layout_actualizado['yaxis']['tickprefix'] = '$'
         layout_actualizado['yaxis']['tickformat'] = ',.0f'
         layout_actualizado['barmode'] = 'group'
-        # Ajustar y de leyenda si es necesario
         layout_actualizado['legend']['y'] = 1.1
-        # Más espacio abajo para etiquetas X
         layout_actualizado['margin']['b'] = 80
         fig.update_layout(**layout_actualizado)
         logger.info(
@@ -1249,26 +1256,60 @@ def grafico_18():
     try:
         logger.debug(
             "G18 - Iniciando Ratio Siniestralidad por Rango Edad (Visual Capeado 100%)")
-        rangos_edad_definidos = [(0, 17, '0-17'), (18, 25, '18-25'), (26, 35, '26-35'), (36, 45,
-                                                                                         '36-45'), (46, 55, '46-55'), (56, 65, '56-65'), (66, 75, '66-75'), (76, 120, '76+')]
-        when_edad_clauses = [When(edad__gte=min_e, edad__lte=max_e, then=Value(
-            lbl)) for min_e, max_e, lbl in rangos_edad_definidos]
-        contratado_por_edad_qs = (ContratoIndividual.objects.filter(activo=True, afiliado__fecha_nacimiento__isnull=False)
-                                  .annotate(edad=ExtractYear(Now()) - ExtractYear('afiliado__fecha_nacimiento'), rango_edad_calc=Case(*when_edad_clauses, default=Value('Otro'), output_field=CharField()))
-                                  .exclude(rango_edad_calc='Otro').values('rango_edad_calc').annotate(total_contratado_rango=Coalesce(Sum('monto_total'), Value(Decimal('0.0')))))
-        dict_contratado = {item['rango_edad_calc']: item['total_contratado_rango']
-                           for item in contratado_por_edad_qs}
-        reclamado_por_edad_qs = (Reclamacion.objects.filter(contrato_individual__isnull=False, contrato_individual__activo=True, contrato_individual__afiliado__fecha_nacimiento__isnull=False)
-                                 .annotate(edad=ExtractYear(Now()) - ExtractYear('contrato_individual__afiliado__fecha_nacimiento'), rango_edad_calc=Case(*when_edad_clauses, default=Value('Otro'), output_field=CharField()))
-                                 .exclude(rango_edad_calc='Otro').values('rango_edad_calc').annotate(total_reclamado_rango=Coalesce(Sum('monto_reclamado'), Value(Decimal('0.0')))))
-        dict_reclamado = {item['rango_edad_calc']: item['total_reclamado_rango']
-                          for item in reclamado_por_edad_qs}
+
+        # 1. Traer datos de contratos a Python
+        contratos_data = ContratoIndividual.objects.filter(
+            activo=True, afiliado__fecha_nacimiento__isnull=False
+        ).values('afiliado__fecha_nacimiento', 'monto_total')
+
+        # 2. Traer datos de reclamaciones a Python
+        reclamaciones_data = Reclamacion.objects.filter(
+            contrato_individual__isnull=False, contrato_individual__activo=True,
+            contrato_individual__afiliado__fecha_nacimiento__isnull=False
+        ).values('contrato_individual__afiliado__fecha_nacimiento', 'monto_reclamado')
+
+        if not contratos_data and not reclamaciones_data:
+            fig_error = generar_figura_sin_datos(
+                "No hay datos para ratio por edad")
+            return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
+
+        # 3. Procesar en Pandas
+        df_contratos = pd.DataFrame(list(contratos_data))
+        df_reclamaciones = pd.DataFrame(list(reclamaciones_data))
+
+        rangos_edad_definidos = [(0, 17, '0-17'), (18, 25, '18-25'), (26, 35, '26-35'), (36, 45, '36-45'),
+                                 (46, 55, '46-55'), (56, 65, '56-65'), (66, 75, '66-75'), (76, 120, '76+')]
+
+        def asignar_rango(fecha_nac):
+            edad = calcular_edad(fecha_nac)
+            if edad is None:
+                return 'Otro'
+            for min_e, max_e, lbl in rangos_edad_definidos:
+                if min_e <= edad <= max_e:
+                    return lbl
+            return 'Otro'
+
+        if not df_contratos.empty:
+            df_contratos['rango_edad_calc'] = df_contratos['afiliado__fecha_nacimiento'].apply(
+                asignar_rango)
+            dict_contratado = df_contratos.groupby('rango_edad_calc')[
+                'monto_total'].sum().to_dict()
+        else:
+            dict_contratado = {}
+
+        if not df_reclamaciones.empty:
+            df_reclamaciones['rango_edad_calc'] = df_reclamaciones['contrato_individual__afiliado__fecha_nacimiento'].apply(
+                asignar_rango)
+            dict_reclamado = df_reclamaciones.groupby(
+                'rango_edad_calc')['monto_reclamado'].sum().to_dict()
+        else:
+            dict_reclamado = {}
         resultados = []
         labels_ordenados_grafico = [lbl for _, _, lbl in rangos_edad_definidos]
         RATIO_CAP_VISUAL = Decimal('100.0')
         for rango_label in labels_ordenados_grafico:
-            contratado = dict_contratado.get(rango_label, Decimal('0.0'))
-            reclamado_real = dict_reclamado.get(rango_label, Decimal('0.0'))
+            contratado = Decimal(dict_contratado.get(rango_label, 0))
+            reclamado_real = Decimal(dict_reclamado.get(rango_label, 0))
             ratio_bruto = (reclamado_real / contratado *
                            100) if contratado > Decimal('0.005') else Decimal('0.0')
             ratio_para_display = min(ratio_bruto, RATIO_CAP_VISUAL)
@@ -1276,27 +1317,22 @@ def grafico_18():
                 ("+" if ratio_bruto > RATIO_CAP_VISUAL else "")
             resultados.append({'rango': rango_label, 'monto_contratado': contratado, 'monto_reclamado_real': reclamado_real, 'ratio_graficar': float(
                 ratio_para_display.quantize(Decimal('0.1'))), 'ratio_real_calculado': float(ratio_bruto.quantize(Decimal('0.1'))), 'texto_barra_display': texto_en_barra_final})
-        if not resultados:
-            fig_error = generar_figura_sin_datos(
-                "No hay datos suficientes para ratio por edad")
-            return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
+
         df = pd.DataFrame(resultados)
         colors = [COLOR_PALETTE.get('dark') if r >= 100 else (COLOR_PALETTE.get('secondary') if r >= 70 else (
             COLOR_PALETTE.get('warning') if r >= 70 * 0.6 else COLOR_PALETTE.get('success'))) for r in df['ratio_real_calculado']]
-        fig = go.Figure(data=[go.Bar(x=df['rango'], y=df['ratio_graficar'], marker_color=colors, text=df['texto_barra_display'], textposition='auto',
-                                     customdata=np.stack(
-                                         (df['monto_contratado'], df['monto_reclamado_real'], df['ratio_real_calculado']), axis=-1),
-                                     hovertemplate="<b>Rango Edad: %{x}</b><br>Ratio Siniestralidad (Calculado Real): %{customdata[2]:.1f}%<br>Prima Total: $%{customdata[0]:,.0f}<br>Siniestros Totales: $%{customdata[1]:,.0f}<extra></extra>")])
+        fig = go.Figure(data=[go.Bar(x=df['rango'], y=df['ratio_graficar'], marker_color=colors, text=df['texto_barra_display'], textposition='auto', customdata=np.stack((df['monto_contratado'], df['monto_reclamado_real'], df['ratio_real_calculado']),
+                        axis=-1), hovertemplate="<b>Rango Edad: %{x}</b><br>Ratio Siniestralidad (Calculado Real): %{customdata[2]:.1f}%<br>Prima Total: $%{customdata[0]:,.0f}<br>Siniestros Totales: $%{customdata[1]:,.0f}<extra></extra>")])
         layout_actualizado = copy.deepcopy(BASE_LAYOUT)
-        layout_actualizado['title'] = {'text': 'Ratio Siniestralidad por Rango de Edad (Visualizado hasta 100%)', 'x': 0.5, 'font': {
-            'size': 10}}  # Título más corto
+        layout_actualizado['title'] = {
+            'text': 'Ratio Siniestralidad por Rango de Edad (Visualizado hasta 100%)', 'x': 0.5, 'font': {'size': 10}}
         layout_actualizado['xaxis']['title_text'] = 'Rango de Edad'
         layout_actualizado['xaxis']['type'] = 'category'
         layout_actualizado['yaxis']['title_text'] = 'Ratio Siniestralidad (%)'
         layout_actualizado['yaxis']['ticksuffix'] = '%'
         layout_actualizado['yaxis']['range'] = [
             0, float(RATIO_CAP_VISUAL * Decimal('1.1'))]
-        layout_actualizado['margin']['b'] = 80  # Espacio para etiquetas X
+        layout_actualizado['margin']['b'] = 80
         fig.update_layout(**layout_actualizado)
         logger.info(
             "G18 - Gráfico de Ratio Siniestralidad por Edad (Visual Capeado 100%) generado.")
@@ -1543,34 +1579,58 @@ def grafico_23():
     try:
         logger.debug(
             "G23 - Iniciando Prima vs Siniestros por Rango Edad (Barras Horizontales)")
-        rangos_edad_definidos = [(0, 17, '0-17 años'), (18, 25, '18-25 años'), (26, 35, '26-35 años'), (36, 45, '36-45 años'),
-                                 (46, 55, '46-55 años'), (56, 65, '56-65 años'), (66, 75, '66-75 años'), (76, 120, '76+ años')]
-        when_edad_clauses = [When(edad__gte=min_e, edad__lte=max_e, then=Value(
-            lbl)) for min_e, max_e, lbl in rangos_edad_definidos]
-        prima_por_edad_qs = (ContratoIndividual.objects.filter(activo=True, afiliado__fecha_nacimiento__isnull=False, monto_total__gt=Decimal('0.00'))
-                             .annotate(edad=ExtractYear(Now()) - ExtractYear('afiliado__fecha_nacimiento'), rango_edad_label=Case(*when_edad_clauses, default=Value('Otros'), output_field=CharField()))
-                             .exclude(rango_edad_label='Otros').values('rango_edad_label').annotate(total_prima_rango=Coalesce(Sum('monto_total'), Decimal('0.0')))
-                             .order_by(Case(*[When(rango_edad_label=label, then=Value(i)) for i, (_, _, label) in enumerate(rangos_edad_definidos)])))
-        df_prima = pd.DataFrame(list(prima_por_edad_qs))
-        if df_prima.empty:
-            df_prima = pd.DataFrame(
-                columns=['rango_edad_label', 'total_prima_rango'])
-        siniestros_por_edad_qs = (Reclamacion.objects.filter(contrato_individual__isnull=False, contrato_individual__activo=True, contrato_individual__afiliado__fecha_nacimiento__isnull=False, monto_reclamado__gt=Decimal('0.00'))
-                                  .annotate(edad=ExtractYear(Now()) - ExtractYear('contrato_individual__afiliado__fecha_nacimiento'), rango_edad_label=Case(*when_edad_clauses, default=Value('Otros'), output_field=CharField()))
-                                  .exclude(rango_edad_label='Otros').values('rango_edad_label').annotate(total_siniestro_rango=Coalesce(Sum('monto_reclamado'), Decimal('0.0')))
-                                  .order_by(Case(*[When(rango_edad_label=label, then=Value(i)) for i, (_, _, label) in enumerate(rangos_edad_definidos)])))
-        df_siniestro = pd.DataFrame(list(siniestros_por_edad_qs))
-        if df_siniestro.empty:
-            df_siniestro = pd.DataFrame(
-                columns=['rango_edad_label', 'total_siniestro_rango'])
-        if df_prima.empty and df_siniestro.empty:
+
+        # 1. Traer datos de contratos y reclamaciones a Python
+        contratos_data = ContratoIndividual.objects.filter(
+            activo=True, afiliado__fecha_nacimiento__isnull=False, monto_total__gt=Decimal('0.00')
+        ).values('afiliado__fecha_nacimiento', 'monto_total')
+
+        reclamaciones_data = Reclamacion.objects.filter(
+            contrato_individual__isnull=False, contrato_individual__activo=True,
+            contrato_individual__afiliado__fecha_nacimiento__isnull=False, monto_reclamado__gt=Decimal('0.00')
+        ).values('contrato_individual__afiliado__fecha_nacimiento', 'monto_reclamado')
+
+        if not contratos_data and not reclamaciones_data:
             fig_error = generar_figura_sin_datos(
                 "No hay datos de primas ni siniestros por edad para G23")
             return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
+
+        # 2. Procesar en Pandas
+        df_contratos = pd.DataFrame(list(contratos_data))
+        df_reclamaciones = pd.DataFrame(list(reclamaciones_data))
+
+        rangos_edad_definidos = [(0, 17, '0-17 años'), (18, 25, '18-25 años'), (26, 35, '26-35 años'), (36, 45, '36-45 años'),
+                                 (46, 55, '46-55 años'), (56, 65, '56-65 años'), (66, 75, '66-75 años'), (76, 120, '76+ años')]
+
+        def asignar_rango(fecha_nac):
+            edad = calcular_edad(fecha_nac)
+            if edad is None:
+                return 'Otros'
+            for min_e, max_e, lbl in rangos_edad_definidos:
+                if min_e <= edad <= max_e:
+                    return lbl
+            return 'Otros'
+
+        if not df_contratos.empty:
+            df_contratos['rango_edad_label'] = df_contratos['afiliado__fecha_nacimiento'].apply(
+                asignar_rango)
+            df_prima = df_contratos.groupby('rango_edad_label')['monto_total'].sum(
+            ).reset_index().rename(columns={'monto_total': 'total_prima_rango'})
+        else:
+            df_prima = pd.DataFrame(
+                columns=['rango_edad_label', 'total_prima_rango'])
+
+        if not df_reclamaciones.empty:
+            df_reclamaciones['rango_edad_label'] = df_reclamaciones['contrato_individual__afiliado__fecha_nacimiento'].apply(
+                asignar_rango)
+            df_siniestro = df_reclamaciones.groupby('rango_edad_label')['monto_reclamado'].sum(
+            ).reset_index().rename(columns={'monto_reclamado': 'total_siniestro_rango'})
+        else:
+            df_siniestro = pd.DataFrame(
+                columns=['rango_edad_label', 'total_siniestro_rango'])
+
         df_merged = pd.merge(df_prima, df_siniestro,
-                             on='rango_edad_label', how='outer')
-        df_merged[['total_prima_rango', 'total_siniestro_rango']] = df_merged[[
-            'total_prima_rango', 'total_siniestro_rango']].fillna(Decimal('0.0'))
+                             on='rango_edad_label', how='outer').fillna(0)
         rango_order = [lbl for _, _, lbl in rangos_edad_definidos]
         df_merged['rango_edad_label'] = pd.Categorical(
             df_merged['rango_edad_label'], categories=rango_order, ordered=True)
@@ -1581,29 +1641,24 @@ def grafico_23():
             fig_error = generar_figura_sin_datos(
                 "No hay actividad significativa de primas o siniestros por edad para G23")
             return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
-        df_merged['total_prima_float'] = pd.to_numeric(
-            df_merged['total_prima_rango'], errors='coerce').fillna(0.0)
-        df_merged['total_siniestro_float'] = pd.to_numeric(
-            df_merged['total_siniestro_rango'], errors='coerce').fillna(0.0)
-        fig = go.Figure()
-        fig.add_trace(go.Bar(y=df_merged['rango_edad_label'], x=df_merged['total_prima_float'], name='Prima Emitida Total', orientation='h', marker_color=COLOR_PALETTE.get(
-            'success'), text=df_merged['total_prima_float'], texttemplate='$%{text:,.0f}', textposition='auto', hovertemplate="<b>Rango Edad: %{y}</b><br>Prima Emitida: $%{x:,.0f}<extra></extra>"))
-        fig.add_trace(go.Bar(y=df_merged['rango_edad_label'], x=df_merged['total_siniestro_float'], name='Siniestros Incurridos Totales', orientation='h', marker_color=COLOR_PALETTE.get(
-            'secondary'), text=df_merged['total_siniestro_float'], texttemplate='$%{text:,.0f}', textposition='auto', hovertemplate="<b>Rango Edad: %{y}</b><br>Siniestros Incurridos: $%{x:,.0f}<extra></extra>"))
 
+        fig = go.Figure()
+        fig.add_trace(go.Bar(y=df_merged['rango_edad_label'], x=df_merged['total_prima_rango'], name='Prima Emitida Total', orientation='h', marker_color=COLOR_PALETTE.get(
+            'success'), text=df_merged['total_prima_rango'], texttemplate='$%{text:,.0f}', textposition='auto', hovertemplate="<b>Rango Edad: %{y}</b><br>Prima Emitida: $%{x:,.0f}<extra></extra>"))
+        fig.add_trace(go.Bar(y=df_merged['rango_edad_label'], x=df_merged['total_siniestro_rango'], name='Siniestros Incurridos Totales', orientation='h', marker_color=COLOR_PALETTE.get(
+            'secondary'), text=df_merged['total_siniestro_rango'], texttemplate='$%{text:,.0f}', textposition='auto', hovertemplate="<b>Rango Edad: %{y}</b><br>Siniestros Incurridos: $%{x:,.0f}<extra></extra>"))
         layout_actualizado = copy.deepcopy(BASE_LAYOUT)
-        layout_actualizado['title'] = {'text': 'Prima vs. Siniestros por Rango Edad (Cont. Ind.)', 'x': 0.5, 'font': {
-            'size': 10}}  # Título más corto
+        layout_actualizado['title'] = {
+            'text': 'Prima vs. Siniestros por Rango Edad (Cont. Ind.)', 'x': 0.5, 'font': {'size': 10}}
         layout_actualizado['yaxis']['title_text'] = 'Rango de Edad del Afiliado'
         layout_actualizado['yaxis']['type'] = 'category'
         layout_actualizado['xaxis']['title_text'] = 'Monto Total (USD)'
         layout_actualizado['xaxis']['tickprefix'] = '$'
         layout_actualizado['xaxis']['tickformat'] = ',.0f'
         layout_actualizado['barmode'] = 'group'
-        # layout_actualizado['legend']['y'] = 1.02 # yanchor y xanchor ya en BASE_LAYOUT
-        layout_actualizado['height'] = max(400, len(df_merged['rango_edad_label'].unique(
-        )) * 40 + 150)  # Ajustar multiplicador si es necesario
-        layout_actualizado['margin']['l'] = 120  # Más espacio para etiquetas Y
+        layout_actualizado['height'] = max(
+            400, len(df_merged['rango_edad_label'].unique()) * 40 + 150)
+        layout_actualizado['margin']['l'] = 120
         fig.update_layout(**layout_actualizado)
         logger.info(
             "G23 - Prima vs Siniestros por Rango Edad (Barras Horizontales) generado.")
@@ -1871,46 +1926,64 @@ def grafico_28():
 
 
 def grafico_29():
+    # Este gráfico ya parece calcular la antigüedad en Python, pero lo revisamos.
+    # La anotación `antiguedad_anos` usa ExtractYear, lo que podría fallar.
+    # Lo reescribimos para ser seguros.
     try:
-        hoy = date.today()
-        contratos_con_antiguedad = (ContratoIndividual.objects.filter(fecha_inicio_vigencia__isnull=False)
-                                    .annotate(antiguedad_anos=Case(When(fecha_inicio_vigencia__lte=hoy, then=ExtractYear(Value(hoy)) - ExtractYear('fecha_inicio_vigencia')), default=Value(0), output_field=IntegerField()))
-                                    .filter(antiguedad_anos__gte=0))
-        avg_monto_reclamado_subquery = (Reclamacion.objects.filter(contrato_individual=OuterRef('pk'), monto_reclamado__isnull=False, monto_reclamado__gt=0)
-                                        .values('contrato_individual').annotate(avg_monto=Avg('monto_reclamado')).values('avg_monto')[:1])
-        data_qs = (contratos_con_antiguedad.annotate(monto_prom_reclamado=Subquery(avg_monto_reclamado_subquery, output_field=DecimalField()))
-                   .filter(monto_prom_reclamado__isnull=False).values('antiguedad_anos')
-                   .annotate(monto_promedio_final=Avg('monto_prom_reclamado')).order_by('antiguedad_anos'))
-        if not data_qs:
+        # 1. Traer los datos necesarios
+        contratos_con_reclamacion = ContratoIndividual.objects.filter(
+            reclamacion__isnull=False, monto_total__isnull=False, fecha_inicio_vigencia__isnull=False
+        ).distinct()
+
+        data_para_df = []
+        for contrato in contratos_con_reclamacion:
+            antiguedad_dias = (django_timezone.now().date() -
+                               contrato.fecha_inicio_vigencia).days
+            if antiguedad_dias < 0:
+                continue
+
+            antiguedad_anos = antiguedad_dias // 365
+
+            monto_prom_reclamado = contrato.reclamacion_set.aggregate(
+                avg_monto=Avg('monto_reclamado')
+            )['avg_monto']
+
+            if monto_prom_reclamado is not None:
+                data_para_df.append({
+                    'antiguedad_anos': antiguedad_anos,
+                    'monto_prom_reclamado': monto_prom_reclamado
+                })
+
+        if not data_para_df:
             fig_error = generar_figura_sin_datos(
                 "No hay datos suficientes para G29")
             return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
-        df = pd.DataFrame(list(data_qs))
-        df['monto_prom_float'] = pd.to_numeric(
-            df['monto_promedio_final'], errors='coerce').fillna(0.0)
-        df['antiguedad_anos'] = pd.to_numeric(
-            df['antiguedad_anos'], errors='coerce').fillna(0).astype(int)
-        df = df.sort_values('antiguedad_anos')
-        # Chequear si hay valores para graficar
-        if df.empty or df['monto_prom_float'].sum() == 0:
+
+        df = pd.DataFrame(data_para_df)
+        df_agrupado = df.groupby('antiguedad_anos')[
+            'monto_prom_reclamado'].mean().reset_index()
+        df_agrupado.rename(
+            columns={'monto_prom_reclamado': 'monto_promedio_final'}, inplace=True)
+
+        df_agrupado['monto_prom_float'] = pd.to_numeric(
+            df_agrupado['monto_promedio_final'], errors='coerce').fillna(0.0)
+        df_agrupado = df_agrupado.sort_values('antiguedad_anos')
+        if df_agrupado.empty or df_agrupado['monto_prom_float'].sum() == 0:
             fig_error = generar_figura_sin_datos(
                 "No hay datos válidos para G29")
             return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
-
-        fig = px.line(df, x='antiguedad_anos',
+        fig = px.line(df_agrupado, x='antiguedad_anos',
                       y='monto_prom_float', markers=True)
         fig.update_traces(line=dict(color=COLOR_PALETTE.get(
             'success'), width=2), marker=dict(size=7))
-
         layout_actualizado = copy.deepcopy(BASE_LAYOUT)
         layout_actualizado['title'] = {
             'text': 'Monto Prom. Reclamado vs. Antigüedad Contrato (Ind.)', 'x': 0.5, 'font': {'size': 10}}
         layout_actualizado['xaxis']['title_text'] = 'Antigüedad Contrato (Años)'
-        layout_actualizado['xaxis']['dtick'] = 1  # Mostrar cada año
+        layout_actualizado['xaxis']['dtick'] = 1
         layout_actualizado['yaxis']['title_text'] = 'Monto Prom. Reclamado (USD)'
         layout_actualizado['yaxis']['tickprefix'] = '$'
         layout_actualizado['hovermode'] = 'x unified'
-        # layout_actualizado['margin'] = {'t': 60, 'l': 60, 'r': 30, 'b': 50} # Ajustar si es necesario
         fig.update_layout(**layout_actualizado)
         return plot(fig, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
     except Exception as e:
@@ -2065,43 +2138,61 @@ def grafico_32():
 
 def grafico_33():
     try:
-        data = (ContratoIndividual.objects.select_related('afiliado')
-                .annotate(edad=ExtractYear(Now()) - ExtractYear('afiliado__fecha_nacimiento'),
-                          rango_etario=Case(*[When(edad__gte=min_val, edad__lt=max_val, then=Value(f"{min_val}-{max_val}"))
-                                            for min_val, max_val in [(18, 25), (25, 35), (35, 45), (45, 55), (55, 65)]],
-                                            default=Value(None), output_field=CharField()))
-                .filter(rango_etario__isnull=False)
-                # Usar Coalesce
-                .values('rango_etario', 'ramo').annotate(total=Coalesce(Sum('monto_total'), Decimal('0.0'))))
-        if not data.exists():
+        # 1. Traer datos a Python
+        contratos_data = ContratoIndividual.objects.select_related('afiliado').filter(
+            afiliado__fecha_nacimiento__isnull=False, monto_total__isnull=False
+        ).values('afiliado__fecha_nacimiento', 'ramo', 'monto_total')
+
+        if not contratos_data:
             fig_error = generar_figura_sin_datos(
                 "No hay datos para impacto rango etario")
             return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
-        df = pd.DataFrame(list(data))
-        df['total'] = pd.to_numeric(df['total'], errors='coerce').fillna(
-            0.0)  # Convertir a float
 
-        # Mapear códigos de ramo a etiquetas legibles
+        # 2. Procesar en Python
+        rangos_def = [(18, 25), (25, 35), (35, 45), (45, 55), (55, 65)]
+        processed_data = []
+        for contrato in contratos_data:
+            edad = calcular_edad(contrato['afiliado__fecha_nacimiento'])
+            if edad is not None:
+                rango_edad = None
+                for min_val, max_val in rangos_def:
+                    if min_val <= edad < max_val:
+                        rango_edad = f"{min_val}-{max_val-1}"
+                        break
+                if rango_edad:
+                    processed_data.append({
+                        'rango_etario': rango_edad,
+                        'ramo': contrato['ramo'],
+                        'total': contrato['monto_total']
+                    })
+
+        if not processed_data:
+            fig_error = generar_figura_sin_datos(
+                "No hay datos válidos tras procesar para G33")
+            return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
+
+        df = pd.DataFrame(processed_data)
+        df['total'] = pd.to_numeric(df['total'], errors='coerce').fillna(0.0)
         ramo_map = dict(CommonChoices.RAMO)
         df['ramo_label'] = df['ramo'].map(ramo_map).fillna(df['ramo'])
 
         pivot = df.pivot_table(index='rango_etario', columns='ramo_label',
                                values='total', aggfunc='sum', fill_value=0)
+        pivot = pivot.reindex(
+            [f"{min_val}-{max_val-1}" for min_val, max_val in rangos_def], fill_value=0)
+
         if pivot.empty:
             fig_error = generar_figura_sin_datos(
                 "No hay datos válidos tras pivotar para G33")
             return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
 
-        fig = go.Figure(go.Heatmap(
-            x=pivot.columns.tolist(), y=pivot.index.tolist(), z=pivot.values.tolist(),
-            colorscale='Viridis', texttemplate="%{z:$,.0f}", hoverinfo="x+y+z"
-        ))
+        fig = go.Figure(go.Heatmap(x=pivot.columns.tolist(), y=pivot.index.tolist(
+        ), z=pivot.values.tolist(), colorscale='Viridis', texttemplate="%{z:$,.0f}", hoverinfo="x+y+z"))
         layout_actualizado = copy.deepcopy(BASE_LAYOUT)
         layout_actualizado['title'] = {
             'text': 'Distribución Montos por Edad y Ramo', 'x': 0.5, 'font': {'size': 11}}
         layout_actualizado['xaxis']['title_text'] = 'Ramo'
         layout_actualizado['yaxis']['title_text'] = 'Rango Etario'
-        # layout_actualizado['height'] = 500 # Descomentar si se necesita
         fig.update_layout(**layout_actualizado)
         return plot(fig, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
     except Exception as e:
@@ -2485,36 +2576,63 @@ def grafico_39():
 
 def grafico_40():
     try:
-        rangos = [(0, 17, '0-17'), (18, 25, '18-25'), (26, 35, '26-35'), (36, 45, '36-45'),
-                  (46, 55, '46-55'), (56, 65, '56-65'), (66, 75, '66-75'), (76, 120, '76+')]
-        when_clauses = [When(edad__gte=min_edad, edad__lte=max_edad, then=Value(
-            label)) for min_edad, max_edad, label in rangos]
-        data_qs = (Reclamacion.objects.filter(contrato_individual__isnull=False, contrato_individual__afiliado__fecha_nacimiento__isnull=False)
-                   .annotate(edad=ExtractYear(Now()) - ExtractYear('contrato_individual__afiliado__fecha_nacimiento'),
-                             rango_edad=Case(*when_clauses, default=Value('Desconocido'), output_field=CharField()))
-                   .exclude(rango_edad='Desconocido').values('rango_edad')
-                   .annotate(cantidad_reclamaciones=Count('id'),
-                             monto_promedio_reclamado=Coalesce(Avg('monto_reclamado'), Value(Decimal('0.0')), output_field=DecimalField()))
-                   .order_by(Case(*[When(rango_edad=label, then=Value(i)) for i, (_, _, label) in enumerate(rangos)])))
-        if not data_qs.exists():
+        logger.debug(
+            "G40 - Iniciando Frecuencia y Severidad de Reclamaciones por Edad")
+
+        # 1. Traer los datos necesarios a Python
+        reclamaciones_data = Reclamacion.objects.filter(
+            contrato_individual__isnull=False,
+            contrato_individual__afiliado__fecha_nacimiento__isnull=False
+        ).values('contrato_individual__afiliado__fecha_nacimiento', 'monto_reclamado')
+
+        if not reclamaciones_data:
             fig_error = generar_figura_sin_datos(
                 "No hay datos de reclamaciones para analizar por edad")
             return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
-        df = pd.DataFrame(list(data_qs))
-        df['monto_promedio_float'] = pd.to_numeric(
-            # Convertir y manejar None
-            df['monto_promedio_reclamado'], errors='coerce').fillna(0.0)
 
-        if df.empty or (df['cantidad_reclamaciones'].sum() == 0 and df['monto_promedio_float'].sum() == 0):
+        # 2. Procesar en Pandas
+        df = pd.DataFrame(list(reclamaciones_data))
+        df['monto_reclamado'] = pd.to_numeric(
+            df['monto_reclamado'], errors='coerce').fillna(0)
+        df['edad'] = df['contrato_individual__afiliado__fecha_nacimiento'].apply(
+            calcular_edad)
+
+        rangos = [(0, 17, '0-17'), (18, 25, '18-25'), (26, 35, '26-35'), (36, 45, '36-45'),
+                  (46, 55, '46-55'), (56, 65, '56-65'), (66, 75, '66-75'), (76, 120, '76+')]
+
+        def asignar_rango(edad):
+            if pd.isnull(edad):
+                return 'Desconocido'
+            for min_edad, max_edad, label in rangos:
+                if min_edad <= edad <= max_edad:
+                    return label
+            return 'Desconocido'
+
+        df['rango_edad'] = df['edad'].apply(asignar_rango)
+        df = df[df['rango_edad'] != 'Desconocido']
+
+        if df.empty:
             fig_error = generar_figura_sin_datos(
                 "No hay datos válidos para frecuencia/severidad por edad")
             return plot(fig_error, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
 
+        # 3. Agrupar para obtener estadísticas
+        df_agrupado = df.groupby('rango_edad').agg(
+            cantidad_reclamaciones=('monto_reclamado', 'size'),
+            monto_promedio_reclamado=('monto_reclamado', 'mean')
+        ).reset_index()
+
+        rango_order = [label for _, _, label in rangos]
+        df_agrupado['rango_edad'] = pd.Categorical(
+            df_agrupado['rango_edad'], categories=rango_order, ordered=True)
+        df_agrupado = df_agrupado.sort_values('rango_edad')
+
+        # 4. Visualizar con Plotly
         fig = make_subplots(specs=[[{"secondary_y": True}]])
-        fig.add_trace(go.Bar(x=df['rango_edad'], y=df['cantidad_reclamaciones'], name='Cantidad Reclamaciones', marker_color=COLOR_PALETTE.get(
-            'primary'), text=df['cantidad_reclamaciones'], textposition='auto', hoverinfo='x+y+name', hovertemplate='<b>%{x}</b><br>Cantidad: %{y}<extra></extra>'), secondary_y=False)
-        fig.add_trace(go.Scatter(x=df['rango_edad'], y=df['monto_promedio_float'], name='Monto Promedio ($)', mode='lines+markers', line=dict(color=COLOR_PALETTE.get(
-            'secondary'), width=3), marker=dict(size=8), hoverinfo='x+y+name', hovertemplate='<b>%{x}</b><br>Monto Prom.: $%{y:,.2f}<extra></extra>'), secondary_y=True)
+        fig.add_trace(go.Bar(x=df_agrupado['rango_edad'], y=df_agrupado['cantidad_reclamaciones'], name='Cantidad Reclamaciones', marker_color=COLOR_PALETTE.get(
+            'primary'), text=df_agrupado['cantidad_reclamaciones'], textposition='auto', hoverinfo='x+y+name', hovertemplate='<b>%{x}</b><br>Cantidad: %{y}<extra></extra>'), secondary_y=False)
+        fig.add_trace(go.Scatter(x=df_agrupado['rango_edad'], y=df_agrupado['monto_promedio_reclamado'], name='Monto Promedio ($)', mode='lines+markers', line=dict(
+            color=COLOR_PALETTE.get('secondary'), width=3), marker=dict(size=8), hoverinfo='x+y+name', hovertemplate='<b>%{x}</b><br>Monto Prom.: $%{y:,.2f}<extra></extra>'), secondary_y=True)
 
         layout_actualizado = copy.deepcopy(BASE_LAYOUT)
         layout_actualizado['title'] = {
@@ -2526,11 +2644,10 @@ def grafico_40():
         layout_actualizado['yaxis']['gridcolor'] = '#e5e5e5'
         layout_actualizado['yaxis2'] = {'title_text': 'Monto Promedio Reclamado ($)', 'side': 'right', 'overlaying': 'y', 'tickprefix': '$', 'showgrid': False, 'title_font': {
             'size': BASE_LAYOUT['yaxis']['title_font']['size']}, 'tickfont': {'size': BASE_LAYOUT['yaxis']['tickfont']['size']}}
-        layout_actualizado['legend']['y'] = -0.4  # Ajustar leyenda
+        layout_actualizado['legend']['y'] = -0.4
         layout_actualizado['legend']['x'] = 0.5
         layout_actualizado['legend']['xanchor'] = 'center'
         layout_actualizado['barmode'] = 'group'
-        # Más espacio para etiquetas X y leyenda
         layout_actualizado['margin']['b'] = 120
         fig.update_layout(**layout_actualizado)
         return plot(fig, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
@@ -2538,9 +2655,6 @@ def grafico_40():
         logger.error(f"Error gráfico_40 (nuevo): {str(e)}", exc_info=True)
         fig_excepcion = generar_figura_sin_datos("Error al generar Gráfico 40")
         return plot(fig_excepcion, output_type='div', config=GRAPH_CONFIG)
-
-# ... (continuación de tu archivo graficas.py, después de grafico_40) ...
-# ... (asegúrate de que import copy, BASE_LAYOUT, etc., ya están definidos arriba) ...
 
 # ------------------------------
 # Gráfico 41: Correlación Ramos-Reclamaciones
@@ -3425,3 +3539,5 @@ def generar_grafico_impuestos_por_categoria(data_igtf_dict):
     return plot(fig, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
 
 # --- FIN DE TODAS LAS FUNCIONES DE GRÁFICAS MODIFICADAS ---
+
+# Nuevo nombre para la nueva lógica

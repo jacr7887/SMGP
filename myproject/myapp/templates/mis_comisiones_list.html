@@ -1,119 +1,82 @@
 {% extends "base.html" %}
 {% load static humanize %}
-{% load comision_tags %} {# Necesario para filter_has_override #}
-{% load querystring_tags %} {# Necesario para query_transform y toggle_order #}
+
+{% block extra_head %}
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.min.css">
+{% endblock %}
 
 {% block title %}{{ page_title|default:"Mis Comisiones" }}{% endblock %}
 
 {% block content %}
-<div class="dark-container page-list-view" role="main" aria-labelledby="main-heading-mis-comisiones">
+<div class="dark-container page-list-view" role="main">
   <section>
-    <div class="list-header">
-        <h1 id="main-heading-mis-comisiones" class="main-title">{{ page_title|default:"💸 Mis Comisiones Registradas" }}</h1>
-        {# Puedes añadir un botón de acción aquí si es relevante, ej. exportar mis comisiones #}
-    </div>
-
-    {% if messages %}
-        {% for message in messages %}
-            <div class="alert alert-{{ message.tags }} alert-dismissible fade show compact-form" role="alert">
-                {{ message|escape }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
-            </div>
-        {% endfor %}
-    {% endif %}
-
-    <form method="get" class="search-form mb-3" action="." aria-label="Formulario de búsqueda de mis comisiones">
-      <input
-        type="text"
-        name="search"
-        class="search-input"
-        placeholder="🔍 Buscar por ID, Factura, Tipo, Estado..."
-        value="{{ search_query|default_if_none:'' }}"
-        aria-label="Término de búsqueda"
-      />
-      <button type="submit" class="nav_link">Buscar</button>
-      <a href="{% url 'myapp:mis_comisiones_list' %}" class="nav_link" style="margin-left: 10px;" title="Limpiar búsqueda">Limpiar</a>
-    </form>
-
-    {# --- FORMULARIO DE BÚSQUEDA SIMPLE --- #}
-    <form method="get" class="search-form mb-3" action="." aria-label="Formulario de búsqueda de mis comisiones">
-      <input
-        type="text"
-        name="search" {# El nombre del parámetro que tu MisComisionesListView.get_queryset espera #}
-        class="search-input"
-        placeholder="🔍 Buscar por ID, Factura, Tipo, Estado..."
-        value="{{ search_query|default_if_none:'' }}" {# search_query viene del contexto de la vista #}
-        aria-label="Término de búsqueda"
-      />
-      <button type="submit" class="nav_link">Buscar</button>
-      <a href="{% url 'myapp:mis_comisiones_list' %}" class="nav_link" style="margin-left: 10px;" title="Limpiar búsqueda">Limpiar</a>
-    </form>
-    {# --- FIN FORMULARIO DE BÚSQUEDA SIMPLE --- #}
-
-
+    <h1 class="main-title">{{ page_title|default:"💸 Mis Comisiones Registradas" }}</h1>
+    
     <div class="table-container glass-card">
-        {% if comisiones %}
-        <table class="data-table">
+        <table id="mis-comisiones-table" class="data-table">
             <thead>
                 <tr>
-                    {% for field_key, field_label in ordering_options.items %}
-                    <th class="sort-header">
-                        <a href="?{% query_transform sort=field_key order=current_order|toggle_order:'asc' search=search_query page=1 %}{% if preserved_filters_for_ordering %}&{{ preserved_filters_for_ordering }}{% endif %}">
-                            {{ field_label }}
-                            {% if current_sort == field_key %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% else %}<span>↕️</span>{% endif %}
-                        </a>
-                    </th>
-                    {% endfor %}
+                    <th>ID</th>
+                    <th>Tipo</th>
+                    <th class="text-end">Monto Comisión</th>
+                    <th class="text-end">Base Cálculo</th>
+                    <th class="text-end">% Aplicado</th>
+                    <th>Factura Origen</th>
+                    <th>Venta de</th>
+                    <th>Estado</th>
+                    <th>F. Cálculo</th>
+                    <th>F. Pago</th>
                     <th class="actions-header">👁️ Ver</th>
                 </tr>
             </thead>
             <tbody>
-                {% for comision_item in comisiones %} {# Renombrar para evitar conflicto con la lista del contexto #}
+                {% for comision in comisiones %}
                 <tr>
-                    <td>{{ comision_item.pk }}</td>
-                    <td>{{ comision_item.get_tipo_comision_display|escape }}</td>
-                    <td class="text-end">${{ comision_item.monto_comision|floatformat:2|intcomma|default:"0.00" }}</td>
-                    <td class="text-end">${{ comision_item.monto_base_calculo|floatformat:2|intcomma|default:"0.00" }}</td>
-                    <td class="text-end">{{ comision_item.porcentaje_aplicado|floatformat:2|default:"0.00" }}%</td>
+                    <td>{{ comision.pk }}</td>
+                    <td>{{ comision.get_tipo_comision_display }}</td>
+                    <td class="text-end">${{ comision.monto_comision|floatformat:2|intcomma }}</td>
+                    <td class="text-end">${{ comision.monto_base_calculo|floatformat:2|intcomma }}</td>
+                    <td class="text-end">{{ comision.porcentaje_aplicado|floatformat:2 }}%</td>
                     <td>
-                        {% if comision_item.factura_origen %}
-                            <a href="{% url 'myapp:factura_detail' comision_item.factura_origen.pk %}">{{ comision_item.factura_origen.numero_recibo|default_if_none:"Ver Factura"|escape }}</a>
+                        {% if comision.factura_origen %}
+                            <a href="{% url 'myapp:factura_detail' comision.factura_origen.pk %}">{{ comision.factura_origen.numero_recibo|default_if_none:"Ver" }}</a>
                         {% else %}N/A{% endif %}
                     </td>
                     <td>
-                        {% if comision_item.tipo_comision == 'OVERRIDE' and comision_item.intermediario_vendedor %}
-                            {{ comision_item.intermediario_vendedor.nombre_completo|escape|default:"N/A" }}
-                        {% elif comision_item.tipo_comision == 'DIRECTA' %}
+                        {% if comision.tipo_comision == 'OVERRIDE' and comision.intermediario_vendedor %}
+                            {{ comision.intermediario_vendedor.nombre_completo|default:"N/A" }}
+                        {% elif comision.tipo_comision == 'DIRECTA' %}
                             Propia
-                        {% else %}
-                            -
-                        {% endif %}
+                        {% else %}-{% endif %}
                     </td>
                     <td>
-                        <span class="badge {% if comision_item.estatus_pago_comision == 'PAGADA' %}badge-success{% elif comision_item.estatus_pago_comision == 'PENDIENTE' %}badge-warning{% elif comision_item.estatus_pago_comision == 'ANULADA' %}badge-danger{% else %}badge-secondary{% endif %}">{{ comision_item.get_estatus_pago_comision_display|escape }}</span>
+                        <span class="badge {% if comision.estatus_pago_comision == 'PAGADA' %}badge-success{% elif comision.estatus_pago_comision == 'PENDIENTE' %}badge-warning{% else %}badge-danger{% endif %}">{{ comision.get_estatus_pago_comision_display }}</span>
                     </td>
-                    <td>{{ comision_item.fecha_calculo|date:"d/m/Y H:i"|default:"-" }}</td>
-                    <td>{{ comision_item.fecha_pago_a_intermediario|date:"d/m/Y"|default:"-" }}</td>
+                    <td>{{ comision.fecha_calculo|date:"d/m/Y" }}</td>
+                    <td>{{ comision.fecha_pago_a_intermediario|date:"d/m/Y"|default:"-" }}</td>
                     <td class="actions">
-                        <div class="action-group">
-                            <a href="{% url 'myapp:registro_comision_detail' comision_item.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
-                        </div>
+                        <a href="{% url 'myapp:registro_comision_detail' comision.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-        {% else %}
-            <div class="alert alert-info mt-3">
-                {% if search_query %}
-                No se encontraron comisiones que coincidan con la búsqueda para "{{ search_query|escape }}".
-                {% else %}
-                No tienes comisiones registradas en este momento.
-                {% endif %}
-            </div>
-        {% endif %}
     </div>
-    {% include "pagination.html" with preserved_filters=preserved_filters_for_pagination %} {# Pasar preserved_filters #}
   </section>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+<script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
+<script>
+$(document).ready(function() {
+    $('#mis-comisiones-table').DataTable({
+        language: dataTableLanguage,
+        "dom": "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" + "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" + "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
+        "order": [[ 8, "desc" ]], // Ordenar por Fecha de Cálculo descendente
+        "columnDefs": [ { "orderable": false, "targets": -1 } ]
+    });
+});
+</script>
 {% endblock %}

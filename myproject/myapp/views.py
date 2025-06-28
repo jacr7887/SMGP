@@ -959,56 +959,26 @@ class BaseDetailView(BaseCRUDView, DetailView):
 # ==========================
 # AuditoriaSistema Vistas
 # ==========================
-class AuditoriaSistemaListView(BaseListView):
+
+class AuditoriaSistemaListView(LoginRequiredMixin, ListView):
     model = AuditoriaSistema
-    model_manager_name = 'objects'
-    template_name = 'auditoria_sistema_list.html'
-    filterset_class = AuditoriaSistemaFilter
-    context_object_name = 'auditorias'
-    permission_required = 'myapp.view_auditoriasistema'
-    paginate_by = ITEMS_PER_PAGE
-    search_fields = [
-        'usuario__username', 'usuario__email',  # Añadido email del usuario
-        'tabla_afectada',
-        'tipo_accion',
-        'detalle_accion',
-        'direccion_ip',
-        'agente_usuario',  # Añadido
-        'resultado_accion'  # Añadido
-    ]
-    ordering_fields = [
-        'tiempo_inicio',
-        'tipo_accion',
-        # 'activo', # AuditoriaSistema no parece tener 'activo'
-        'resultado_accion',
-        'usuario__username',
-        'tabla_afectada',
-        'registro_id_afectado',  # Añadido
-        'direccion_ip'  # Añadido
-    ]
-    ordering = ['-tiempo_inicio']
+    template_name = 'auditoria_sistema_list.html'  # Nuevo nombre de plantilla
+    context_object_name = 'object_list'
 
-    # get_queryset es heredado de BaseListView (maneja filtro, búsqueda, orden)
+    def get_queryset(self):
+        """
+        Devuelve TODAS las entradas de auditoría. DataTables se encargará del resto.
+        """
+        # Optimizamos la consulta para cargar la relación con el usuario
+        return AuditoriaSistema.objects.select_related('usuario')
 
-    # Sobrescribir get_context_data para añadir estadísticas específicas
     def get_context_data(self, **kwargs):
-        # Obtiene contexto base con paginación, filtro, orden, etc.
+        """
+        Prepara el contexto para la plantilla.
+        """
         context = super().get_context_data(**kwargs)
-        # Calcular estadísticas sobre el queryset filtrado (self.filterset.qs)
-        # Fallback a object_list si no hay filtro
-        qs_stats = self.filterset.qs if self.filterset else self.object_list
-
-        stats = qs_stats.aggregate(
-            total_auditorias=Count('id'),
-            auditorias_exitosas=Count(
-                Case(When(resultado_accion='EXITO', then=1))),
-            auditorias_fallidas=Count(
-                Case(When(resultado_accion='ERROR', then=1)))
-        )
-        context.update(stats)  # Añade las estadísticas al contexto
-        context['active_tab'] = 'auditorias'
-        context['tipos_accion'] = CommonChoices.TIPO_ACCION
-        context['resultados_accion'] = CommonChoices.RESULTADO_ACCION
+        context['title'] = "Registro de Auditoría del Sistema"
+        # No hay campos cifrados, no se necesita bucle de seguridad.
         return context
 
 
@@ -1109,68 +1079,17 @@ class AuditoriaSistemaDeleteView(BaseDeleteView):
 # AfiliadoIndividual Vistas
 # ==========================
 
+# myapp/views.py
 
-class AfiliadoIndividualListView(IntermediarioDataMixin, BaseListView):
+
+class AfiliadoIndividualListView(LoginRequiredMixin, ListView):
     model = AfiliadoIndividual
-    model_manager_name = 'all_objects'  # Para BaseCRUDView
     template_name = 'afiliado_individual_list.html'
-    filterset_class = AfiliadoIndividualFilter
-    context_object_name = 'afiliados'
-    permission_required = 'myapp.view_afiliadoindividual'
-    search_fields = [
-        'cedula', 'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido',
-        'email',  # Añadido
-        'tipo_identificacion',  # Añadido
-        'estado_civil',  # Añadido
-        'sexo',  # Añadido
-        'parentesco',  # Añadido
-        'nacionalidad',
-        'municipio',
-        'ciudad',
-        'zona_postal',
-        'codigo_validacion',
-        'telefono_habitacion', 'telefono_oficina',
-        'direccion_habitacion', 'direccion_oficina',
-        'estado',
-        'intermediario__nombre_completo', 'intermediario__codigo'
-    ]
-    ordering_fields = [
-        'primer_apellido', 'primer_nombre', 'segundo_nombre', 'segundo_apellido',  # Nombres primero
-        'cedula',
-        'tipo_identificacion',
-        'estado_civil',
-        'sexo',
-        'parentesco',
-        'fecha_nacimiento',
-        'nacionalidad',
-        'fecha_ingreso',
-        'intermediario__nombre_completo',  # Intermediario
-        'activo',  # Boolean
-        'telefono_habitacion', 'telefono_oficina',  # Teléfonos
-        # 'direccion_habitacion', 'direccion_oficina', # Ordenar por TextField es poco común
-        'estado', 'municipio', 'ciudad', 'zona_postal',  # Ubicación
-        'codigo_validacion',
-        'email',  # Añadido
-        'fecha_creacion', 'fecha_modificacion'
-    ]
-    ordering = ['primer_apellido', 'primer_nombre']
+    context_object_name = 'object_list'
+    paginate_by = 25
 
-    def get_context_data(self, **kwargs):
-        # Llama a BaseListView.get_context_data
-        context = super().get_context_data(**kwargs)
-
-        qs_stats = self.filterset.qs if self.filterset and self.filterset.qs.exists(
-        ) else self.model.objects.none()
-
-        stats = qs_stats.aggregate(
-            total_afiliados=Count('id'),
-            afiliados_activos=Count(Case(When(activo=True, then=1))),
-            afiliados_titulares=Count(Case(When(parentesco='TITULAR', then=1)))
-        )
-        context.update(stats)
-        context['active_tab'] = 'afiliados_individuales'
-        context['tipos_identificacion'] = CommonChoices.TIPO_IDENTIFICACION
-        return context
+    def get_queryset(self):
+        return AfiliadoIndividual.objects.all().order_by('pk')
 
 
 class AfiliadoIndividualDetailView(BaseDetailView):
@@ -1316,48 +1235,35 @@ class AfiliadoIndividualDeleteView(BaseDeleteView):
 # ==========================
 
 
-class AfiliadoColectivoListView(IntermediarioDataMixin, BaseListView):
+class AfiliadoColectivoListView(LoginRequiredMixin, ListView):
     model = AfiliadoColectivo
-    model_manager_name = 'objects'
-    template_name = 'afiliado_colectivo_list.html'
-    filterset_class = AfiliadoColectivoFilter
-    context_object_name = 'afiliados'
-    permission_required = 'myapp.view_afiliadocolectivo'
-    search_fields = [
-        'razon_social', 'rif',
-        'tipo_empresa',
-        'direccion_comercial',
-        'estado',
-        'municipio', 'ciudad', 'zona_postal',
-        'telefono_contacto', 'email_contacto',
-        'intermediario__nombre_completo', 'intermediario__codigo'
-    ]
-    ordering_fields = [
-        'activo',
-        'razon_social',
-        'rif',
-        'tipo_empresa',
-        # 'direccion_comercial', # TextField
-        'estado', 'municipio', 'ciudad', 'zona_postal',
-        'telefono_contacto',
-        'email_contacto',
-        'intermediario__nombre_completo',
-        'fecha_creacion',
-        'fecha_modificacion'
-    ]
-    ordering = ['razon_social']
-    # get_queryset es heredado
+    template_name = 'afiliado_colectivo_list.html'  # Nuevo nombre de plantilla
+    context_object_name = 'object_list'
+
+    def get_queryset(self):
+        """
+        Devuelve TODOS los afiliados colectivos activos. DataTables se encargará del resto.
+        """
+        return AfiliadoColectivo.objects.filter(activo=True).select_related('intermediario')
 
     def get_context_data(self, **kwargs):
+        """
+        Prepara el contexto, manejando errores de desencriptación de forma segura.
+        """
         context = super().get_context_data(**kwargs)
-        qs_stats = self.filterset.qs if self.filterset else self.object_list
-        stats = qs_stats.aggregate(
-            total_afiliados=Count('id'),
-            afiliados_activos=Count(Case(When(activo=True, then=1)))
-        )
-        context.update(stats)
-        context['active_tab'] = 'afiliados_colectivos'
-        context['tipos_empresa'] = CommonChoices.TIPO_EMPRESA
+        context['title'] = "Listado de Afiliados Colectivos"
+
+        object_list_safe = []
+        for obj in context['object_list']:
+            try:
+                # Forzamos la desencriptación de un campo para probar si el registro es válido
+                str(obj.razon_social)
+                obj.decryption_error = False
+            except Exception:
+                obj.decryption_error = True
+            object_list_safe.append(obj)
+
+        context['object_list'] = object_list_safe
         return context
 
 
@@ -1503,64 +1409,30 @@ class AfiliadoColectivoDeleteView(BaseDeleteView):
 # ==========================
 
 
-class ContratoIndividualListView(IntermediarioDataMixin, BaseListView):
+class ContratoIndividualListView(LoginRequiredMixin, ListView):
     model = ContratoIndividual
-    model_manager_name = 'objects'
     template_name = 'contrato_individual_list.html'
-    filterset_class = ContratoIndividualFilter
-    context_object_name = 'contratos'
-    permission_required = 'myapp.view_contratoindividual'
-    search_fields = [
-        'ramo', 'forma_pago', 'estatus', 'estado_contrato', 'numero_contrato',
-        'numero_poliza', 'certificado',
-        'intermediario__nombre_completo', 'intermediario__codigo',
-        'afiliado__primer_nombre', 'afiliado__primer_apellido', 'afiliado__cedula',
-        'contratante_cedula', 'contratante_nombre',
-        'plan_contratado',
-        'criterio_busqueda',  # Si se usa
-        'estatus_detalle',  # Si se usa
-        'estatus_emision_recibo',
-        'tarifa_aplicada__codigo_tarifa'  # Añadido para buscar por código de tarifa
-    ]
-    ordering_fields = [
-        'ramo', 'forma_pago', 'pagos_realizados', 'estatus', 'estado_contrato',
-        'numero_contrato', 'numero_poliza', 'fecha_emision', 'fecha_inicio_vigencia',
-        'fecha_fin_vigencia', 'monto_total', 'suma_asegurada', 'certificado',
-        'intermediario__nombre_completo',
-        'afiliado__cedula', 'afiliado__primer_apellido',  # Afiliado
-        'tipo_identificacion_contratante', 'contratante_cedula', 'contratante_nombre',  # Contratante
-        'plan_contratado',
-        # 'comision_recibo', # Campo obsoleto
-        'fecha_inicio_vigencia_recibo', 'fecha_fin_vigencia_recibo',
-        'dias_transcurridos_ingreso',
-        # 'estatus_detalle', # TextField
-        'estatus_emision_recibo',
-        'activo', 'fecha_creacion', 'fecha_modificacion',
-        'cantidad_cuotas_estimadas_anotado',
-        'monto_cuota_estimada_anotado',
-        'importe_anual_contrato_anotado',
-        'tarifa_aplicada__codigo_tarifa',  # Ordenar por código de tarifa
-        'tarifa_aplicada__monto_anual'  # Ordenar por monto de tarifa
-    ]
-    ordering = ['-fecha_emision']
-    # get_queryset heredado
-    # get_context_data heredado (las estadísticas deberían seguir funcionando)
+    context_object_name = 'object_list'
+
+    def get_queryset(self):
+        # Devolvemos todos los contratos activos con sus relaciones para mostrar en la tabla
+        return ContratoIndividual.objects.filter(activo=True).select_related('afiliado', 'intermediario')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        qs_stats = self.filterset.qs if self.filterset else self.object_list
-        stats = qs_stats.aggregate(
-            total_contratos=Count('id'),
-            contratos_activos=Count(Case(When(activo=True, then=1))),
-            contratos_vigentes=Count(Case(When(estatus='VIGENTE', then=1))),
-            monto_total_general=Sum('monto_total')
-        )
-        context['total_contratos'] = stats.get('total_contratos', 0)
-        context['contratos_activos'] = stats.get('contratos_activos', 0)
-        context['contratos_vigentes'] = stats.get('contratos_vigentes', 0)
-        context['monto_total_general'] = stats.get(
-            'monto_total_general', Decimal('0.0')) or Decimal('0.0')
-        context['active_tab'] = 'contratos_individuales'
+        context['title'] = "Listado de Contratos Individuales"
+
+        # Bucle de seguridad para manejar errores de desencriptación
+        object_list_safe = []
+        for obj in context['object_list']:
+            try:
+                str(obj.contratante_nombre)  # Probar un campo cifrado
+                obj.decryption_error = False
+            except Exception:
+                obj.decryption_error = True
+            object_list_safe.append(obj)
+
+        context['object_list'] = object_list_safe
         return context
 
 
@@ -1803,62 +1675,37 @@ class ContratoIndividualDeleteView(BaseDeleteView):
 # ==========================
 # ContratoColectivo Vistas
 # ==========================
-class ContratoColectivoListView(IntermediarioDataMixin, BaseListView):
+
+
+class ContratoColectivoListView(LoginRequiredMixin, ListView):
     model = ContratoColectivo
-    model_manager_name = 'objects'
-    template_name = 'contrato_colectivo_list.html'
-    filterset_class = ContratoColectivoFilter
-    context_object_name = 'contratos'
-    permission_required = 'myapp.view_contratocolectivo'
-    search_fields = [
-        'ramo', 'forma_pago', 'estatus', 'estado_contrato', 'numero_contrato',
-        'numero_poliza', 'certificado',
-        'intermediario__nombre_completo', 'intermediario__codigo',
-        'tipo_empresa',
-        'criterio_busqueda',
-        'razon_social', 'rif',
-        'direccion_comercial',  # TextField
-        'zona_postal',
-        'numero_recibo',  # El del contrato, no el de la factura
-        'codigo_validacion',
-        'tarifa_aplicada__codigo_tarifa',  # Añadido
-        # Búsqueda en M2M (puede ser lento)
-        'afiliados_colectivos__razon_social'
-    ]
-    ordering_fields = [
-        'ramo', 'forma_pago', 'pagos_realizados', 'estatus', 'estado_contrato', 'numero_contrato',
-        'numero_poliza', 'fecha_emision', 'fecha_inicio_vigencia', 'fecha_fin_vigencia', 'suma_asegurada',
-        'monto_total', 'certificado', 'intermediario__nombre_completo', 'activo', 'tipo_empresa',
-        'criterio_busqueda', 'razon_social', 'rif', 'cantidad_empleados',
-        'direccion_comercial',  # TextField
-        'zona_postal', 'numero_recibo', 'codigo_validacion', 'fecha_creacion', 'fecha_modificacion',
-        # Campos de propiedades/anotaciones (si los implementas)
-        'cantidad_cuotas_estimadas_anotado',
-        'monto_cuota_estimada_anotado',
-        'importe_anual_contrato_anotado',
-        'tarifa_aplicada__codigo_tarifa',
-        'tarifa_aplicada__monto_anual'
-    ]
-    ordering = ['-fecha_emision']
-    # get_queryset heredado
+    template_name = 'contrato_colectivo_list.html'  # Nuevo nombre de plantilla
+    context_object_name = 'object_list'
+
+    def get_queryset(self):
+        """
+        Devuelve TODOS los contratos colectivos activos. DataTables se encargará del resto.
+        """
+        return ContratoColectivo.objects.filter(activo=True).select_related('intermediario', 'tarifa_aplicada')
 
     def get_context_data(self, **kwargs):
+        """
+        Prepara el contexto, manejando errores de desencriptación de forma segura.
+        """
         context = super().get_context_data(**kwargs)
-        qs_stats = self.filterset.qs if self.filterset else self.object_list
-        stats = qs_stats.aggregate(
-            total_contratos=Count('id'),
-            contratos_activos=Count(Case(When(activo=True, then=1))),
-            contratos_vigentes=Count(Case(When(estatus='VIGENTE', then=1))),
-            total_empleados=Sum('cantidad_empleados'),
-            total_monto=Sum('monto_total')
-        )
-        context['total_contratos'] = stats.get('total_contratos', 0)
-        context['contratos_activos'] = stats.get('contratos_activos', 0)
-        context['contratos_vigentes'] = stats.get('contratos_vigentes', 0)
-        context['total_empleados'] = stats.get('total_empleados', 0) or 0
-        context['total_monto'] = stats.get(
-            'total_monto', Decimal('0.0')) or Decimal('0.0')
-        context['active_tab'] = 'contratos_colectivos'
+        context['title'] = "Listado de Contratos Colectivos"
+
+        object_list_safe = []
+        for obj in context['object_list']:
+            try:
+                # Forzamos la desencriptación de un campo para probar si el registro es válido
+                str(obj.razon_social)
+                obj.decryption_error = False
+            except Exception:
+                obj.decryption_error = True
+            object_list_safe.append(obj)
+
+        context['object_list'] = object_list_safe
         return context
 
 
@@ -2126,50 +1973,36 @@ class ContratoColectivoDeleteView(BaseDeleteView):
 # ==========================
 
 
-class IntermediarioListView(BaseListView):
+class IntermediarioListView(LoginRequiredMixin, ListView):
     model = Intermediario
-    model_manager_name = 'objects'
-    template_name = 'intermediario_list.html'
-    filterset_class = IntermediarioFilter
-    context_object_name = 'intermediarios'
-    permission_required = 'myapp.view_intermediario'
-    search_fields = [
-        'codigo', 'nombre_completo', 'rif',
-        'primer_nombre', 'primer_apellido',  # Añadido de ModeloBase
-        'direccion_fiscal',  # TextField, considerar si es útil para búsqueda
-        'telefono_contacto',
-        'email_contacto',
-        # Añadido código del padre
-        'intermediario_relacionado__nombre_completo', 'intermediario_relacionado__codigo',
-        # Más campos de usuario
-        'usuarios__username', 'usuarios__email', 'usuarios__primer_nombre', 'usuarios__primer_apellido'
-    ]
-    ordering_fields = [
-        'activo', 'codigo', 'nombre_completo',
-        'primer_apellido', 'primer_nombre',  # Añadido de ModeloBase
-        'rif',
-        'direccion_fiscal',  # TextField
-        'telefono_contacto', 'email_contacto',
-        'intermediario_relacionado__nombre_completo',
-        'porcentaje_comision', 'porcentaje_override',  # Añadido override
-        'fecha_creacion', 'fecha_modificacion'
-    ]
-    ordering = ['nombre_completo']
-    # get_queryset heredado
+    template_name = 'intermediario_list.html'  # Nuevo nombre de plantilla
+    context_object_name = 'object_list'
+
+    def get_queryset(self):
+        """
+        Devuelve TODOS los intermediarios activos. DataTables se encargará del resto.
+        """
+        # Usamos el manager 'objects' que ya filtra por activo=True
+        return Intermediario.objects.all()
 
     def get_context_data(self, **kwargs):
+        """
+        Prepara el contexto, manejando errores de desencriptación de forma segura.
+        """
         context = super().get_context_data(**kwargs)
-        qs_stats = self.filterset.qs if self.filterset else self.object_list
-        stats = qs_stats.aggregate(
-            total_intermediarios=Count('id'),
-            intermediarios_activos=Count(Case(When(activo=True, then=1))),
-            comision_promedio=Avg('porcentaje_comision')
-        )
-        context['total_intermediarios'] = stats.get('total_intermediarios', 0)
-        context['intermediarios_activos'] = stats.get(
-            'intermediarios_activos', 0)
-        context['comision_promedio'] = stats.get('comision_promedio', 0) or 0
-        context['active_tab'] = 'intermediarios'
+        context['title'] = "Listado de Intermediarios"
+
+        object_list_safe = []
+        for obj in context['object_list']:
+            try:
+                # Forzamos la desencriptación de un campo para probar si el registro es válido
+                str(obj.nombre_completo)
+                obj.decryption_error = False
+            except Exception:
+                obj.decryption_error = True
+            object_list_safe.append(obj)
+
+        context['object_list'] = object_list_safe
         return context
 
 
@@ -2335,7 +2168,7 @@ class ReclamacionListView(IntermediarioDataMixin, BaseListView):
     context_object_name = 'reclamaciones'
     permission_required = 'myapp.view_reclamacion'
     search_fields = [
-        'numero_reclamacion',  # Añadido
+        'numero_reclamacion',
         'tipo_reclamacion', 'estado', 'descripcion_reclamo', 'observaciones_internas',
         'observaciones_cliente',
         'contrato_individual__numero_contrato',
@@ -2345,11 +2178,11 @@ class ReclamacionListView(IntermediarioDataMixin, BaseListView):
         'contrato_colectivo__razon_social', 'contrato_colectivo__rif',
         'usuario_asignado__username', 'usuario_asignado__email',
         'usuario_asignado__primer_nombre', 'usuario_asignado__primer_apellido',
-        'diagnostico_principal'  # Añadido
+        'diagnostico_principal'
     ]
     ordering_fields = [
         'id', 'activo',
-        'numero_reclamacion',  # Añadido
+        'numero_reclamacion',
         'tipo_reclamacion', 'estado',
         # 'descripcion_reclamo', # TextField
         'monto_reclamado',
@@ -2358,11 +2191,10 @@ class ReclamacionListView(IntermediarioDataMixin, BaseListView):
         'contrato_colectivo__razon_social',
         'usuario_asignado__username',
         'contrato_individual__afiliado__primer_apellido',
-        'diagnostico_principal',  # Añadido
+        'diagnostico_principal',
         'fecha_creacion', 'fecha_modificacion'
     ]
     ordering = ['-fecha_reclamo', '-fecha_creacion']
-    # get_queryset heredado
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -2674,72 +2506,41 @@ class ReclamacionStatusAPIView(View):
 # ==========================
 
 
-class PagoListView(IntermediarioDataMixin, BaseListView):
+class PagoListView(LoginRequiredMixin, ListView):
     model = Pago
-    model_manager_name = 'all_objects'
-    template_name = 'pago_list.html'
-    filterset_class = PagoFilter
-    context_object_name = 'pagos'
-    permission_required = 'myapp.view_pago'
-    paginate_by = 15  # O el número que prefieras
-
-    # La configuración de búsqueda y ordenamiento se hereda de tu BaseListView,
-    # pero la mantenemos aquí por claridad si tu BaseListView no la tiene.
-    search_fields = [
-        'referencia_pago', 'observaciones_pago',
-        'reclamacion__id', 'reclamacion__numero_reclamacion',
-        'factura__numero_recibo',
-        'factura__contrato_individual__numero_contrato',
-        'factura__contrato_colectivo__numero_contrato',
-    ]
-    ordering_fields = [
-        'id', 'activo', 'forma_pago', 'fecha_pago', 'monto_pago',
-        'referencia_pago', 'fecha_notificacion_pago',
-        'reclamacion__id', 'reclamacion__numero_reclamacion',
-        'factura__numero_recibo',
-        'fecha_creacion', 'fecha_modificacion'
-    ]
-    ordering = ['-fecha_pago', '-fecha_creacion']
+    template_name = 'pago_list.html'  # Nuevo nombre de plantilla
+    context_object_name = 'object_list'
 
     def get_queryset(self):
         """
-        Este método ahora es mucho más simple.
-        1. Llama a super(), que activará el IntermediarioDataMixin.
-        2. El mixin devuelve un queryset base ya filtrado por intermediario.
-        3. El resto de la lógica de BaseListView/FilterView se aplica sobre ese queryset.
+        Devuelve TODOS los pagos activos. DataTables se encargará del resto.
+        Optimizamos la consulta para cargar las relaciones que se mostrarán en la tabla.
         """
-        queryset = super().get_queryset()
-
-        # Optimizamos la consulta al final
-        return queryset.select_related(
+        # Usamos el manager 'objects' que ya filtra por activo=True
+        return Pago.objects.select_related(
+            'reclamacion',
             'factura__contrato_individual',
-            'factura__contrato_colectivo',
-            'reclamacion'
+            'factura__contrato_colectivo'
         )
 
     def get_context_data(self, **kwargs):
         """
-        Se simplifica para confiar en las clases base.
+        Prepara el contexto para la plantilla.
         """
         context = super().get_context_data(**kwargs)
+        context['title'] = "Listado de Pagos Registrados"
 
-        # El filterset ya está en el contexto gracias a FilterView, usualmente como 'filter'.
-        # self.object_list ya contiene los objetos paginados y filtrados.
-        qs_stats = self.object_list.queryset if hasattr(
-            self.object_list, 'queryset') else self.object_list
+        object_list_safe = []
+        for obj in context['object_list']:
+            try:
+                # Forzamos la desencriptación de un campo para probar si el registro es válido
+                str(obj.referencia_pago)
+                obj.decryption_error = False
+            except Exception:
+                obj.decryption_error = True
+            object_list_safe.append(obj)
 
-        stats = qs_stats.aggregate(
-            total_pagos=Count('id'),
-            total_monto=Sum('monto_pago'),
-            promedio_monto=Avg('monto_pago')
-        )
-        context['total_pagos'] = stats.get('total_pagos', 0)
-        context['total_monto'] = stats.get(
-            'total_monto', Decimal('0.0')) or Decimal('0.0')
-        context['promedio_monto'] = stats.get(
-            'promedio_monto', Decimal('0.0')) or Decimal('0.0')
-        context['active_tab'] = 'pagos'
-
+        context['object_list'] = object_list_safe
         return context
 
 
@@ -3189,49 +2990,26 @@ class PagoDeleteView(BaseDeleteView):
 # ==========================
 # Tarifa Vistas
 # ==========================
-class TarifaListView(BaseListView):
-    model = Tarifa
-    model_manager_name = 'objects'
-    template_name = 'tarifa_list.html'
-    filterset_class = TarifaFilter
-    context_object_name = 'tarifas'
-    permission_required = 'myapp.view_tarifa'
-    search_fields = [
-        'codigo_tarifa',  # Añadido
-        'rango_etario',
-        'ramo',
-        'tipo_fraccionamiento',
-        'monto_anual'  # Añadido para buscar por monto
-    ]
-    ordering_fields = [
-        'activo',
-        'codigo_tarifa',  # Añadido
-        'rango_etario',
-        'ramo',
-        'fecha_aplicacion',
-        'monto_anual',
-        'tipo_fraccionamiento',
-        'fecha_creacion', 'fecha_modificacion'
-    ]
-    ordering = ['ramo', 'rango_etario', '-fecha_aplicacion']
 
-    # get_queryset heredado
+
+class TarifaListView(LoginRequiredMixin, ListView):
+    model = Tarifa
+    template_name = 'tarifa_list.html'  # Nuevo nombre de plantilla
+    context_object_name = 'object_list'
+
+    def get_queryset(self):
+        """
+        Devuelve TODAS las tarifas activas. DataTables se encargará del resto.
+        """
+        # Usamos el manager 'objects' que ya filtra por activo=True
+        return Tarifa.objects.all()
 
     def get_context_data(self, **kwargs):
+        """
+        Prepara el contexto. No hay campos cifrados en Tarifa, así que es más simple.
+        """
         context = super().get_context_data(**kwargs)
-        qs_stats = self.filterset.qs if self.filterset else self.object_list
-        stats = qs_stats.aggregate(
-            total_tarifas=Count('id'),
-            tarifas_activas=Count(Case(When(activo=True, then=1))),
-            promedio_monto=Avg('monto_anual'),
-        )
-        context['total_tarifas'] = stats.get('total_tarifas', 0)
-        context['tarifas_activas'] = stats.get('tarifas_activas', 0)
-        context['promedio_monto'] = stats.get(
-            'promedio_monto', Decimal('0.0')) or Decimal('0.0')
-        context['promedio_comision'] = stats.get(
-            'promedio_comision', Decimal('0.0')) or Decimal('0.0')
-        context['active_tab'] = 'tarifas'
+        context['title'] = "Listado de Tarifas"
         return context
 
 
@@ -3383,113 +3161,33 @@ class TarifaDeleteView(BaseDeleteView):
             crear_notificacion(list(admin_users), mensaje, tipo='warning')
 
 
-class RegistroComisionListView(LoginRequiredMixin, FilterView):
+class RegistroComisionListView(LoginRequiredMixin, ListView):
     model = RegistroComision
-    template_name = 'registro_comision_list.html'
+    template_name = 'registro_comision_list.html'  # Nuevo nombre de plantilla
     context_object_name = 'object_list'
-    paginate_by = 15  # O el número que prefieras
-    filterset_class = RegistroComisionFilter
 
     def get_queryset(self):
         """
-        Construye el queryset para la lista de comisiones, optimizando las consultas
-        y difiriendo la carga del campo de archivo para evitar errores.
+        Devuelve TODOS los registros de comisiones. DataTables se encargará del resto.
         """
-        # Partimos del manager por defecto, que debería traer todos los registros.
-        # Si usas soft delete, asegúrate de que esto sea `RegistroComision.all_objects.all()`
-        queryset = super().get_queryset()
-
-        # [CORRECCIÓN CLAVE]
-        # Optimizamos la consulta para incluir objetos relacionados,
-        # PERO le decimos explícitamente que NO traiga el campo del archivo en esta consulta inicial.
-        queryset = queryset.select_related(
+        # Optimizamos la consulta para cargar todas las relaciones necesarias
+        return RegistroComision.objects.select_related(
             'intermediario',
-            'factura_origen',
-            'pago_cliente',
             'contrato_individual',
             'contrato_colectivo',
+            'pago_cliente',
+            'factura_origen',
             'intermediario_vendedor',
             'usuario_que_liquido'
-            # <-- Difiere la carga de este campo problemático
-        ).defer('comprobante_pago')
-
-        # El filtrado de `django-filter` se aplica automáticamente por la clase base FilterView.
-        # No es necesario llamarlo aquí.
-
-        # Lógica de Búsqueda General
-        search_query = self.request.GET.get('search_query', '').strip()
-        if search_query:
-            q_objects = (
-                Q(id__icontains=search_query) |
-                Q(intermediario__nombre_completo__icontains=search_query) |
-                Q(intermediario__codigo__icontains=search_query) |
-                Q(factura_origen__numero_recibo__icontains=search_query) |
-                Q(pago_cliente__referencia_pago__icontains=search_query) |
-                Q(intermediario_vendedor__nombre_completo__icontains=search_query) |
-                Q(intermediario_vendedor__codigo__icontains=search_query) |
-                Q(usuario_que_liquido__username__icontains=search_query)
-            )
-            # Manejar búsqueda por tipo o estado si el término coincide exactamente
-            if search_query.upper() in ['DIRECTA', 'OVERRIDE']:
-                q_objects |= Q(tipo_comision__iexact=search_query)
-            if search_query.upper() in ['PAGADA', 'PENDIENTE', 'ANULADA']:
-                q_objects |= Q(estatus_pago_comision__iexact=search_query)
-
-            queryset = queryset.filter(q_objects).distinct()
-
-        # Lógica de Ordenamiento
-        sort_by = self.request.GET.get('sort', '-fecha_calculo')
-        order = self.request.GET.get('order', 'desc')
-
-        # Validar que el campo de ordenamiento sea uno de los permitidos
-        allowed_ordering_fields = [
-            'id', 'intermediario__nombre_completo', 'tipo_comision', 'monto_comision',
-            'monto_base_calculo', 'porcentaje_aplicado', 'factura_origen__numero_recibo',
-            'intermediario_vendedor__nombre_completo', 'estatus_pago_comision',
-            'fecha_calculo', 'fecha_pago_a_intermediario', 'usuario_que_liquido__username'
-        ]
-
-        if sort_by.lstrip('-') in allowed_ordering_fields:
-            if order == 'desc':
-                queryset = queryset.order_by(f'-{sort_by.lstrip("-")}')
-            else:
-                queryset = queryset.order_by(sort_by.lstrip('-'))
-        else:
-            # Orden por defecto si el parámetro no es válido
-            queryset = queryset.order_by('-fecha_calculo')
-
-        return queryset
+        ).order_by('-fecha_calculo')  # Un orden por defecto razonable
 
     def get_context_data(self, **kwargs):
         """
-        Prepara el contexto para el template, incluyendo parámetros para la paginación y ordenamiento.
+        Prepara el contexto para la plantilla.
         """
         context = super().get_context_data(**kwargs)
-
-        # Parámetros para la búsqueda y filtros
-        search_query = self.request.GET.get('search_query', '')
-        context['search_query'] = search_query
-
-        # Parámetros para el ordenamiento
-        context['current_sort'] = self.request.GET.get(
-            'sort', '-fecha_calculo').lstrip('-')
-        context['current_order'] = self.request.GET.get('order', 'desc')
-
-        # Parámetros para preservar los filtros de django-filter en la paginación y ordenamiento
-        filter_params = {}
-        if self.filterset and self.filterset.form.is_valid():
-            for name, value in self.filterset.form.cleaned_data.items():
-                if value:
-                    if isinstance(value, list):
-                        filter_params[name] = [str(v.pk) if hasattr(
-                            v, 'pk') else str(v) for v in value]
-                    else:
-                        filter_params[name] = str(value.pk) if hasattr(
-                            value, 'pk') else str(value)
-
-        context['filter_params_pagination'] = urlencode(
-            filter_params, doseq=True)
-
+        context['title'] = "Listado de Comisiones Registradas"
+        # Este modelo no tiene campos cifrados, no se necesita bucle de seguridad.
         return context
 
 
@@ -3532,233 +3230,70 @@ def sort_list_of_dicts(list_of_dicts, sort_key, reverse=False):
 class MisComisionesListView(LoginRequiredMixin, ListView):
     model = RegistroComision
     template_name = 'mis_comisiones_list.html'
-    context_object_name = 'comisiones'  # El nombre que usa tu plantilla
-    paginate_by = ITEMS_PER_PAGE  # O tu ITEMS_PER_PAGE
-    # permission_required = 'myapp.view_registrocomision' # O un permiso para ver "mis comisiones"
-
-    search_fields_config = {  # Campos para la búsqueda simple
-        'id_comision': ['pk'],
-        'factura': ['factura_origen__numero_recibo__icontains'],
-        'tipo': ['tipo_comision__iexact'],
-        # Para buscar por "PAGADA", "PENDIENTE"
-        'estado_pago': ['estatus_pago_comision__iexact'],
-        'vendedor_override': ['intermediario_vendedor__nombre_completo__icontains', 'intermediario_vendedor__codigo__icontains']
-    }
-
-    ordering_options = {  # Campos para ordenar y sus etiquetas
-        'id': 'ID',
-        'tipo_comision': 'Tipo',
-        'monto_comision': 'Monto Comisión',
-        'monto_base_calculo': 'Base Cálculo',
-        'porcentaje_aplicado': '% Aplicado',
-        'factura_origen__numero_recibo': 'Factura Origen',
-        'intermediario_vendedor__nombre_completo': 'Venta de',
-        'estatus_pago_comision': 'Estado Pago',
-        'fecha_calculo': 'Fecha Cálculo',
-        'fecha_pago_a_intermediario': 'Fecha Pago'
-    }
-    default_ordering = ['-fecha_calculo', '-id']  # Orden por defecto
+    context_object_name = 'comisiones'
 
     def get_queryset(self):
         user = self.request.user
-        intermediario_del_usuario = None
+        intermediario_del_usuario = user.intermediario if hasattr(
+            user, 'intermediario') else None
 
-        if hasattr(user, 'intermediario_id') and user.intermediario_id:
-            intermediario_del_usuario = user.intermediario
-        else:
+        if not intermediario_del_usuario:
+            # Intentar buscar por la relación inversa si no está directa
             try:
                 intermediario_del_usuario = Intermediario.objects.get(
                     usuarios=user)
-            except Intermediario.DoesNotExist:
-                pass  # Se manejará abajo
-            except Intermediario.MultipleObjectsReturned:
-                intermediario_del_usuario = Intermediario.objects.filter(
-                    usuarios=user).first()
-                if intermediario_del_usuario:
-                    messages.info(
-                        self.request, "Múltiples asociaciones de intermediario, mostrando comisiones del primero.")
+            except (Intermediario.DoesNotExist, Intermediario.MultipleObjectsReturned):
+                messages.warning(
+                    self.request, "No se encontró un intermediario único asociado a tu cuenta.")
+                return RegistroComision.objects.none()
 
-        if not intermediario_del_usuario:
-            messages.warning(
-                self.request, "No se encontró un intermediario asociado a tu cuenta para mostrar comisiones.")
-            return RegistroComision.objects.none()
-
-        queryset = RegistroComision.objects.filter(
+        # Devolvemos el queryset completo para el intermediario. DataTables hará el resto.
+        return RegistroComision.objects.filter(
             Q(intermediario=intermediario_del_usuario) |
             Q(intermediario_vendedor__intermediario_relacionado=intermediario_del_usuario,
               tipo_comision='OVERRIDE')
         ).select_related(
-            'intermediario', 'contrato_individual', 'contrato_colectivo',
-            'pago_cliente', 'factura_origen', 'intermediario_vendedor', 'usuario_que_liquido'
-        ).distinct()
-
-        # Búsqueda simple
-        self.search_query = self.request.GET.get('search', '').strip()
-        if self.search_query:
-            q_objects = Q()
-            for field_group, lookups in self.search_fields_config.items():
-                for lookup in lookups:
-                    if field_group == 'id_comision':
-                        try:
-                            q_objects |= Q(pk=int(self.search_query))
-                        except ValueError:
-                            pass
-                    else:
-                        q_objects |= Q(**{lookup: self.search_query})
-            if q_objects:
-                queryset = queryset.filter(q_objects).distinct()
-
-        # Ordenamiento
-        sort_param = self.request.GET.get('sort')
-        order_direction = self.request.GET.get('order', 'asc').lower()
-
-        if sort_param and sort_param.lstrip('-') in self.ordering_options.keys():
-            self.current_sort = sort_param.lstrip('-')
-            self.current_order = 'desc' if order_direction == 'desc' else 'asc'
-            if self.current_order == 'desc':
-                queryset = queryset.order_by(f"-{self.current_sort}")
-            else:
-                queryset = queryset.order_by(self.current_sort)
-        else:
-            queryset = queryset.order_by(*self.default_ordering)
-            self.current_sort = self.default_ordering[0].lstrip('-')
-            self.current_order = 'desc' if self.default_ordering[0].startswith(
-                '-') else 'asc'
-
-        return queryset
+            'intermediario', 'factura_origen', 'pago_cliente',
+            'intermediario_vendedor', 'usuario_que_liquido'
+        ).distinct().order_by('-fecha_calculo')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['page_title'] = "Mis Comisiones"
-        # O la pestaña que corresponda
-        context['active_tab'] = "mis_comisiones"
-
-        context['search_query'] = getattr(self, 'search_query', '')
-        context['current_sort'] = getattr(self, 'current_sort', self.default_ordering[0].lstrip(
-            '-') if self.default_ordering else 'id')
-        context['current_order'] = getattr(
-            self, 'current_order', 'desc' if self.default_ordering and self.default_ordering[0].startswith('-') else 'asc')
-
-        # Para que los filtros de ordenamiento funcionen con la búsqueda
-        query_params = self.request.GET.copy()
-        if 'page' in query_params:
-            del query_params['page']
-        context['preserved_filters_for_ordering'] = urlencode(
-            {k: v for k, v in self.request.GET.items() if k not in ['sort', 'order', 'page']})
-        context['preserved_filters_for_pagination'] = query_params.urlencode()
-
-        context['ordering_options'] = self.ordering_options
-        # Para el tag filter_has_override
-        # Pasa la lista de comisiones al tag
-        context['comisiones_list_for_tag'] = context['comisiones']
         return context
 
 
 @login_required
 def liquidacion_comisiones_view(request):
-    logger.info(
-        f"Accediendo a liquidacion_comisiones_view. Usuario: {request.user.username}")
-    logger.info(f"Todos los GET params recibidos por la vista: {request.GET}")
-
-    # Leer el parámetro 'search' de la URL, que es lo que envía scripts.js
-    search_term = request.GET.get('search', '').strip()
-    sort_param = request.GET.get('sort', 'nombre')
-    order_param = request.GET.get('order', 'asc')
-
-    logger.info(f"Término de búsqueda (parámetro 'search'): '{search_term}'")
+    # La lógica de búsqueda y ordenamiento ahora la hará DataTables en el frontend.
+    # La vista solo necesita calcular los saldos y pasar los datos.
 
     base_intermediarios_qs = Intermediario.objects.filter(activo=True)
-    logger.info(
-        f"Intermediarios activos INICIAL: {base_intermediarios_qs.count()}")
-
-    if search_term:
-        logger.info(f"Aplicando filtro de texto para: '{search_term}'")
-        base_intermediarios_qs = base_intermediarios_qs.filter(
-            Q(nombre_completo__icontains=search_term) |
-            Q(codigo__icontains=search_term) |
-            Q(rif__icontains=search_term)
-        )
-        logger.info(
-            f"Intermediarios DESPUÉS de filtro de texto: {base_intermediarios_qs.count()}")
-    else:
-        logger.info("No se aplicó filtro de texto (search_term vacío).")
 
     intermediarios_con_saldos = base_intermediarios_qs.annotate(
         total_directa_pendiente_db=Coalesce(Sum(Case(When(comisiones_ganadas__tipo_comision='DIRECTA', comisiones_ganadas__estatus_pago_comision='PENDIENTE',
-                                            then='comisiones_ganadas__monto_comision'), default=Value(Decimal('0.00')), output_field=DecimalField())), Value(Decimal('0.00'))),
+                                            then='comisiones_ganadas__monto_comision'), default=Value(Decimal('0.00')))), Value(Decimal('0.00'))),
         total_override_pendiente_db=Coalesce(Sum(Case(When(comisiones_ganadas__tipo_comision='OVERRIDE', comisiones_ganadas__estatus_pago_comision='PENDIENTE',
-                                             then='comisiones_ganadas__monto_comision'), default=Value(Decimal('0.00')), output_field=DecimalField())), Value(Decimal('0.00')))
+                                             then='comisiones_ganadas__monto_comision'), default=Value(Decimal('0.00')))), Value(Decimal('0.00')))
     ).annotate(
         total_general_pendiente_db=F(
             'total_directa_pendiente_db') + F('total_override_pendiente_db')
     ).distinct()
-    logger.info(
-        f"Intermediarios DESPUÉS de anotaciones de saldo: {intermediarios_con_saldos.count()}")
 
-    # DECIDE SI QUIERES FILTRAR POR SALDO PENDIENTE > 0 DESPUÉS DE LA BÚSQUEDA
-    # Si solo quieres mostrar los que tienen saldo pendiente y coinciden con la búsqueda:
+    # Filtramos para mostrar solo los que tienen saldo pendiente
     intermediarios_final_qs = intermediarios_con_saldos.filter(
-        total_general_pendiente_db__gt=Decimal('0.00'))
-    logger.info(
-        f"Intermediarios DESPUÉS de filtro de saldo > 0: {intermediarios_final_qs.count()}")
-    # Si quieres mostrar todos los que coinciden con la búsqueda, incluso con saldo 0:
-    # intermediarios_final_qs = intermediarios_con_saldos
-
-    ordering_map = {'codigo': 'codigo', 'nombre': 'nombre_completo', 'total_directa': 'total_directa_pendiente_db',
-                    'total_override': 'total_override_pendiente_db', 'total_general': 'total_general_pendiente_db', }
-    order_by_field = ordering_map.get(sort_param, 'nombre_completo')
-    if order_param == 'desc':
-        order_by_field = f"-{order_by_field}"
-    intermediarios_ordenados_qs = intermediarios_final_qs.order_by(
-        order_by_field)
-
-    paginator = Paginator(intermediarios_ordenados_qs, 10)
-    page_number = request.GET.get('page', 1)
-    try:
-        page_obj = paginator.page(page_number)
-    except PageNotAnInteger:
-        page_obj = paginator.page(1)
-    except EmptyPage:
-        page_obj = paginator.page(paginator.num_pages)
-
-    intermediario_ids_on_page = [interm.id for interm in page_obj.object_list]
-    intermediarios_con_detalles_para_pagina = Intermediario.objects.filter(id__in=intermediario_ids_on_page).prefetch_related(
-        Prefetch('comisiones_ganadas', queryset=RegistroComision.objects.filter(estatus_pago_comision='PENDIENTE').select_related('factura_origen', 'pago_cliente', 'contrato_individual__afiliado', 'contrato_colectivo', 'intermediario_vendedor', 'usuario_que_liquido').order_by('-fecha_calculo'), to_attr='comisiones_pendientes_para_modal'))
-    map_interm_con_detalle = {
-        interm.id: interm for interm in intermediarios_con_detalles_para_pagina}
-
-    liquidacion_data_final = []
-    for interm_page_obj in page_obj.object_list:
-        interm_con_detalle_especifico = map_interm_con_detalle.get(
-            interm_page_obj.id)
-        comisiones_del_modal = getattr(interm_con_detalle_especifico, 'comisiones_pendientes_para_modal', [
-        ]) if interm_con_detalle_especifico else []
-        liquidacion_data_final.append({
-            'intermediario': interm_page_obj,
-            'total_directa_pendiente': interm_page_obj.total_directa_pendiente_db,
-            'total_override_pendiente': interm_page_obj.total_override_pendiente_db,
-            'total_general_pendiente': interm_page_obj.total_general_pendiente_db,
-            'detalle_comisiones': comisiones_del_modal,
-        })
-    logger.info(
-        f"Mostrando página {page_obj.number} con {len(liquidacion_data_final)}. Total intermediarios (filtrados, ordenados, con saldo > 0): {paginator.count}")
-
-    ordering_options_display = [('codigo', 'Código', True), ('nombre', 'Nombre Completo', True), ('total_directa',
-                                                                                                  'Directas Pend.', True), ('total_override', 'Override Pend.', True), ('total_general', 'Total General Pend.', True)]
+        total_general_pendiente_db__gt=Decimal('0.00')
+    ).prefetch_related(
+        Prefetch('comisiones_ganadas',
+                 queryset=RegistroComision.objects.filter(estatus_pago_comision='PENDIENTE').select_related(
+                     'factura_origen', 'pago_cliente', 'intermediario_vendedor'),
+                 to_attr='comisiones_pendientes_para_modal')
+    )
 
     context = {
         'title': 'Liquidación de Comisiones Pendientes',
         'page_heading': '💸 Liquidación de Comisiones Pendientes por Intermediario',
-        'liquidacion_data': liquidacion_data_final,
-        'is_paginated': page_obj.has_other_pages(),
-        'page_obj': page_obj,
-        'active_tab': 'liquidacion_comisiones',
-        # Pasar el valor del parámetro 'search' a la plantilla
-        'search_query_param_value': search_term,
-        'current_sort': sort_param,
-        'current_order': order_param,
-        'ordering_options_display': ordering_options_display,
-        'preserved_filters': urlencode({'search': search_term, 'sort': sort_param, 'order': order_param, }),
+        'liquidacion_data': intermediarios_final_qs,
     }
     return render(request, 'liquidacion_comisiones.html', context)
 
@@ -4052,127 +3587,25 @@ def calcular_totales_pendientes_intermediario(intermediario):
     }
 
 
+# --- VISTA 3: Historial de Liquidaciones ---
 class HistorialLiquidacionesListView(LoginRequiredMixin, ListView):
     model = RegistroComision
     template_name = 'historial_liquidaciones_list.html'
     context_object_name = 'liquidaciones'
-    paginate_by = ITEMS_PER_PAGE
-
-    search_fields_config = {
-        'id_comision': ['pk'],
-        'intermediario': ['intermediario__nombre_completo__icontains', 'intermediario__codigo__icontains'],
-        'factura': ['factura_origen__numero_recibo__icontains'],
-        'liquidador': [
-            'usuario_que_liquido__username__icontains',
-            'usuario_que_liquido__primer_nombre__icontains',
-            'usuario_que_liquido__primer_apellido__icontains',
-            'usuario_que_liquido__segundo_nombre__icontains',
-            'usuario_que_liquido__segundo_apellido__icontains',
-            'usuario_que_liquido__email__icontains',
-        ],
-        'tipo': ['tipo_comision__iexact'],
-    }
-    ordering_options = {
-        'id': 'ID', 'intermediario__nombre_completo': 'Intermediario', 'monto_comision': 'Monto',
-        'tipo_comision': 'Tipo', 'fecha_pago_a_intermediario': 'Fecha Pago',
-        'usuario_que_liquido__username': 'Liquidado Por', 'fecha_calculo': 'F. Cálculo'
-    }
-    default_ordering = ['-fecha_pago_a_intermediario', '-id']
 
     def get_queryset(self):
-        logger.debug(f"[{self.__class__.__name__}] Iniciando get_queryset.")
-
-        # 1. Queryset base: Solo comisiones pagadas
-        queryset = RegistroComision.objects.filter(
-            estatus_pago_comision='PAGADA')
-
-        # 2. Optimización de relaciones: Traer todo lo necesario
-        queryset = queryset.select_related(
+        # Solo comisiones pagadas, con todas sus relaciones para mostrar en la tabla.
+        return RegistroComision.objects.filter(
+            estatus_pago_comision='PAGADA'
+        ).select_related(
             'intermediario', 'usuario_que_liquido', 'factura_origen',
-            'pago_cliente', 'contrato_individual', 'contrato_colectivo',
-            'intermediario_vendedor'
-        )
+            'pago_cliente', 'intermediario_vendedor'
+        ).order_by('-fecha_pago_a_intermediario')
 
-        # 3. Lógica de Búsqueda (sin cambios)
-        self.search_query = self.request.GET.get('search', '').strip()
-        if self.search_query:
-            q_objects = Q()
-            for field_group, lookups in self.search_fields_config.items():
-                for lookup in lookups:
-                    if field_group == 'id_comision':
-                        try:
-                            q_objects |= Q(pk=int(self.search_query))
-                        except ValueError:
-                            pass
-                    else:
-                        q_objects |= Q(**{lookup: self.search_query})
-            if q_objects:
-                queryset = queryset.filter(q_objects).distinct()
-
-        # 4. Lógica de Ordenamiento (sin cambios)
-        sort_param = self.request.GET.get('sort')
-        order_direction = self.request.GET.get('order', '').lower()
-        final_ordering_fields = list(self.default_ordering)
-
-        if sort_param and sort_param.lstrip('-') in self.ordering_options.keys():
-            self.current_sort = sort_param.lstrip('-')
-            if not order_direction:
-                order_direction = 'asc'
-                for default_o_field in self.default_ordering:
-                    if default_o_field.lstrip('-') == self.current_sort:
-                        order_direction = 'desc' if default_o_field.startswith(
-                            '-') else 'asc'
-                        break
-            self.current_order = order_direction
-            prefix = "-" if self.current_order == 'desc' else ""
-            final_ordering_fields = [f"{prefix}{self.current_sort}"]
-        else:
-            self.current_sort = self.default_ordering[0].lstrip(
-                '-') if self.default_ordering else 'id'
-            self.current_order = 'desc' if self.default_ordering and self.default_ordering[0].startswith(
-                '-') else 'asc'
-
-        queryset = queryset.order_by(*final_ordering_fields)
-
-        return queryset
-
-
-def get_context_data(self, **kwargs):
-    context = super().get_context_data(**kwargs)
-    context['page_title'] = "Historial de Liquidaciones de Comisiones"
-    context['active_tab'] = "comisiones"
-    context['search_query'] = getattr(self, 'search_query', '')
-    context['current_sort'] = getattr(self, 'current_sort', self.default_ordering[0].lstrip(
-        '-') if self.default_ordering else 'id')
-    context['current_order'] = getattr(
-        self, 'current_order', 'desc' if self.default_ordering and self.default_ordering[0].startswith('-') else 'asc')
-
-    # --- [INICIO DE LA CORRECCIÓN EN LA VISTA] ---
-
-    # Para los enlaces de ordenamiento (sort)
-    preserved_for_ordering = {}
-    if self.search_query:
-        preserved_for_ordering['search'] = self.search_query
-    # Este se queda como string, está bien.
-    context['preserved_filters_for_ordering'] = urlencode(
-        preserved_for_ordering)
-
-    # Para los enlaces de paginación
-    preserved_for_pagination = {}
-    if self.search_query:
-        preserved_for_pagination['search'] = self.search_query
-    if hasattr(self, 'current_sort') and self.current_sort:
-        preserved_for_pagination['sort'] = self.current_sort
-        preserved_for_pagination['order'] = getattr(
-            self, 'current_order', 'asc')
-
-    # ¡AQUÍ ESTÁ EL CAMBIO! Pasamos el diccionario directamente, no la cadena codificada.
-    context['preserved_filters_for_pagination'] = preserved_for_pagination
-
-    # --- [FIN DE LA CORRECCIÓN EN LA VISTA] ---
-
-    context['ordering_options'] = self.ordering_options
-    return context
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = "Historial de Liquidaciones"
+        return context
 
 
 # ==========================
@@ -4180,93 +3613,45 @@ def get_context_data(self, **kwargs):
 # ==========================
 
 # --- VISTAS DE USUARIO ---
-
-@method_decorator(csrf_protect, name='dispatch')
-class UsuarioListView(BaseListView):
+class UsuarioListView(LoginRequiredMixin, ListView):
     model = Usuario
-    template_name = 'usuario_list.html'
+    template_name = 'usuario_list.html'  # Nuevo nombre de plantilla
     context_object_name = 'object_list'
-    filterset_class = UsuarioFilter
-    permission_required = 'myapp.view_usuario'
-    paginate_by = ITEMS_PER_PAGE  # Asegúrate de que ITEMS_PER_PAGE esté definido
-
-    # Los campos para búsqueda y ordenamiento se mantienen igual
-    search_fields = [
-        'email', 'primer_nombre', 'segundo_nombre', 'primer_apellido',
-        'segundo_apellido', 'username', 'intermediario__nombre_completo',
-        'intermediario__codigo', 'telefono'
-    ]
-    ordering_fields = [
-        'primer_apellido', 'primer_nombre', 'email', 'username', 'tipo_usuario',
-        'nivel_acceso', 'departamento', 'intermediario__nombre_completo',
-        'is_active', 'is_staff', 'is_superuser', 'activo', 'date_joined',
-        'last_login', 'fecha_creacion', 'fecha_modificacion'
-    ]
-    ordering = ['-date_joined']  # Orden por defecto
 
     def get_queryset(self):
-        # 1. Empezar con el queryset base correcto
-        if self.request.user.is_superuser:
+        """
+        Devuelve TODOS los usuarios. DataTables se encargará del resto.
+        Filtra para que los no-superusuarios no vean a los superusuarios.
+        """
+        user = self.request.user
+        if user.is_superuser:
+            # El superusuario puede ver a todos
             queryset = Usuario.all_objects.all()
         else:
-            queryset = Usuario.objects.all()
+            # Los demás usuarios solo ven a otros de nivel igual o inferior
+            queryset = Usuario.objects.filter(
+                nivel_acceso__lte=user.nivel_acceso)
 
-        # 2. Aplicar filtro de seguridad de nivel
-        if not self.request.user.is_superuser:
-            queryset = queryset.filter(
-                Q(nivel_acceso__lte=self.request.user.nivel_acceso) | Q(
-                    pk=self.request.user.pk)
-            )
-
-        # 3. Aplicar búsqueda general (usando 'search' como en la plantilla)
-        search_query = self.request.GET.get('search', '').strip()
-        if search_query:
-            q_objects = [Q(**{f"{field}__icontains": search_query})
-                         for field in self.search_fields]
-            if q_objects:
-                queryset = queryset.filter(reduce(operator.or_, q_objects))
-
-        # 4. Aplicar filtros avanzados de django-filter
-        self.filterset = self.filterset_class(
-            self.request.GET, queryset=queryset, request=self.request)
-        queryset = self.filterset.qs
-
-        # 5. Aplicar ordenamiento
-        sort_param = self.request.GET.get('sort', self.ordering[0].lstrip('-'))
-        order_param = self.request.GET.get(
-            'order', 'desc' if self.ordering[0].startswith('-') else 'asc')
-
-        if sort_param in self.ordering_fields:
-            prefix = '-' if order_param == 'desc' else ''
-            queryset = queryset.order_by(f"{prefix}{sort_param}")
-        else:
-            queryset = queryset.order_by(*self.ordering)
-
-        # Optimizar consulta al final
         return queryset.select_related('intermediario').prefetch_related('groups')
 
     def get_context_data(self, **kwargs):
-        # Llama a la lógica de paginación de ListView
+        """
+        Prepara el contexto, manejando errores de desencriptación de forma segura.
+        """
         context = super().get_context_data(**kwargs)
+        context['title'] = "Listado de Usuarios del Sistema"
 
-        # Usar el queryset ya filtrado y ordenado (antes de paginar) para las estadísticas
-        qs_for_stats = self.get_queryset()
+        object_list_safe = []
+        for obj in context['object_list']:
+            try:
+                # Forzamos la desencriptación de un campo para probar si el registro es válido
+                str(obj.get_full_name())
+                obj.decryption_error = False
+            except Exception:
+                obj.decryption_error = True
+            object_list_safe.append(obj)
 
-        stats = qs_for_stats.aggregate(
-            total_usuarios=Count('id'),
-            usuarios_activos=Count(Case(When(activo=True, then=1)))
-        )
-        context['total_usuarios'] = stats.get('total_usuarios', 0)
-        context['usuarios_activos'] = stats.get('usuarios_activos', 0)
-
-        # Pasar parámetros actuales a la plantilla para la UI
-        context['search_query'] = self.request.GET.get('search', '')
-        context['current_sort'] = self.request.GET.get(
-            'sort', self.ordering[0].lstrip('-'))
-        context['current_order'] = self.request.GET.get(
-            'order', 'desc' if self.ordering[0].startswith('-') else 'asc')
-
-        context['active_tab'] = 'usuarios'
+        context['object_list'] = object_list_safe
         return context
 
 
@@ -4439,202 +3824,30 @@ class UsuarioDeleteView(BaseDeleteView):
 # ==========================
 # Factura Vistas
 # ==========================
-class FacturaListView(IntermediarioDataMixin, BaseListView):
+class FacturaListView(LoginRequiredMixin, ListView):
     model = Factura
-    model_manager_name = 'objects'
-    template_name = 'factura_list.html'
-    filterset_class = FacturaFilter
+    template_name = 'factura_list.html'  # Nuevo nombre de plantilla
     context_object_name = 'object_list'
-    permission_required = 'myapp.view_factura'
-    search_fields = [
-        'estatus_factura', 'numero_recibo', 'relacion_ingreso', 'estatus_emision', 'observaciones',
-        'contrato_individual__numero_contrato', 'contrato_individual__ramo',
-        'contrato_individual__afiliado__primer_nombre', 'contrato_individual__afiliado__primer_apellido',
-        'contrato_individual__afiliado__cedula',
-        'contrato_colectivo__numero_contrato', 'contrato_colectivo__razon_social',
-        'contrato_colectivo__ramo', 'contrato_colectivo__rif',
-        'intermediario__nombre_completo', 'intermediario__codigo'
-    ]
-    ordering_fields = [
-        'id', 'activo', 'estatus_factura', 'vigencia_recibo_desde', 'vigencia_recibo_hasta',
-        'monto', 'monto_pendiente', 'numero_recibo', 'dias_periodo_cobro', 'estatus_emision',
-        'pagada', 'relacion_ingreso', 'aplica_igtf',
-        'contrato_individual__numero_contrato',
-        'contrato_colectivo__razon_social',  # O numero_contrato si es más relevante
-        'intermediario__nombre_completo',  # O codigo
-        'contrato_individual__afiliado__primer_apellido',
-        # 'contrato_individual__afiliado__cedula', # Ordenar por cédula puede no ser ideal
-        'fecha_creacion', 'fecha_modificacion',
-        'ramo_anotado',
-        'numero_recibo_numeric',  # Si lo implementas
-        'live_installments_remaining'  # Si lo implementas
-    ]
-    ordering = ['-fecha_creacion']
 
     def get_queryset(self):
-        sort_param_url = self.request.GET.get('sort')
-        order_param_url = self.request.GET.get('order', 'asc')
-
-        campos_anotados_en_esta_vista = [
-            'ramo_anotado', 'numero_recibo_numeric', 'live_installments_remaining']
-
-        queryset_base = None
-        if sort_param_url in campos_anotados_en_esta_vista:
-            original_get = self.request.GET
-            temp_get = self.request.GET.copy()
-            temp_get.pop('sort', None)
-            temp_get.pop('order', None)
-            self.request.GET = temp_get
-            try:
-                queryset_base = super().get_queryset()
-            finally:
-                self.request.GET = original_get
-        else:
-            queryset_base = super().get_queryset()
-
-        queryset_anotado = queryset_base.annotate(
-            ramo_anotado=Coalesce(
-                'contrato_individual__ramo',
-                'contrato_colectivo__ramo',
-                Value('-', output_field=CharField())
-            )
+        """
+        Devuelve TODAS las facturas activas. DataTables se encargará del resto.
+        """
+        # Usamos el manager 'objects' que ya filtra por activo=True
+        # Optimizamos la consulta para cargar las relaciones que se mostrarán en la tabla
+        return Factura.objects.select_related(
+            'contrato_individual__afiliado',
+            'contrato_colectivo',
+            'intermediario'
         )
-
-        paid_receipts_ci_subquery = Factura.objects.filter(
-            contrato_individual_id=OuterRef('contrato_individual_id'),
-            estatus_factura='PAGADA',
-            activo=True
-        ).values('contrato_individual_id').annotate(count=Count('id')).values('count')
-
-        paid_receipts_cc_subquery = Factura.objects.filter(
-            contrato_colectivo_id=OuterRef('contrato_colectivo_id'),
-            estatus_factura='PAGADA',
-            activo=True
-        ).values('contrato_colectivo_id').annotate(count=Count('id')).values('count')
-
-        # Para la división, es más seguro castear a FloatField y luego a IntegerField si es necesario
-        # o usar funciones de base de datos para división entera si están disponibles y son necesarias.
-        # Aquí usamos división flotante y luego se tratará como entero.
-
-        # Lógica para calcular cuotas estimadas para ContratoIndividual
-        total_installments_ci_expr = Case(
-            When(contrato_individual__forma_pago='CONTADO', then=Value(1)),
-            When(Q(contrato_individual__periodo_vigencia_meses__isnull=False) &
-                 Q(contrato_individual__periodo_vigencia_meses__gt=0),
-                 then=Case(
-                When(contrato_individual__forma_pago='MENSUAL', then=F(
-                    'contrato_individual__periodo_vigencia_meses')),
-                When(contrato_individual__forma_pago='TRIMESTRAL', then=Cast(Cast(
-                    F('contrato_individual__periodo_vigencia_meses'), FloatField()) + 2.0, FloatField()) / 3.0),
-                When(contrato_individual__forma_pago='SEMESTRAL', then=Cast(Cast(
-                    F('contrato_individual__periodo_vigencia_meses'), FloatField()) + 5.0, FloatField()) / 6.0),
-                When(contrato_individual__forma_pago='ANUAL', then=Cast(Cast(
-                    F('contrato_individual__periodo_vigencia_meses'), FloatField()) + 11.0, FloatField()) / 12.0),
-                default=Value(0.0),
-                output_field=FloatField()  # Salida como Float para la división
-            )
-            ),
-            default=Value(0.0),
-            output_field=FloatField()
-        )
-
-        # Lógica para calcular cuotas estimadas para ContratoColectivo
-        total_installments_cc_expr = Case(
-            When(contrato_colectivo__forma_pago='CONTADO', then=Value(1)),
-            When(Q(contrato_colectivo__periodo_vigencia_meses__isnull=False) &
-                 Q(contrato_colectivo__periodo_vigencia_meses__gt=0),
-                 then=Case(
-                When(contrato_colectivo__forma_pago='MENSUAL', then=F(
-                    'contrato_colectivo__periodo_vigencia_meses')),
-                When(contrato_colectivo__forma_pago='TRIMESTRAL', then=Cast(Cast(
-                    F('contrato_colectivo__periodo_vigencia_meses'), FloatField()) + 2.0, FloatField()) / 3.0),
-                When(contrato_colectivo__forma_pago='SEMESTRAL', then=Cast(Cast(
-                    F('contrato_colectivo__periodo_vigencia_meses'), FloatField()) + 5.0, FloatField()) / 6.0),
-                When(contrato_colectivo__forma_pago='ANUAL', then=Cast(Cast(
-                    F('contrato_colectivo__periodo_vigencia_meses'), FloatField()) + 11.0, FloatField()) / 12.0),
-                default=Value(0.0),
-                output_field=FloatField()
-            )
-            ),
-            default=Value(0.0),
-            output_field=FloatField()
-        )
-
-        queryset_anotado = queryset_anotado.annotate(
-            total_installments_contract_float=Coalesce(  # Mantenemos como float para el cálculo intermedio
-                ExpressionWrapper(total_installments_ci_expr,
-                                  output_field=FloatField()),
-                ExpressionWrapper(total_installments_cc_expr,
-                                  output_field=FloatField()),
-                Value(0.0),
-                output_field=FloatField()
-            ),
-            paid_installments_contract=Coalesce(
-                Subquery(paid_receipts_ci_subquery,
-                         output_field=IntegerField()),
-                Subquery(paid_receipts_cc_subquery,
-                         output_field=IntegerField()),
-                Value(0),
-                output_field=IntegerField()
-            )
-        ).annotate(
-            # Convertir el total de installments a entero DESPUÉS de los cálculos de división
-            # CEIL para redondear hacia arriba
-            total_installments_contract=Cast(
-                Func(F('total_installments_contract_float'), function='CEIL'), IntegerField())
-        ).annotate(
-            # Calcular la diferencia
-            installments_diff=ExpressionWrapper(
-                F('total_installments_contract') -
-                F('paid_installments_contract'),
-                output_field=IntegerField()
-            )
-        ).annotate(
-            # Aplicar la lógica final para live_installments_remaining
-            live_installments_remaining=Case(
-                When(total_installments_contract=0, then=Value(0)),
-                # Comparar la expresión envuelta
-                When(installments_diff__lt=0, then=Value(0)),
-                default=F('installments_diff'),
-                output_field=IntegerField()
-            )
-        )
-
-        # Si también necesitas 'numero_recibo_numeric' para ordenar, anótalo aquí.
-        # Ejemplo (si es solo la parte numérica de 'numero_recibo'):
-        # from django.db.models.functions import Substr, Length, Cast
-        # if 'numero_recibo_numeric' in campos_anotados_en_esta_vista or sort_param_url == 'numero_recibo_numeric':
-        #     queryset_anotado = queryset_anotado.annotate(
-        #         # Asumiendo que numero_recibo es algo como "REC-123" y quieres ordenar por 123
-        #         # Esta es una suposición y necesitaría ajustarse a tu formato exacto.
-        #         # Si numero_recibo ya es numérico o tiene un prefijo fijo:
-        #         # numero_recibo_numeric_val=Cast(Substr('numero_recibo', 5), IntegerField()) # Ejemplo: si el prefijo es "REC-"
-        #         # O si es más complejo, podrías necesitar RegexExtract o similar si tu DB lo soporta
-        #         # Por ahora, un placeholder si no es el foco principal:
-        #         numero_recibo_numeric=Value(0, output_field=IntegerField())
-        #     )
-
-        if sort_param_url in campos_anotados_en_esta_vista:
-            prefix = "-" if order_param_url.lower() == "desc" else ""
-            queryset_final = queryset_anotado.order_by(
-                f"{prefix}{sort_param_url}")
-        else:
-            queryset_final = queryset_anotado
-
-        return queryset_final
 
     def get_context_data(self, **kwargs):
+        """
+        Prepara el contexto para la plantilla.
+        """
         context = super().get_context_data(**kwargs)
-        sort_param_url = self.request.GET.get('sort')
-        order_param_url = self.request.GET.get('order', 'asc')
-
-        campos_anotados_en_esta_vista = [
-            'ramo_anotado', 'numero_recibo_numeric', 'live_installments_remaining']
-
-        if sort_param_url in campos_anotados_en_esta_vista:
-            context['current_sort'] = sort_param_url
-            context['current_order'] = order_param_url.lower()
-
+        context['title'] = "Listado de Facturas"
+        # No hay campos cifrados directamente en Factura, así que no se necesita bucle de seguridad.
         return context
 
 
@@ -5593,13 +4806,8 @@ def generar_grafico_rentabilidad_neta_intermediario(data_intermediarios_bubble):
         return plot(generar_figura_sin_datos_plotly(f"Error ({type(e).__name__})"), output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
 
 
-# --- Clase ReporteGeneralView ---
-
-
 logger_rgv_debug = logging.getLogger(
     "myapp.views.ReporteGeneralView_DEBUG_FULL")
-
-# --- Función auxiliar para loguear el estado de los contratos problemáticos ---
 
 
 def log_estado_contratos_problematicos(logger_instance, momento_descripcion, fechas_problematicas_obj):
@@ -5670,183 +4878,215 @@ class ReporteGeneralView(LoginRequiredMixin, TemplateView):
     template_name = 'reporte_general.html'
     TASA_IGTF = Decimal('0.03')
 
+    # --- MÉTODOS PRIVADOS PARA GENERAR GRÁFICOS ---
+    def _generar_figura_sin_datos(self, mensaje="No hay datos disponibles"):
+        fig = go.Figure()
+        fig.add_annotation(text=mensaje, xref="paper", yref="paper", x=0.5,
+                           y=0.5, showarrow=False, font={"size": 16, "color": "#888"})
+        fig.update_layout(xaxis={'visible': False}, yaxis={
+                          'visible': False}, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        return plot(fig, output_type='div', include_plotlyjs=False, config={'displayModeBar': False})
+
+    def _generar_grafico_antiguedad_contratos(self):
+        hoy = date.today()
+        antiguedad_data = []
+        for c in list(self.qs_contratos_ind.filter(fecha_inicio_vigencia__lte=hoy).values('estatus', 'fecha_inicio_vigencia')) + \
+                list(self.qs_contratos_col.filter(fecha_inicio_vigencia__lte=hoy).values('estatus', 'fecha_inicio_vigencia')):
+            if c.get('fecha_inicio_vigencia'):
+                antiguedad_data.append({'estatus_code': c['estatus'], 'antiguedad_dias': (
+                    hoy - c['fecha_inicio_vigencia']).days})
+        if not antiguedad_data:
+            return self._generar_figura_sin_datos("No hay datos de antigüedad.")
+        df = pd.DataFrame(antiguedad_data)
+        df_avg = df.groupby('estatus_code')['antiguedad_dias'].mean().round(0)
+        data_antiguedad = {dict(CommonChoices.ESTADOS_VIGENCIA).get(
+            k, k): float(v) for k, v in df_avg.to_dict().items()}
+        df_plot = pd.DataFrame(list(data_antiguedad.items()), columns=[
+                               'Estatus', 'Antigüedad Promedio (días)']).sort_values('Antigüedad Promedio (días)')
+        fig = px.bar(df_plot, x='Antigüedad Promedio (días)', y='Estatus',
+                     orientation='h', title='Antigüedad Promedio Contratos', text_auto=True)
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)',
+                          plot_bgcolor='rgba(0,0,0,0)', font_color='#fff')
+        return plot(fig, output_type='div', include_plotlyjs=False, config={'displayModeBar': False})
+
+    def _generar_grafico_tipos_reclamacion(self):
+        tipo_rec_map = dict(CommonChoices.TIPO_RECLAMACION)
+        data_top_tipos = [(tipo_rec_map.get(i['tipo_reclamacion'], i['tipo_reclamacion']), float(i['avg_monto'])) for i in self.qs_reclamaciones.filter(estado__in=[
+            'ABIERTA', 'EN_PROCESO']).values('tipo_reclamacion').annotate(avg_monto=Avg('monto_reclamado')).filter(avg_monto__gt=0).order_by('-avg_monto')[:5]]
+        if not data_top_tipos:
+            return self._generar_figura_sin_datos("No hay reclamaciones pendientes.")
+        df = pd.DataFrame(data_top_tipos, columns=['Tipo', 'Monto Promedio ($)']).sort_values(
+            'Monto Promedio ($)', ascending=True)
+        fig = px.bar(df, x='Monto Promedio ($)', y='Tipo', orientation='h',
+                     title='Tipos de Reclamo Pendientes (Costo Prom.)', text_auto='.2s')
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)',
+                          plot_bgcolor='rgba(0,0,0,0)', font_color='#fff')
+        return plot(fig, output_type='div', include_plotlyjs=False, config={'displayModeBar': False})
+
+    def _generar_grafico_primas_ramo(self):
+        primas_por_ramo = collections.defaultdict(Decimal)
+        ramo_map = dict(CommonChoices.RAMO)
+        for item in self.qs_contratos_ind.values('ramo').annotate(total=Sum('monto_total')):
+            primas_por_ramo[ramo_map.get(
+                item['ramo'], "N/A")] += item['total'] or Decimal('0.0')
+        for item in self.qs_contratos_col.values('ramo').annotate(total=Sum('monto_total')):
+            primas_por_ramo[ramo_map.get(
+                item['ramo'], "N/A")] += item['total'] or Decimal('0.0')
+        if not primas_por_ramo:
+            return self._generar_figura_sin_datos("No hay primas.")
+        df = pd.DataFrame(list(primas_por_ramo.items()), columns=[
+                          'Ramo', 'Total Primas']).sort_values('Total Primas', ascending=False)
+        fig = px.pie(df, names='Ramo', values='Total Primas',
+                     title='Distribución de Primas por Ramo', hole=.4)
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='#fff',
+                          showlegend=False, legend={'orientation': 'h', 'yanchor': 'bottom', 'y': -0.2})
+        return plot(fig, output_type='div', include_plotlyjs=False, config={'displayModeBar': False})
+
+    def _generar_grafico_resolucion_gauge(self):
+        hoy = date.today()
+        recs_recientes = self.qs_reclamaciones.filter(Q(fecha_reclamo__gte=hoy - timedelta(
+            days=90)) | Q(fecha_modificacion__gte=django_timezone.now() - timedelta(days=90)))
+        resueltas_count = recs_recientes.filter(
+            estado__in=['CERRADA', 'PAGADA', 'RECHAZADA']).count()
+        pendientes_count = recs_recientes.exclude(
+            estado__in=['CERRADA', 'PAGADA', 'RECHAZADA']).count()
+        total = resueltas_count + pendientes_count
+        if total == 0:
+            return self._generar_figura_sin_datos("No hay reclamaciones recientes.")
+        fig = go.Figure(go.Indicator(
+            mode="gauge+number", value=resueltas_count,
+            title={'text': "Resolución Reclamos (90 días)"},
+            gauge={'axis': {'range': [None, total]},
+                   'bar': {'color': "#198754"}}
+        ))
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color='#fff')
+        return plot(fig, output_type='div', include_plotlyjs=False, config={'displayModeBar': False})
+
+    def _generar_grafico_igtf(self):
+        pagos_con_igtf = Pago.objects.filter(activo=True, aplica_igtf_pago=True, monto_pago__gt=0).select_related(
+            'factura__contrato_individual', 'factura__contrato_colectivo')
+        if not pagos_con_igtf:
+            return self._generar_figura_sin_datos("No hay recaudación de IGTF.")
+        data_igtf = collections.defaultdict(Decimal)
+        ramo_map = dict(CommonChoices.RAMO)
+        for pago in pagos_con_igtf:
+            igtf_pago = (pago.monto_pago / (Decimal('1') +
+                         self.TASA_IGTF)) * self.TASA_IGTF
+            contrato = pago.factura.get_contrato_asociado if pago.factura else None
+            categoria = f"Ramo: {ramo_map.get(contrato.ramo, contrato.ramo)}" if contrato and contrato.ramo else "Otros Pagos"
+            data_igtf[categoria] += igtf_pago
+        df = pd.DataFrame(list(data_igtf.items()),
+                          columns=['Categoria', 'IGTF'])
+        fig = px.pie(df, names='Categoria', values='IGTF',
+                     title='Distribución IGTF por Origen', hole=.4)
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='#fff',
+                          showlegend=False, legend={'orientation': 'h', 'yanchor': 'bottom', 'y': -0.2})
+        return plot(fig, output_type='div', include_plotlyjs=False, config={'displayModeBar': False})
+
+    def _generar_grafico_rentabilidad(self):
+        data_inter_bubble = [{'nombre_intermediario': i.nombre_completo, 'prima_total': float(i.pt), 'rentabilidad_neta': float(i.pt - i.st - (i.pt * i.porcentaje_comision / 100)), 'numero_contratos': i.n_ct} for i in Intermediario.objects.filter(activo=True).annotate(pt=Coalesce(Sum('contratoindividual__monto_total'), Decimal('0.0')) + Coalesce(Sum(
+            'contratos_colectivos__monto_total'), Decimal('0.0')), st=Coalesce(Sum('contratoindividual__reclamacion__monto_reclamado'), Decimal('0.0')) + Coalesce(Sum('contratos_colectivos__reclamacion__monto_reclamado'), Decimal('0.0')), n_ct=Count('contratoindividual', distinct=True) + Count('contratos_colectivos', distinct=True)).filter(pt__gt=0).order_by('-pt')[:15]]
+        if not data_inter_bubble:
+            return self._generar_figura_sin_datos("No hay datos de cartera.")
+        df = pd.DataFrame(data_inter_bubble)
+        fig = px.scatter(df, x="rentabilidad_neta", y="prima_total", size="numero_contratos", color="nombre_intermediario",
+                         hover_name="nombre_intermediario", title='Cartera Intermediarios: Prima vs. Rentabilidad')
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)',
+                          plot_bgcolor='rgba(0,0,0,0)', font_color='#fff', showlegend=False)
+        return plot(fig, output_type='div', include_plotlyjs=False, config={'displayModeBar': False})
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['active_tab'] = 'reportes'
-        context['page_title'] = 'Reporte General del Sistema SMGP'
-
-        # ---- INICIALIZACIÓN COMPLETA DE TODAS LAS VARIABLES DEL CONTEXTO ----
-        kpi_keys_int = ['kpi_total_contratos', 'kpi_total_contratos_individuales_count', 'kpi_total_contratos_colectivos_count', 'kpi_total_afiliados_ind',
-                        'kpi_total_afiliados_col', 'kpi_total_reclamaciones', 'kpi_facturas_vencidas_conteo', 'kpi_comisiones_pendientes_conteo', 'kpi_tiempo_promedio_resolucion']
-        kpi_keys_decimal = ['kpi_monto_total_contratos', 'kpi_total_comisiones_generadas', 'kpi_ganancia_neta_pool', 'kpi_monto_total_pagado_facturas',
-                            'kpi_facturas_vencidas_monto', 'kpi_comisiones_pendientes_monto', 'kpi_total_igtf_recaudado', 'kpi_total_siniestros_incurridos', 'kpi_ratio_siniestralidad']
-        for key in kpi_keys_int:
-            context[key] = 0
-        for key in kpi_keys_decimal:
-            context[key] = Decimal('0.00')
-
-        graficas_context_names = ['plotly_contratos_estado_html', 'plotly_reclamaciones_estado_html', 'plotly_ramos_monto_html',
-                                  'plotly_resolucion_gauge_html', 'plotly_impuestos_categoria_html', 'plotly_rentabilidad_intermediario_html']
-        for g_ctx_name in graficas_context_names:
-            context[g_ctx_name] = ""
-
-        context.update({'datos_tabla_comisiones': {}, 'table_top_tipos_reclamacion': [], 'table_facturas_antiguas': [
-        ], 'table_top_intermediarios': [], 'table_resumen_por_ramo': [], 'error': None})
-
-        hoy = py_date.today()
-        ramo_map = dict(CommonChoices.RAMO)
-        estatus_map_vigencia = dict(CommonChoices.ESTADOS_VIGENCIA)
-        tipo_rec_map = dict(CommonChoices.TIPO_RECLAMACION)
+        context.update({'active_tab': 'reportes',
+                       'page_title': 'Reporte General del Sistema', 'error': None})
 
         try:
-            # ================================================================
-            # INICIO: CÁLCULO COMPLETO
-            # ================================================================
+            # FASE 0: Definir Querysets base
+            self.qs_contratos_ind = ContratoIndividual.objects.filter(
+                activo=True)
+            self.qs_contratos_col = ContratoColectivo.objects.filter(
+                activo=True)
+            self.qs_reclamaciones = Reclamacion.objects.filter(activo=True)
+            self.qs_comisiones = RegistroComision.objects.all()
 
-            # --- FASE 1: KPIs ---
-            logger_rgv.debug("Calculando KPIs...")
-
-            # Conteos operativos
-            context['kpi_total_contratos_individuales_count'] = ContratoIndividual.objects.filter(
-                activo=True).count()
-            context['kpi_total_contratos_colectivos_count'] = ContratoColectivo.objects.filter(
-                activo=True).count()
-            context['kpi_total_contratos'] = context['kpi_total_contratos_individuales_count'] + \
-                context['kpi_total_contratos_colectivos_count']
-            context['kpi_total_afiliados_ind'] = AfiliadoIndividual.objects.filter(
-                activo=True).count()
-            context['kpi_total_afiliados_col'] = AfiliadoColectivo.objects.filter(
-                activo=True).count()
-            context['kpi_total_reclamaciones'] = Reclamacion.objects.filter(
-                activo=True).count()
-
-            # Financieros y de Seguros
-            ganancias_brutas_pool = ContratoIndividual.objects.filter(activo=True).aggregate(t=Coalesce(Sum('monto_total'), Decimal(
-                '0.0')))['t'] + ContratoColectivo.objects.filter(activo=True).aggregate(t=Coalesce(Sum('monto_total'), Decimal('0.0')))['t']
-            context['kpi_monto_total_contratos'] = ganancias_brutas_pool
-
-            total_comisiones_generadas = RegistroComision.objects.filter(estatus_pago_comision__in=[
-                                                                         'PENDIENTE', 'PAGADA']).aggregate(t=Coalesce(Sum('monto_comision'), Decimal('0.0')))['t']
-            context['kpi_total_comisiones_generadas'] = total_comisiones_generadas
-            context['kpi_ganancia_neta_pool'] = ganancias_brutas_pool - \
-                total_comisiones_generadas
-
-            total_siniestros_incurridos = Reclamacion.objects.filter(activo=True, estado__in=[
-                                                                     'APROBADA', 'PAGADA']).aggregate(t=Coalesce(Sum('monto_reclamado'), Decimal('0.0')))['t']
-            context['kpi_total_siniestros_incurridos'] = total_siniestros_incurridos
-            context['kpi_ratio_siniestralidad'] = (
-                total_siniestros_incurridos / ganancias_brutas_pool * 100) if ganancias_brutas_pool > 0 else Decimal('0.0')
-
-            promedio_duracion = Reclamacion.objects.filter(activo=True, fecha_cierre_reclamo__isnull=False, fecha_reclamo__isnull=False).annotate(
+            # FASE 1: KPIs
+            hoy = date.today()
+            kpi_total_contratos_individuales_count = self.qs_contratos_ind.count()
+            kpi_total_contratos_colectivos_count = self.qs_contratos_col.count()
+            kpi_total_contratos = kpi_total_contratos_individuales_count + \
+                kpi_total_contratos_colectivos_count
+            ganancias_brutas_pool = self.qs_contratos_ind.aggregate(t=Coalesce(Sum('monto_total'), Decimal(
+                '0.0')))['t'] + self.qs_contratos_col.aggregate(t=Coalesce(Sum('monto_total'), Decimal('0.0')))['t']
+            total_comisiones_generadas = self.qs_comisiones.filter(estatus_pago_comision__in=[
+                                                                   'PENDIENTE', 'PAGADA']).aggregate(t=Coalesce(Sum('monto_comision'), Decimal('0.0')))['t']
+            total_siniestros_incurridos = self.qs_reclamaciones.filter(
+                estado__in=['APROBADA', 'PAGADA']).aggregate(t=Coalesce(Sum('monto_reclamado'), Decimal('0.0')))['t']
+            promedio_duracion = self.qs_reclamaciones.filter(fecha_cierre_reclamo__isnull=False, fecha_reclamo__isnull=False).annotate(
                 d=ExpressionWrapper(F('fecha_cierre_reclamo') - F('fecha_reclamo'), output_field=DurationField())).aggregate(p=Avg('d'))['p']
-            context['kpi_tiempo_promedio_resolucion'] = promedio_duracion.days if promedio_duracion else 0
-
-            context['kpi_monto_total_pagado_facturas'] = Pago.objects.filter(
-                activo=True, factura__isnull=False).aggregate(t=Coalesce(Sum('monto_pago'), Decimal('0.0')))['t']
             facturas_vencidas_qs = Factura.objects.filter(
                 activo=True, pagada=False, estatus_factura='VENCIDA')
-            context['kpi_facturas_vencidas_conteo'] = facturas_vencidas_qs.count()
-            context['kpi_facturas_vencidas_monto'] = facturas_vencidas_qs.aggregate(
-                t=Coalesce(Sum('monto_pendiente'), Decimal('0.0')))['t']
-            comisiones_pendientes_qs = RegistroComision.objects.filter(
+            comisiones_pendientes_qs = self.qs_comisiones.filter(
                 estatus_pago_comision='PENDIENTE')
-            context['kpi_comisiones_pendientes_conteo'] = comisiones_pendientes_qs.count()
-            context['kpi_comisiones_pendientes_monto'] = comisiones_pendientes_qs.aggregate(
-                t=Coalesce(Sum('monto_comision'), Decimal('0.0')))['t']
-
             pagos_con_igtf = Pago.objects.filter(
                 activo=True, aplica_igtf_pago=True, monto_pago__gt=0)
             total_igtf = sum((p.monto_pago / (Decimal('1') + self.TASA_IGTF))
                              * self.TASA_IGTF for p in pagos_con_igtf)
-            context['kpi_total_igtf_recaudado'] = total_igtf.quantize(
-                Decimal('0.01'))
-            logger_rgv.info("Todos los KPIs calculados.")
 
-            # --- FASE 2: DATOS PARA GRÁFICOS (RESTAURADO) ---
-            logger_rgv.debug("Iniciando generación de datos para gráficos...")
-            if not pd:
-                logger_rgv.warning(
-                    "La librería pandas no está instalada. Algunos gráficos no se generarán.")
+            context.update({
+                'kpi_monto_total_contratos': ganancias_brutas_pool,
+                'kpi_total_comisiones_generadas': total_comisiones_generadas,
+                'kpi_ganancia_neta_pool': ganancias_brutas_pool - total_comisiones_generadas,
+                'kpi_monto_total_pagado_facturas': Pago.objects.filter(activo=True, factura__isnull=False).aggregate(t=Coalesce(Sum('monto_pago'), Decimal('0.0')))['t'],
+                'kpi_ratio_siniestralidad': (total_siniestros_incurridos / ganancias_brutas_pool * 100) if ganancias_brutas_pool > 0 else Decimal('0.0'),
+                'kpi_total_siniestros_incurridos': total_siniestros_incurridos,
+                'kpi_tiempo_promedio_resolucion': promedio_duracion.days if promedio_duracion else 0,
+                'kpi_total_contratos': kpi_total_contratos,
+                'kpi_total_contratos_individuales_count': kpi_total_contratos_individuales_count,
+                'kpi_total_contratos_colectivos_count': kpi_total_contratos_colectivos_count,
+                'kpi_total_afiliados_ind': AfiliadoIndividual.objects.filter(activo=True).count(),
+                'kpi_total_afiliados_col': AfiliadoColectivo.objects.filter(activo=True).count(),
+                'kpi_total_reclamaciones': self.qs_reclamaciones.count(),
+                'kpi_facturas_vencidas_conteo': facturas_vencidas_qs.count(),
+                'kpi_facturas_vencidas_monto': facturas_vencidas_qs.aggregate(t=Coalesce(Sum('monto_pendiente'), Decimal('0.0')))['t'],
+                'kpi_comisiones_pendientes_conteo': comisiones_pendientes_qs.count(),
+                'kpi_comisiones_pendientes_monto': comisiones_pendientes_qs.aggregate(t=Coalesce(Sum('monto_comision'), Decimal('0.0')))['t'],
+                'kpi_total_igtf_recaudado': total_igtf.quantize(Decimal('0.01')),
+            })
 
-            # Gráfico 1: Antigüedad de Contratos
-            if pd:
-                antiguedad_data = [{'estatus_code': c['estatus'], 'antiguedad_dias': (hoy - c['fecha_inicio_vigencia']).days} for c in list(ContratoIndividual.objects.filter(activo=True, fecha_inicio_vigencia__lte=hoy).values(
-                    'estatus', 'fecha_inicio_vigencia')) + list(ContratoColectivo.objects.filter(activo=True, fecha_inicio_vigencia__lte=hoy).values('estatus', 'fecha_inicio_vigencia')) if c.get('fecha_inicio_vigencia')]
-                if antiguedad_data:
-                    df_ant_avg = pd.DataFrame(antiguedad_data).groupby(
-                        'estatus_code')['antiguedad_dias'].mean().round(0)
-                    data_antiguedad = {estatus_map_vigencia.get(k, k): float(
-                        v) for k, v in df_ant_avg.to_dict().items()}
-                    context['plotly_contratos_estado_html'] = generar_grafico_estados_contrato(
-                        data_antiguedad)
+            # FASE 2: GRÁFICOS
+            context['plotly_contratos_estado_html'] = self._generar_grafico_antiguedad_contratos()
+            context['plotly_reclamaciones_estado_html'] = self._generar_grafico_tipos_reclamacion()
+            context['plotly_ramos_monto_html'] = self._generar_grafico_primas_ramo()
+            context['plotly_resolucion_gauge_html'] = self._generar_grafico_resolucion_gauge()
+            context['plotly_impuestos_categoria_html'] = self._generar_grafico_igtf()
+            context['plotly_rentabilidad_intermediario_html'] = self._generar_grafico_rentabilidad()
 
-            # Gráfico 2: Top Tipos de Reclamación
-            data_top_tipos = [(tipo_rec_map.get(i['tipo_reclamacion'], i['tipo_reclamacion']), float(i['avg_monto'])) for i in Reclamacion.objects.filter(estado__in=[
-                'ABIERTA', 'EN_PROCESO'], activo=True).values('tipo_reclamacion').annotate(avg_monto=Avg('monto_reclamado')).filter(avg_monto__gt=0).order_by('-avg_monto')[:5]]
-            context['plotly_reclamaciones_estado_html'] = generar_grafico_estados_reclamacion(
-                data_top_tipos)
-
-            # Gráfico 3: Primas por Ramo (llama a la función directamente)
-            context['plotly_ramos_monto_html'] = generar_grafico_total_primas_ramo_barras()
-
-            # Gráfico 4: Resolución Recientes
-            recs_recientes = Reclamacion.objects.filter(Q(fecha_reclamo__gte=hoy - timedelta(days=90)) | Q(
-                fecha_modificacion__gte=django_timezone.now() - timedelta(days=90)), activo=True)
-            resueltas_count = recs_recientes.filter(
-                estado__in=['CERRADA', 'PAGADA', 'RECHAZADA']).count()
-            pendientes_count = recs_recientes.exclude(
-                estado__in=['CERRADA', 'PAGADA', 'RECHAZADA']).count()
-            context['plotly_resolucion_gauge_html'] = generar_grafico_resolucion_gauge(
-                {'Resueltas': resueltas_count, 'Pendientes': pendientes_count})
-
-            # Gráfico 5: IGTF por Categoría
-            data_igtf_grafico = collections.defaultdict(Decimal)
-            for pago in pagos_con_igtf.select_related('factura__contrato_individual', 'factura__contrato_colectivo'):
-                igtf_pago = (pago.monto_pago / (Decimal('1') +
-                             self.TASA_IGTF)) * self.TASA_IGTF
-                contrato = pago.factura.contrato_individual if pago.factura else None or pago.factura.contrato_colectivo if pago.factura else None
-                categoria = f"Ramo: {ramo_map.get(contrato.ramo, contrato.ramo)}" if contrato and contrato.ramo else "Otros Pagos"
-                data_igtf_grafico[categoria] += igtf_pago
-            context['plotly_impuestos_categoria_html'] = generar_grafico_impuestos_por_categoria(
-                {'Categoria': list(data_igtf_grafico.keys()), 'IGTF': [float(v) for v in data_igtf_grafico.values()]})
-
-            # Gráfico 6: Rentabilidad de Intermediarios
-            data_inter_bubble = [{'nombre_intermediario': i.nombre_completo, 'prima_total': float(i.pt), 'rentabilidad_neta': float(i.pt - i.st - (i.pt * i.porcentaje_comision / 100)), 'numero_contratos': i.n_ct, 'siniestros_totales': float(i.st), 'comisiones_estimadas': float(i.pt * i.porcentaje_comision / 100)} for i in Intermediario.objects.filter(activo=True).annotate(pt=Coalesce(Sum('contratoindividual__monto_total'), Decimal(
-                '0.0')) + Coalesce(Sum('contratos_colectivos__monto_total'), Decimal('0.0')), st=Coalesce(Sum('contratoindividual__reclamacion__monto_reclamado'), Decimal('0.0')) + Coalesce(Sum('contratos_colectivos__reclamacion__monto_reclamado'), Decimal('0.0')), n_ct=Count('contratoindividual', distinct=True) + Count('contratos_colectivos', distinct=True)).filter(pt__gt=0).order_by('-pt')[:10]]
-            context['plotly_rentabilidad_intermediario_html'] = generar_grafico_rentabilidad_neta_intermediario(
-                data_inter_bubble)
-            logger_rgv.debug("Datos para gráficos generados.")
-
-            # --- FASE 3: DATOS PARA TABLAS DE RESUMEN ---
-            logger_rgv.debug("Calculando datos para tablas de resumen...")
+            # FASE 3: TABLAS
             context['datos_tabla_comisiones'] = obtener_datos_tabla_resumen_comisiones()
-            context['table_top_tipos_reclamacion'] = [{'tipo': tipo_rec_map.get(i['tipo_reclamacion'], i['tipo_reclamacion']), 'cantidad': i['cantidad']} for i in Reclamacion.objects.filter(
-                activo=True).values('tipo_reclamacion').annotate(cantidad=Count('id')).filter(cantidad__gt=0).order_by('-cantidad')[:10]]
-            context['table_facturas_antiguas'] = Factura.objects.filter(activo=True, pagada=False, monto_pendiente__gt=Decimal('0.01'), vigencia_recibo_hasta__lt=hoy).select_related(
-                'contrato_individual__afiliado', 'contrato_colectivo').annotate(dias_vencida=ExpressionWrapper(Value(hoy) - F('vigencia_recibo_hasta'), output_field=DurationField())).order_by('vigencia_recibo_hasta')[:10]
+            context['table_top_tipos_reclamacion'] = [{'tipo': dict(CommonChoices.TIPO_RECLAMACION).get(i['tipo_reclamacion'], i['tipo_reclamacion']), 'cantidad': i['cantidad']}
+                                                      for i in self.qs_reclamaciones.values('tipo_reclamacion').annotate(cantidad=Count('id')).filter(cantidad__gt=0).order_by('-cantidad')[:10]]
+            context['table_facturas_antiguas'] = facturas_vencidas_qs.select_related('contrato_individual__afiliado', 'contrato_colectivo').annotate(
+                dias_vencida=ExpressionWrapper(django_timezone.now().date() - F('vigencia_recibo_hasta'), output_field=DurationField())).order_by('-dias_vencida')[:10]
             context['table_top_intermediarios'] = Intermediario.objects.filter(activo=True).annotate(num_contratos=(Count('contratoindividual', distinct=True) + Count('contratos_colectivos', distinct=True)), monto_contratos=(
                 Coalesce(Sum('contratoindividual__monto_total'), Decimal('0.0')) + Coalesce(Sum('contratos_colectivos__monto_total'), Decimal('0.0')))).filter(num_contratos__gt=0).order_by('-monto_contratos')[:10]
 
             resumen_ramo = []
-            for ramo_code in set(ContratoIndividual.objects.filter(activo=True).values_list('ramo', flat=True)) | set(ContratoColectivo.objects.filter(activo=True).values_list('ramo', flat=True)):
-                primas = ContratoIndividual.objects.filter(activo=True, ramo=ramo_code).aggregate(t=Coalesce(Sum('monto_total'), Decimal('0.0')))[
-                    't'] + ContratoColectivo.objects.filter(activo=True, ramo=ramo_code).aggregate(t=Coalesce(Sum('monto_total'), Decimal('0.0')))['t']
-                siniestros = Reclamacion.objects.filter(Q(contrato_individual__ramo=ramo_code) | Q(contrato_colectivo__ramo=ramo_code), activo=True, estado__in=[
-                                                        'APROBADA', 'PAGADA']).aggregate(t=Coalesce(Sum('monto_reclamado'), Decimal('0.0')))['t']
+            ramo_map = dict(CommonChoices.RAMO)
+            for ramo_code in set(self.qs_contratos_ind.values_list('ramo', flat=True)) | set(self.qs_contratos_col.values_list('ramo', flat=True)):
+                primas = self.qs_contratos_ind.filter(ramo=ramo_code).aggregate(t=Coalesce(Sum('monto_total'), Decimal('0.0')))[
+                    't'] + self.qs_contratos_col.filter(ramo=ramo_code).aggregate(t=Coalesce(Sum('monto_total'), Decimal('0.0')))['t']
+                siniestros = self.qs_reclamaciones.filter(Q(contrato_individual__ramo=ramo_code) | Q(contrato_colectivo__ramo=ramo_code), estado__in=[
+                                                          'APROBADA', 'PAGADA']).aggregate(t=Coalesce(Sum('monto_reclamado'), Decimal('0.0')))['t']
                 resumen_ramo.append({'ramo_nombre': ramo_map.get(ramo_code, ramo_code), 'total_primas': primas,
                                     'total_siniestros': siniestros, 'ratio_siniestralidad': (siniestros / primas * 100) if primas > 0 else Decimal('0.0')})
             context['table_resumen_por_ramo'] = sorted(
                 resumen_ramo, key=lambda x: x['total_primas'], reverse=True)
-            logger_rgv.debug("Datos para tablas calculados.")
 
-        except Exception as e_main:
-            logger_rgv.error(
-                f"Error CRÍTICO generando datos para ReporteGeneralView: {e_main}", exc_info=True)
+        except Exception as e:
+            logger.error(
+                f"Error CRÍTICO generando datos para ReporteGeneralView: {e}", exc_info=True)
             context[
-                'error'] = f"Ocurrió un error grave al calcular los datos del reporte: {escape(str(e_main))}"
-            for g_ctx_name in graficas_context_names:
-                context[g_ctx_name] = generar_figura_sin_datos_plotly(
-                    f"Error al cargar datos.")
+                'error'] = f"Ocurrió un error grave al calcular los datos del reporte: {e}"
 
         return context
 
@@ -6806,110 +6046,240 @@ class CalcularMontoContratoAPI(View):
             return JsonResponse({'error': 'Ocurrió un error interno en el servidor.'}, status=500)
 
 
+def generar_grafico_total_primas_ramo_barras(qs_contratos_ind, qs_contratos_col):
+    try:
+        ramo_map = dict(CommonChoices.RAMO)
+        primas_por_ramo = collections.defaultdict(Decimal)
+
+        # Ya no filtramos por fecha aquí, trabajamos con los querysets que nos pasan
+        for item in qs_contratos_ind.values('ramo').annotate(total=Sum('monto_total')):
+            ramo_label = ramo_map.get(
+                item['ramo'], str(item['ramo'] or "Desconocido"))
+            primas_por_ramo[ramo_label] += item['total'] or Decimal('0.00')
+
+        for item in qs_contratos_col.values('ramo').annotate(total=Sum('monto_total')):
+            ramo_label = ramo_map.get(
+                item['ramo'], str(item['ramo'] or "Desconocido"))
+            primas_por_ramo[ramo_label] += item['total'] or Decimal('0.00')
+
+        if not primas_por_ramo:
+            return generar_figura_sin_datos_plotly("No hay primas en la cartera.")
+
+        df = pd.DataFrame(list(primas_por_ramo.items()),
+                          columns=['Ramo', 'Total Primas'])
+        df = df.sort_values('Total Primas', ascending=True)
+
+        fig = px.bar(df, y='Ramo', x='Total Primas', orientation='h',
+                     title='Primas por Ramo en Cartera', text='Total Primas')
+        fig.update_traces(texttemplate='$%{text:,.0f}', textposition='outside')
+        fig.update_layout(**BASE_LAYOUT_DASHBOARD)  # Usando tu layout base
+        return plot(fig, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
+    except Exception as e:
+        return generar_figura_sin_datos_plotly(f"Error: {e}")
+
+
+def generar_grafico_estados_contrato(data_estados):
+    try:
+        if not data_estados:
+            return generar_figura_sin_datos_plotly("No hay contratos en la cartera.")
+
+        estatus_map = dict(CommonChoices.ESTADOS_VIGENCIA)
+        df = pd.DataFrame(data_estados)
+        df['estatus_display'] = df['estatus'].apply(
+            lambda x: estatus_map.get(x, x))
+
+        conteo_estados = df['estatus_display'].value_counts().reset_index()
+        conteo_estados.columns = ['Estado', 'Cantidad']
+
+        fig = px.pie(conteo_estados, names='Estado', values='Cantidad',
+                     title='Distribución de Estatus de Contratos', hole=.4)
+        fig.update_layout(**BASE_LAYOUT_DASHBOARD)
+        return plot(fig, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
+    except Exception as e:
+        return generar_figura_sin_datos_plotly(f"Error: {e}")
+
+
+def generar_grafico_estados_reclamacion(data_reclamaciones):
+    try:
+        if not data_reclamaciones:
+            return generar_figura_sin_datos_plotly("No hay reclamaciones en la cartera.")
+
+        estado_map = dict(CommonChoices.ESTADO_RECLAMACION)
+        df = pd.DataFrame(data_reclamaciones)
+        df['estado_display'] = df['estado'].apply(
+            lambda x: estado_map.get(x, x))
+
+        conteo_estados = df['estado_display'].value_counts().reset_index()
+        conteo_estados.columns = ['Estado', 'Cantidad']
+
+        fig = px.bar(conteo_estados, x='Estado', y='Cantidad',
+                     title='Estado de Reclamaciones en Cartera', text='Cantidad')
+        fig.update_layout(**BASE_LAYOUT_DASHBOARD)
+        return plot(fig, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
+    except Exception as e:
+        return generar_figura_sin_datos_plotly(f"Error: {e}")
+
+
+logger_idv = logging.getLogger("myapp.views.IntermediarioDashboardView")
+
+
 class IntermediarioDashboardView(LoginRequiredMixin, TemplateView):
-    template_name = 'intermediario_dashboard.html'  # Usaremos una nueva plantilla
+    template_name = 'intermediario_dashboard.html'
 
     def get(self, request, *args, **kwargs):
-        # Asegurarnos de que el usuario tiene un intermediario asociado
-        if not request.user.is_superuser and not request.user.intermediario:
-            # Si no es admin y no tiene intermediario, no puede ver este dashboard.
-            # Puedes redirigirlo o mostrar un error.
+        if not request.user.is_superuser and not hasattr(request.user, 'intermediario'):
             raise PermissionDenied(
                 "No tienes un intermediario asociado para ver este dashboard.")
         return super().get(request, *args, **kwargs)
 
+    # --- MÉTODOS PRIVADOS PARA GENERAR GRÁFICOS ---
+    def _generar_figura_sin_datos(self, mensaje="No hay datos disponibles"):
+        fig = go.Figure()
+        fig.add_annotation(text=mensaje, xref="paper", yref="paper", x=0.5,
+                           y=0.5, showarrow=False, font={"size": 16, "color": "#888"})
+        fig.update_layout(xaxis={'visible': False}, yaxis={
+                          'visible': False}, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        return plot(fig, output_type='div', include_plotlyjs=False, config={'displayModeBar': False})
+
+    def _generar_grafico_primas_ramo(self):
+        primas_por_ramo = collections.defaultdict(Decimal)
+        ramo_map = dict(CommonChoices.RAMO)
+        for item in self.qs_contratos_ind.values('ramo').annotate(total=Sum('monto_total')):
+            primas_por_ramo[ramo_map.get(
+                item['ramo'], "N/A")] += item['total'] or Decimal('0.0')
+        for item in self.qs_contratos_col.values('ramo').annotate(total=Sum('monto_total')):
+            primas_por_ramo[ramo_map.get(
+                item['ramo'], "N/A")] += item['total'] or Decimal('0.0')
+        if not primas_por_ramo:
+            return self._generar_figura_sin_datos("No hay primas en tu cartera.")
+        df = pd.DataFrame(list(primas_por_ramo.items()), columns=[
+                          'Ramo', 'Total Primas']).sort_values('Total Primas', ascending=True)
+        fig = px.bar(df, y='Ramo', x='Total Primas', orientation='h',
+                     title='Tus Primas por Ramo', text_auto='.2s')
+        fig.update_traces(marker_color='#00AEEF', textposition='outside')
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                          font_color='#fff', yaxis={'title': ''}, xaxis={'title': 'Primas ($)'})
+        return plot(fig, output_type='div', include_plotlyjs=False, config={'displayModeBar': False})
+
+    def _generar_grafico_estados_contrato(self):
+        data_estados = list(self.qs_contratos_ind.values(
+            'estatus')) + list(self.qs_contratos_col.values('estatus'))
+        if not data_estados:
+            return self._generar_figura_sin_datos("No hay contratos en tu cartera.")
+        estatus_map = dict(CommonChoices.ESTADOS_VIGENCIA)
+        df = pd.DataFrame(data_estados)
+        df['estatus_display'] = df['estatus'].apply(
+            lambda x: estatus_map.get(x, x))
+        conteo_estados = df['estatus_display'].value_counts().reset_index()
+        conteo_estados.columns = ['Estado', 'Cantidad']
+        fig = px.pie(conteo_estados, names='Estado', values='Cantidad',
+                     title='Distribución de Estatus de tus Contratos', hole=.4)
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='#fff',
+                          showlegend=True, legend={'orientation': 'h', 'yanchor': 'bottom', 'y': -0.2})
+        return plot(fig, output_type='div', include_plotlyjs=False, config={'displayModeBar': False})
+
+    def _generar_grafico_estados_reclamacion(self):
+        data_reclamaciones = list(self.qs_reclamaciones.values('estado'))
+        if not data_reclamaciones:
+            return self._generar_figura_sin_datos("No hay reclamaciones en tu cartera.")
+        estado_map = dict(CommonChoices.ESTADO_RECLAMACION)
+        df = pd.DataFrame(data_reclamaciones)
+        df['estado_display'] = df['estado'].apply(
+            lambda x: estado_map.get(x, x))
+        conteo_estados = df['estado_display'].value_counts().reset_index()
+        conteo_estados.columns = ['Estado', 'Cantidad']
+        fig = px.bar(conteo_estados, x='Estado', y='Cantidad',
+                     title='Estado de tus Reclamaciones', text_auto=True)
+        fig.update_traces(marker_color='#8CC63F')
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                          font_color='#fff', xaxis={'title': ''}, yaxis={'title': 'Cantidad'})
+        return plot(fig, output_type='div', include_plotlyjs=False, config={'displayModeBar': False})
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-
-        # Determinar el intermediario para el cual se generará el reporte
         user = self.request.user
         intermediario_a_filtrar = None
 
         if user.is_superuser:
-            # Si es superusuario, puede ver el dashboard de un intermediario específico
-            # pasando un ID en la URL. Si no, verá los datos globales.
             intermediario_id = self.request.GET.get('intermediario_id')
             if intermediario_id:
                 try:
                     intermediario_a_filtrar = Intermediario.objects.get(
                         pk=intermediario_id)
-                    context['dashboard_title'] = f"Dashboard para Intermediario: {intermediario_a_filtrar.nombre_completo}"
+                    context['dashboard_title'] = f"Dashboard: {intermediario_a_filtrar.nombre_completo}"
                 except Intermediario.DoesNotExist:
                     context['dashboard_title'] = "Reporte General (Intermediario no encontrado)"
             else:
                 context['dashboard_title'] = "Reporte General (Agregado)"
         else:
-            # Si no es superusuario, SIEMPRE verá su propio dashboard
             intermediario_a_filtrar = user.intermediario
             context['dashboard_title'] = "Mi Dashboard de Intermediario"
 
-        # --- Base Querysets ---
-        # Creamos los querysets base que se usarán en todos los cálculos.
-        # Si hay un intermediario, se filtra todo. Si no, se usan todos los objetos.
+        # --- Querysets Base Filtrados (o no) ---
+        self.qs_contratos_ind = ContratoIndividual.objects.filter(activo=True)
+        self.qs_contratos_col = ContratoColectivo.objects.filter(activo=True)
+        self.qs_reclamaciones = Reclamacion.objects.filter(activo=True)
+        self.qs_comisiones = RegistroComision.objects.all()
+
         if intermediario_a_filtrar:
-            qs_contratos_ind = ContratoIndividual.objects.filter(
-                intermediario=intermediario_a_filtrar, activo=True)
-            qs_contratos_col = ContratoColectivo.objects.filter(
-                intermediario=intermediario_a_filtrar, activo=True)
-            qs_afiliados_ind = AfiliadoIndividual.objects.filter(
-                contratos__intermediario=intermediario_a_filtrar, activo=True).distinct()
-            qs_afiliados_col = AfiliadoColectivo.objects.filter(
-                contratos_afiliados__intermediario=intermediario_a_filtrar, activo=True).distinct()
-            qs_reclamaciones = Reclamacion.objects.filter(Q(contrato_individual__intermediario=intermediario_a_filtrar) | Q(
-                contrato_colectivo__intermediario=intermediario_a_filtrar), activo=True)
-            qs_facturas = Factura.objects.filter(
-                intermediario=intermediario_a_filtrar, activo=True)
-            qs_pagos = Pago.objects.filter(
-                factura__intermediario=intermediario_a_filtrar, activo=True)
-            qs_comisiones = RegistroComision.objects.filter(
+            self.qs_contratos_ind = self.qs_contratos_ind.filter(
                 intermediario=intermediario_a_filtrar)
-        else:  # Datos globales para superusuario sin filtro
-            qs_contratos_ind = ContratoIndividual.objects.filter(activo=True)
-            qs_contratos_col = ContratoColectivo.objects.filter(activo=True)
-            qs_afiliados_ind = AfiliadoIndividual.objects.filter(activo=True)
-            qs_afiliados_col = AfiliadoColectivo.objects.filter(activo=True)
-            qs_reclamaciones = Reclamacion.objects.filter(activo=True)
-            qs_facturas = Factura.objects.filter(activo=True)
-            qs_pagos = Pago.objects.filter(activo=True)
-            qs_comisiones = RegistroComision.objects.all()
+            self.qs_contratos_col = self.qs_contratos_col.filter(
+                intermediario=intermediario_a_filtrar)
+            self.qs_reclamaciones = self.qs_reclamaciones.filter(
+                Q(contrato_individual__intermediario=intermediario_a_filtrar) |
+                Q(contrato_colectivo__intermediario=intermediario_a_filtrar)
+            )
+            self.qs_comisiones = self.qs_comisiones.filter(
+                intermediario=intermediario_a_filtrar)
 
-        # --- Cálculo de KPIs desde los Querysets Base ---
-        context['kpi_total_contratos'] = qs_contratos_ind.count() + \
-            qs_contratos_col.count()
-        context['kpi_total_afiliados'] = qs_afiliados_ind.count() + \
-            qs_afiliados_col.count()
-        context['kpi_total_reclamaciones'] = qs_reclamaciones.count()
-
-        # KPIs Financieros
-        primas_brutas = qs_contratos_ind.aggregate(t=Coalesce(Sum('monto_total'), Decimal('0.0')))['t'] + \
-            qs_contratos_col.aggregate(t=Coalesce(
+        # --- Cálculo de KPIs ---
+        hoy = date.today()
+        fecha_limite_vencimiento = hoy + timedelta(days=60)
+        total_contratos = self.qs_contratos_ind.count() + self.qs_contratos_col.count()
+        primas_brutas = self.qs_contratos_ind.aggregate(t=Coalesce(Sum('monto_total'), Decimal('0.0')))['t'] + \
+            self.qs_contratos_col.aggregate(t=Coalesce(
                 Sum('monto_total'), Decimal('0.0')))['t']
-        context['kpi_primas_brutas'] = primas_brutas
-
-        total_comisiones = qs_comisiones.filter(estatus_pago_comision__in=[
-                                                'PENDIENTE', 'PAGADA']).aggregate(t=Coalesce(Sum('monto_comision'), Decimal('0.0')))['t']
-        context['kpi_total_comisiones'] = total_comisiones
-
-        comisiones_pendientes = qs_comisiones.filter(estatus_pago_comision='PENDIENTE').aggregate(
-            t=Coalesce(Sum('monto_comision'), Decimal('0.0')))['t']
-        context['kpi_comisiones_pendientes'] = comisiones_pendientes
-
-        comisiones_pagadas = qs_comisiones.filter(estatus_pago_comision='PAGADA').aggregate(
-            t=Coalesce(Sum('monto_comision'), Decimal('0.0')))['t']
-        context['kpi_comisiones_pagadas'] = comisiones_pagadas
-
-        # Ratio de Siniestralidad de la Cartera
-        siniestros_incurridos = qs_reclamaciones.filter(estado__in=['APROBADA', 'PAGADA']).aggregate(
+        siniestros_incurridos = self.qs_reclamaciones.filter(estado__in=['APROBADA', 'PAGADA']).aggregate(
             t=Coalesce(Sum('monto_reclamado'), Decimal('0.0')))['t']
-        context['kpi_ratio_siniestralidad'] = (
-            siniestros_incurridos / primas_brutas * 100) if primas_brutas > 0 else Decimal('0.0')
 
-        # Contratos por vencer (ej. en los próximos 60 días)
-        fecha_limite = date.today() + timedelta(days=60)
-        context['kpi_contratos_a_vencer'] = qs_contratos_ind.filter(fecha_fin_vigencia__lte=fecha_limite, estatus='VIGENTE').count() + \
-            qs_contratos_col.filter(
-                fecha_fin_vigencia__lte=fecha_limite, estatus='VIGENTE').count()
+        context.update({
+            'kpi_total_contratos': total_contratos,
+            'kpi_primas_brutas': primas_brutas,
+            'kpi_comisiones_pagadas': self.qs_comisiones.filter(estatus_pago_comision='PAGADA').aggregate(t=Coalesce(Sum('monto_comision'), Decimal('0.0')))['t'],
+            'kpi_comisiones_pendientes': self.qs_comisiones.filter(estatus_pago_comision='PENDIENTE').aggregate(t=Coalesce(Sum('monto_comision'), Decimal('0.0')))['t'],
+            'kpi_ratio_siniestralidad': (siniestros_incurridos / primas_brutas * 100) if primas_brutas > 0 else Decimal('0.0'),
+            'kpi_contratos_a_vencer': self.qs_contratos_ind.filter(fecha_fin_vigencia__range=[hoy, fecha_limite_vencimiento], estatus='VIGENTE').count() + self.qs_contratos_col.filter(fecha_fin_vigencia__range=[hoy, fecha_limite_vencimiento], estatus='VIGENTE').count(),
+            'kpi_reclamaciones_abiertas': self.qs_reclamaciones.filter(estado='ABIERTA').count(),
+            'kpi_ticket_promedio': (primas_brutas / total_contratos) if total_contratos > 0 else Decimal('0.0')
+        })
 
-        # Puedes añadir más KPIs específicos para el intermediario aquí...
+        # --- Generación de Gráficos ---
+        context['plotly_primas_por_ramo'] = self._generar_grafico_primas_ramo()
+        context['plotly_estados_contratos'] = self._generar_grafico_estados_contrato()
+        context['plotly_estados_reclamaciones'] = self._generar_grafico_estados_reclamacion()
 
         return context
+
+
+@login_required  # ¡Importante! Asegura que solo usuarios logueados puedan ver los archivos
+def serve_media_file(request, file_path):
+    """
+    Sirve de forma segura los archivos de la carpeta MEDIA_ROOT.
+    Funciona tanto en desarrollo como en el ejecutable de PyInstaller.
+    """
+    # Construye la ruta completa al archivo solicitado
+    full_path = os.path.join(settings.MEDIA_ROOT, file_path)
+
+    # Normaliza la ruta para evitar ataques de "path traversal"
+    full_path = os.path.abspath(full_path)
+
+    # Medida de seguridad: Asegurarse de que la ruta solicitada esté DENTRO de MEDIA_ROOT
+    if not full_path.startswith(os.path.abspath(settings.MEDIA_ROOT)):
+        raise Http404("Acceso denegado.")
+
+    if os.path.exists(full_path) and os.path.isfile(full_path):
+        # Usamos FileResponse, que es eficiente para servir archivos
+        return FileResponse(open(full_path, 'rb'))
+    else:
+        raise Http404("Archivo no encontrado.")

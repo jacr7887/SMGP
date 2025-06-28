@@ -1,68 +1,83 @@
-# start.py - VERSIÓN FINAL A PRUEBA DE RACE CONDITIONS
+# start.py - VERSIÓN FINAL Y ROBUSTA
+
 import os
 import sys
 import multiprocessing
 import logging
 from pathlib import Path
+from textwrap import dedent
+from dotenv import load_dotenv
 
-# --- PASO 1: Configurar el entorno ANTES DE CUALQUIER IMPORT DE DJANGO ---
-# (Esta parte está bien, no la cambiamos)
-if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-    project_path = sys._MEIPASS
-else:
-    project_path = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, project_path)
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'myproject.settings')
-
-# --- PASO 2: Función para cargar .env (Esta parte está bien) ---
+# --- PASO 1: Definir y ejecutar la carga del entorno INMEDIATAMENTE ---
 
 
-def load_env_from_file():
-    print("Buscando y cargando archivo .env...")
+def setup_environment():
+    """
+    Busca y carga el archivo .env. Esta es la primera acción del script.
+    """
+    print("Buscando y cargando archivo .env con python-dotenv...")
     try:
         if getattr(sys, 'frozen', False):
             base_path = Path(sys.executable).parent
         else:
-            base_path = Path(__file__).parent.parent
+            base_path = Path(__file__).resolve().parent
+
         env_path = base_path / '.env'
-        DEFAULT_ENV_CONTENT = """# .env - Creado automáticamente.
-SECRET_KEY='Xgfei34531#$&/$234fGHYtfhuY&6%$33rf#FfHUu7854fd"S3F%6HrR2dfdgG%6(5##3rfDfv-t4342345F$26fd6/%$#)'
-DEBUG=False
-ALLOWED_HOSTS=*
-DATABASE_URL=postgres://postgres:7319@localhost:5432/smgp
-SMGP_LICENSE_VERIFY_KEY_B64='48FUC+B/1sYVGhvmnRQuXKWwKqcIsg1cE49xF5VRxIY='
-DJANGO_SUPERUSER_USERNAME='jacr7887@gmail.com'
-DJANGO_SUPERUSER_EMAIL='jacr7887@gmail.com'
-DJANGO_SUPERUSER_PASSWORD='123456789/*-+'
-DJANGO_SUPERUSER_PRIMER_NOMBRE='Jesus'
-DJANGO_SUPERUSER_PRIMER_APELLIDO='Chacon'
-"""
+
+        # La lógica para crear el .env por defecto se mantiene
+        DEFAULT_ENV_CONTENT = dedent("""\
+            # .env - Creado automáticamente.
+            SECRET_KEY=Xgfei34531$&/$234fGHYtfhuY&6%$33rfFfHUu7854fdS3F%6HrR2dfdgG%653rfDfv-t43423sF$26fd6/%$
+            DEBUG=False
+            ALLOWED_HOSTS=*
+            DATABASE_URL=postgres://postgres:7319@localhost:5432/smgp
+            FERNET_KEY=X4ERAbaFKwrBXTwFk-v45F6a9mVfiT60jZKG-VqO7iA=
+            SMGP_LICENSE_VERIFY_KEY_B64=48FUC+B/1sYVGhvmnRQuXKWwKqcIsg1cE49xF5VRxIY=
+            DJANGO_SUPERUSER_USERNAME=jacr7887@gmail.com
+            DJANGO_SUPERUSER_EMAIL=jacr7887@gmail.com
+            DJANGO_SUPERUSER_PASSWORD=123456789/*-+
+            DJANGO_SUPERUSER_PRIMER_NOMBRE=Jesus
+            DJANGO_SUPERUSER_PRIMER_APELLIDO=Chacon
+        """)
         if not env_path.exists():
             print(
                 f"Archivo .env no encontrado. Creando uno nuevo en: {env_path}")
             with open(env_path, 'w', encoding='utf-8') as f:
                 f.write(DEFAULT_ENV_CONTENT)
-        with open(env_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
-                    key, value = line.split('=', 1)
-                    key = key.strip()
-                    value = value.strip()
-                    if (value.startswith("'") and value.endswith("'")) or \
-                       (value.startswith('"') and value.endswith('"')):
-                        value = value[1:-1]
-                    os.environ.setdefault(key, value)
-        print("Variables de entorno cargadas con éxito desde .env")
+
+        # 2. Usar la nueva librería para cargar el archivo en os.environ
+        # El argumento override=True asegura que los valores del archivo .env
+        # tengan prioridad, lo cual es importante.
+        if load_dotenv(dotenv_path=env_path, override=True):
+            print("Variables de entorno cargadas con éxito desde .env")
+        else:
+            print("ADVERTENCIA: No se pudo cargar el archivo .env.")
+
     except Exception as e:
         print(f"ERROR CRÍTICO: No se pudo procesar el archivo .env: {e}")
         input("Presiona Enter para salir.")
         sys.exit(1)
 
-# --- PASO 3: Funciones para los procesos hijos (Las mantenemos igual) ---
+
+# Se llama a la función aquí, al principio de todo.
+setup_environment()
+
+# --- PASO 2: Configurar el entorno de Django ---
+# Esto se ejecuta DESPUÉS de que el .env ha sido cargado.
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'myproject.settings')
+if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    # En modo congelado, PyInstaller maneja las rutas internas.
+    project_path = sys._MEIPASS
+else:
+    # En desarrollo, nos aseguramos de que la ruta del proyecto esté en el sys.path.
+    project_path = os.path.dirname(os.path.abspath(__file__))
+    if project_path not in sys.path:
+        sys.path.insert(0, project_path)
 
 
+# --- PASO 3: Funciones para los procesos hijos (se mantienen igual) ---
 def run_django_waitress():
+    """Inicia el servidor web Waitress para servir la aplicación Django."""
     import django
     django.setup()
     from waitress import serve
@@ -76,6 +91,7 @@ def run_django_waitress():
 
 
 def run_task_processor():
+    """Inicia el procesador de tareas en segundo plano."""
     import django
     django.setup()
     from django.core.management import call_command
@@ -87,23 +103,24 @@ def run_task_processor():
         print(f"!!! Error al iniciar el procesador de tareas: {e}")
 
 
-# --- PUNTO DE ENTRADA PRINCIPAL (LA VERSIÓN A PRUEBA DE TODO) ---
+# --- PUNTO DE ENTRADA PRINCIPAL DE LA APLICACIÓN ---
 if __name__ == '__main__':
     multiprocessing.freeze_support()
-    load_env_from_file()
+
+    # La llamada a load_env_from_file() ya se hizo arriba, por lo que se elimina de aquí.
 
     print("\n" + "="*50)
     print("--- SMGP App - FASE 1: INICIALIZACIÓN DE BASE DE DATOS ---")
     print("="*50, flush=True)
 
     try:
-        # Importamos Django y sus componentes aquí, en el proceso principal
+        # Importamos Django aquí para asegurar que el entorno ya está configurado
         import django
         from django.core.management import call_command
         from django.db import connection
         from django.db.utils import OperationalError
 
-        # Configuramos Django UNA SOLA VEZ
+        # Configuramos Django UNA SOLA VEZ en el proceso principal
         django.setup()
 
         # Importamos los modelos DESPUÉS de django.setup()
@@ -119,13 +136,24 @@ if __name__ == '__main__':
         call_command('migrate', interactive=False)
         print("Migraciones completadas.")
 
-        # 3. Verificamos si hay que poblar
+        # 3. Verificamos si hay que poblar la base de datos
         print("Verificando si la base de datos necesita ser poblada...")
         if not Usuario.objects.filter(is_superuser=True).exists() or not Tarifa.objects.exists():
             print("\n[POBLADO DE BD REQUERIDO]")
             print("Poblando base de datos con datos iniciales...")
             call_command('seed_db', '--clean')
             print("¡Poblado completado!")
+
+            # --- [NUEVA LÍNEA DE DIAGNÓSTICO] ---
+            # Justo después de crear el usuario, verificamos si la contraseña es correcta.
+            print("\n--- EJECUTANDO PRUEBA DE VERIFICACIÓN DE CONTRASEÑA ---")
+            from django.conf import settings
+            superuser_email = settings.DJANGO_SUPERUSER_EMAIL
+            superuser_password = settings.DJANGO_SUPERUSER_PASSWORD
+            call_command('check_user', superuser_email, superuser_password)
+            print("--- FIN DE LA PRUEBA DE VERIFICACIÓN ---\n")
+            # -----------------------------------------
+
         else:
             print("La base de datos ya contiene datos. No se requiere poblado.")
 
@@ -138,8 +166,7 @@ if __name__ == '__main__':
         input("Presiona Enter para salir.")
         sys.exit(1)
 
-    # --- FASE 2: LANZAR PROCESOS ---
-    # Solo si la inicialización fue exitosa, lanzamos los procesos hijos.
+    # --- FASE 2: LANZAR PROCESOS HIJOS ---
     print("\n" + "="*50)
     print("--- SMGP App - FASE 2: INICIANDO SERVICIOS ---")
     print("="*50, flush=True)

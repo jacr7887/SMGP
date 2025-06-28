@@ -27,7 +27,6 @@ from django.core.exceptions import ValidationError
 from django.db.models import JSONField
 from datetime import datetime, date, timedelta
 import pgtrigger
-# <--- Esto está bien, le diste un alias
 from django.utils import timezone as django_timezone
 from dateutil.relativedelta import relativedelta
 from pgtrigger import Protect, Insert, Update
@@ -193,6 +192,8 @@ class LicenseInfo(models.Model):
 
 
 class Notificacion(models.Model):
+    from encrypted_model_fields.fields import EncryptedTextField
+
     TIPO_NOTIFICACION_CHOICES = [
         ('info', 'Información'),        # Azul claro (predeterminado)
         ('success', 'Éxito'),         # Verde
@@ -209,9 +210,8 @@ class Notificacion(models.Model):
         verbose_name="Usuario Destino"
     )
     # Contenido y tipo
-    mensaje = models.TextField(verbose_name="Mensaje")
+    mensaje = EncryptedTextField(verbose_name="Mensaje")
     tipo = models.CharField(
-        max_length=10,
         choices=TIPO_NOTIFICACION_CHOICES,
         default='info',
         verbose_name="Tipo"
@@ -247,30 +247,14 @@ logger = logging.getLogger(__name__)
 
 
 class ModeloBase(models.Model):
-    primer_nombre = models.CharField(
-        max_length=100,
-        verbose_name="Primer Nombre",
-        db_index=True
-    )
-    segundo_nombre = models.CharField(
-        max_length=100,
-        verbose_name="Segundo Nombre",
-        blank=True,
-        null=True,
-        db_index=True
-    )
-    primer_apellido = models.CharField(
-        max_length=100,
-        verbose_name="Primer Apellido",
-        db_index=True
-    )
-    segundo_apellido = models.CharField(
-        max_length=100,
-        verbose_name="Segundo Apellido",
-        blank=True,
-        null=True,
-        db_index=True
-    )
+    from encrypted_model_fields.fields import EncryptedCharField
+
+    primer_nombre = EncryptedCharField("Primer Nombre")
+    segundo_nombre = EncryptedCharField(
+        "Segundo Nombre", blank=True, null=True, default='')
+    primer_apellido = EncryptedCharField("Primer Apellido")
+    segundo_apellido = EncryptedCharField(
+        "Segundo Apellido", blank=True, null=True, default='')
     fecha_creacion = models.DateTimeField(
         editable=False, auto_now_add=True, db_index=True, verbose_name="Fecha Creación",
         help_text="Fecha y hora en que se creó este registro (automático)."
@@ -355,6 +339,8 @@ class UsuarioManager(BaseUserManager):
 
 
 class Usuario(AbstractUser, ModeloBase):
+    from encrypted_model_fields.fields import EncryptedEmailField, EncryptedDateField, EncryptedCharField, EncryptedTextField
+
     # --- Indicar que los campos de AbstractUser no se usen directamente en la BD ---
     # Django no creará columnas para estos en la tabla myapp_usuario.
     # Seguirán existiendo en el objeto Python, pero no se persistirán directamente.
@@ -364,21 +350,36 @@ class Usuario(AbstractUser, ModeloBase):
     # ---------------------------------------------------------------------------
 
     # Tus campos personalizados
-    email = models.EmailField("Correo Electrónico", unique=True, error_messages={
-                              'unique': "Este correo electrónico ya está registrado."}, help_text="Correo electrónico único.", validators=[validate_email])
+    email = models.EmailField(
+        "Correo Electrónico",
+        unique=True,
+        error_messages={
+            'unique': "Este correo electrónico ya está registrado."},
+        help_text="Correo electrónico único.",
+        validators=[validate_email]
+    )
     nivel_acceso = models.PositiveIntegerField("Nivel de Acceso", choices=CommonChoices.NIVEL_ACCESO, default=1, validators=[
                                                MinValueValidator(1), MaxValueValidator(5)], db_index=True, help_text="Define los permisos base.")
     tipo_usuario = models.CharField("Tipo de Usuario", max_length=50, choices=CommonChoices.TIPO_USUARIO,
                                     db_index=True, help_text="Clasificación funcional del usuario.")
     activo = models.BooleanField("Cuenta Activa (Personalizado)", default=True,
                                  help_text="Controla si el usuario puede iniciar sesión (fuente de verdad).")
-    fecha_nacimiento = models.DateField("Fecha de Nacimiento", validators=[
-                                        validate_past_date], db_index=True, null=True, blank=True)
+    fecha_nacimiento = EncryptedDateField(
+        "Fecha de Nacimiento",
+        validators=[validate_past_date],
+        null=True,
+        blank=True
+    )
     departamento = models.CharField(
         "Departamento", max_length=50, choices=CommonChoices.DEPARTAMENTO, blank=True, null=True, db_index=True)
-    telefono = models.CharField("Teléfono", max_length=15, validators=[
-                                validate_telefono_venezuela], blank=True, null=True)
-    direccion = models.TextField("Dirección", blank=True, null=True)
+    telefono = EncryptedCharField(
+        "Teléfono",
+        validators=[validate_telefono_venezuela],
+        blank=True,
+        null=True
+    )
+    direccion = EncryptedTextField("Dirección", blank=True, null=True)
+
     intermediario = models.ForeignKey('Intermediario', on_delete=models.SET_NULL, blank=True, null=True,
                                       related_name='usuarios_asignados', verbose_name="Intermediario Asociado", db_index=True)
     username = models.CharField("Nombre de usuario (interno)", max_length=150, unique=True, help_text="Requerido. Generado automáticamente si se omite.", error_messages={
@@ -887,7 +888,7 @@ class ContratoBase(ModeloBase):
 
 
 class AfiliadoIndividual(ModeloBase):
-
+    from encrypted_model_fields.fields import EncryptedCharField, EncryptedTextField, EncryptedEmailField, EncryptedDateField
     intermediario = models.ForeignKey(
         'Intermediario',
         on_delete=models.SET_NULL,
@@ -904,11 +905,9 @@ class AfiliadoIndividual(ModeloBase):
         db_index=True,
         help_text="Tipo de documento de identidad principal del afiliado."
     )
-    cedula = models.CharField(
-        max_length=10,
+    cedula = EncryptedCharField(
         unique=True,
         verbose_name="Cédula de Identidad",
-        db_index=True,
         help_text=(
             "Cédula de Identidad del afiliado. Formato: V-12345678 o E-8765432 (guion opcional)."),
         validators=[validate_cedula]
@@ -936,10 +935,9 @@ class AfiliadoIndividual(ModeloBase):
         default='TITULAR',
         help_text="Relación del afiliado con el titular del contrato (si aplica, por defecto Titular)."
     )
-    fecha_nacimiento = models.DateField(
+    fecha_nacimiento = EncryptedDateField(
         verbose_name="Fecha de Nacimiento",
         validators=[validate_past_date],
-        db_index=True,
         help_text="Fecha de nacimiento del afiliado. Formato: AAAA-MM-DD."
     )
     nacionalidad = models.CharField(
@@ -983,33 +981,31 @@ class AfiliadoIndividual(ModeloBase):
         db_index=True,
         help_text="Fecha en que el afiliado ingresó al sistema o al contrato asociado."
     )
-    direccion_habitacion = models.TextField(
+    direccion_habitacion = EncryptedTextField(
         verbose_name="Dirección Habitación",
         blank=True,
         null=True,
         help_text=("Dirección completa de residencia. Mínimo 10 caracteres.")
     )
-    telefono_habitacion = models.CharField(
-        max_length=15,
+    telefono_habitacion = EncryptedCharField(
         verbose_name="Teléfono Habitación",
         blank=True,
         null=True,
         help_text="Teléfono de contacto residencial. Formato: 04XX-XXXXXXX o 02XX-XXXXXXX.",
     )
-    email = models.EmailField(
+    email = EncryptedEmailField(
         verbose_name="Correo Electrónico",
         blank=True,
         null=True,
         help_text="Correo electrónico personal del afiliado (opcional)."
     )
-    direccion_oficina = models.TextField(
+    direccion_oficina = EncryptedTextField(
         verbose_name="Dirección Oficina",
         blank=True,
         null=True,
         help_text="Dirección del lugar de trabajo del afiliado (opcional)."
     )
-    telefono_oficina = models.CharField(
-        max_length=15,
+    telefono_oficina = EncryptedCharField(
         verbose_name="Teléfono Oficina",
         blank=True,
         null=True,
@@ -1138,7 +1134,7 @@ class AfiliadoIndividual(ModeloBase):
 
 
 class AfiliadoColectivo(ModeloBase):
-
+    from encrypted_model_fields.fields import EncryptedTextField, EncryptedEmailField, EncryptedCharField
     # === Campos de empresa ===
     activo = models.BooleanField(
         default=True,
@@ -1158,17 +1154,14 @@ class AfiliadoColectivo(ModeloBase):
 
     )
 
-    razon_social = models.CharField(
-        max_length=255,  # Aumentado para nombres largos
+    razon_social = EncryptedCharField(
         verbose_name="Razón Social",
-        db_index=True,
         null=False,
         blank=False,
         help_text="Nombre legal completo de la empresa o institución."
     )
 
-    rif = models.CharField(
-        max_length=12,
+    rif = EncryptedCharField(
         unique=True,
         verbose_name="RIF",
         null=True,
@@ -1186,7 +1179,7 @@ class AfiliadoColectivo(ModeloBase):
     )
 
     # === Dirección comercial ===
-    direccion_comercial = models.TextField(
+    direccion_comercial = EncryptedTextField(
         verbose_name="Dirección Fiscal",
         help_text="Ej: Av. Principal, Edif. Torreón, Piso 5, Municipio Chacao",
         blank=True,
@@ -1223,15 +1216,14 @@ class AfiliadoColectivo(ModeloBase):
         # <-- EXISTENTE
         help_text="Código postal venezolano de 4 dígitos (Ej: 1010)."
     )
-    telefono_contacto = models.CharField(
-        max_length=15,
+    telefono_contacto = EncryptedCharField(
         verbose_name="Teléfono Principal",
         validators=[validate_telefono_venezuela],
         blank=True,
         help_text="Número de teléfono principal de contacto. Formato: 04XX-XXXXXXX o 02XX-XXXXXXX.",  # <-- MODIFICADO
         null=True
     )
-    email_contacto = models.EmailField(
+    email_contacto = EncryptedEmailField(
         verbose_name="Email Corporativo",
         blank=True,
         null=True,
@@ -1281,6 +1273,7 @@ class AfiliadoColectivo(ModeloBase):
 
 
 class ContratoIndividual(ContratoBase):
+    from encrypted_model_fields.fields import EncryptedCharField, EncryptedTextField, EncryptedEmailField
     activo = models.BooleanField(default=True, verbose_name="Estado activo",
                                  help_text="Indica si este registro de contrato individual está activo en el sistema.")
     tipo_identificacion_contratante = models.CharField(
@@ -1290,36 +1283,33 @@ class ContratoIndividual(ContratoBase):
 
         help_text="Tipo de documento (Cédula o RIF) de la persona o entidad que paga el contrato."
     )
-    contratante_cedula = models.CharField(
-        max_length=15,
+    contratante_cedula = EncryptedCharField(
         verbose_name="Cédula/RIF del Contratante",
-        # <-- MODIFICADO
         help_text="Cédula o RIF de quien paga. Introduzca V/E + 7-8 dígitos (Cédula) o J/G/V/E + 8 dígitos + verificador (RIF, formato con guiones requerido).",
-        db_index=True,
     )
-    contratante_nombre = models.CharField(
-        max_length=255,
+    contratante_nombre = EncryptedCharField(
         verbose_name="Nombre del Contratante",
         help_text="Nombre completo o razón social de quien paga el contrato."
     )
-    direccion_contratante = models.TextField(
+    direccion_contratante = EncryptedTextField(
         verbose_name="Dirección del Contratante",
         blank=True,
         null=True,
         help_text="Dirección fiscal o principal del contratante."
     )
-    telefono_contratante = models.CharField(
-        max_length=15,
+    telefono_contratante = EncryptedCharField(
         verbose_name="Teléfono del Contratante",
         blank=True,
         null=True,
-        help_text="Teléfono de contacto del contratante. Formato: 04XX-XXXXXXX o 02XX-XXXXXXX.",  # <-- MODIFICADO
+        help_text="Teléfono de contacto del contratante. Formato: 04XX-XXXXXXX o 02XX-XXXXXXX.",
+        validators=[validate_telefono_venezuela]
     )
-    email_contratante = models.EmailField(
+    email_contratante = EncryptedEmailField(
         verbose_name="Email del Contratante",
         blank=True,
         null=True,
-        help_text="Correo electrónico principal del contratante."
+        help_text="Correo electrónico principal del contratante.",
+        validators=[validate_email]
     )
     afiliado = models.ForeignKey(
         'AfiliadoIndividual',
@@ -1790,6 +1780,7 @@ except ImportError:
 
 
 class ContratoColectivo(ContratoBase):
+    from encrypted_model_fields.fields import EncryptedCharField, EncryptedTextField
     activo = models.BooleanField(default=True, verbose_name="Estado activo",
                                  help_text="Indica si este registro de contrato colectivo está activo en el sistema.")
     tipo_empresa = models.CharField(
@@ -1807,19 +1798,15 @@ class ContratoColectivo(ContratoBase):
         verbose_name="Criterio de Búsqueda",
         help_text="Campo adicional para búsquedas o filtros personalizados."
     )
-    razon_social = models.CharField(
-        max_length=255,
+    razon_social = EncryptedCharField(
         verbose_name="Razón Social de la Empresa",
-        db_index=True,
         null=True,
         help_text="Nombre legal completo de la empresa contratante."
     )
-    rif = models.CharField(
-        max_length=12,
+    rif = EncryptedCharField(
         verbose_name="RIF de la Empresa (Copiado)",
         validators=[validate_rif],
         help_text="RIF de la empresa contratante (copiado automáticamente).",
-        db_index=True,
         blank=True,
         null=True
     )
@@ -1829,7 +1816,7 @@ class ContratoColectivo(ContratoBase):
         db_index=True,
         help_text="Número total de empleados cubiertos o elegibles bajo este contrato."
     )
-    direccion_comercial = models.TextField(
+    direccion_comercial = EncryptedTextField(
         verbose_name="Dirección Comercial",
         blank=True,
         null=True,
@@ -2237,6 +2224,8 @@ class ContratoColectivo(ContratoBase):
 
 
 class Intermediario(ModeloBase):
+    from encrypted_model_fields.fields import EncryptedCharField, EncryptedTextField, EncryptedEmailField
+
     activo = models.BooleanField(
         default=True,
         verbose_name="Estado activo",
@@ -2252,42 +2241,35 @@ class Intermediario(ModeloBase):
         editable=False,  # Hacer no editable manualmente
         help_text="Formato: INT-XXXXXX (Auto-generado)."
     )
-    nombre_completo = models.CharField(
-        max_length=255,
+    nombre_completo = EncryptedCharField(
         verbose_name="Nombre Completo del Intermediario",
-        db_index=True,
         help_text="Nombre completo o razón social del intermediario."
     )
-    rif = models.CharField(
-        max_length=12,
+    rif = EncryptedCharField(
         verbose_name="RIF",
         blank=True,
         null=True,
-        db_index=True,
         help_text="Formato Requerido: Letra-8Números-1Número (Ej: J-12345678-9).",
         validators=[validate_rif]  # Asegúrate que validate_rif esté definido
     )
-    direccion_fiscal = models.TextField(
+    direccion_fiscal = EncryptedTextField(
         verbose_name="Dirección Fiscal",
         blank=True,
         null=True,
         help_text="Dirección fiscal registrada del intermediario."
     )
-    telefono_contacto = models.CharField(
-        max_length=15,
+    telefono_contacto = EncryptedCharField(
         verbose_name="Teléfono de Contacto",
         blank=True,
         null=True,
         help_text="Formato: 04XX-XXXXXXX o 02XX-XXXXXXX.",
-        # validators=[validate_telefono_venezuela] # Descomentar si se aplica
+        validators=[validate_telefono_venezuela]
     )
-    email_contacto = models.EmailField(
+    email_contacto = EncryptedEmailField(
         verbose_name="Email de Contacto",
         blank=True,
         null=True,
-        # Asegúrate que validate_email esté definido
         validators=[validate_email],
-        db_index=True,
         help_text="Correo electrónico principal de contacto del intermediario."
     )
     intermediario_relacionado = models.ForeignKey(
@@ -2655,6 +2637,7 @@ def get_modelo_choices():
 
 
 class AuditoriaSistema(models.Model):
+    from encrypted_model_fields.fields import EncryptedTextField, EncryptedCharField
     tipo_accion = models.CharField(
         max_length=50,
         choices=CommonChoices.TIPO_ACCION,
@@ -2699,20 +2682,20 @@ class AuditoriaSistema(models.Model):
 
         help_text="ID (clave primaria) del registro específico afectado por la acción."
     )
-    detalle_accion = models.TextField(
+    detalle_accion = EncryptedTextField(
         verbose_name=("Detalle de la Acción"),
         blank=True,
         null=True,
         help_text="Descripción detallada de la acción realizada o del error ocurrido."
     )
-    direccion_ip = models.GenericIPAddressField(
+    direccion_ip = EncryptedCharField(
         verbose_name=("Dirección IP"),
         blank=True,
         null=True,
         db_index=True,
         help_text="Dirección IP desde la cual se originó la acción."
     )
-    agente_usuario = models.TextField(
+    agente_usuario = EncryptedTextField(
         verbose_name=("Agente de Usuario (User Agent)"),
         blank=True,
         null=True,
@@ -2785,6 +2768,7 @@ class ReclamacionManager(models.Manager):
 
 
 class Reclamacion(ModeloBase):
+    from encrypted_model_fields.fields import EncryptedTextField
     numero_reclamacion = models.CharField(
         max_length=50,
         unique=True,    # Importante: True desde el inicio ahora
@@ -2827,7 +2811,7 @@ class Reclamacion(ModeloBase):
         db_index=True,
         help_text="Estado actual del proceso de la reclamación (ej. Abierta, Aprobada, Pagada)."
     )
-    descripcion_reclamo = models.TextField(
+    descripcion_reclamo = EncryptedTextField(
         verbose_name=("Descripción del Reclamo"),
         blank=False,
         null=False,
@@ -2890,13 +2874,13 @@ class Reclamacion(ModeloBase):
         null=True,
         help_text="Archivos PDF, JPG, PNG que soportan la reclamación. Tamaño máx: 10MB."
     )
-    observaciones_internas = models.TextField(
+    observaciones_internas = EncryptedTextField(  # También es buena idea cifrar este
         verbose_name=("Observaciones Internas"),
         blank=True,
         null=True,
         help_text="Notas o comentarios internos del personal sobre la reclamación (no visibles al cliente)."
     )
-    observaciones_cliente = models.TextField(
+    observaciones_cliente = EncryptedTextField(
         verbose_name=("Observaciones para el Cliente"),
         blank=True,
         null=True,
@@ -3060,6 +3044,7 @@ class Reclamacion(ModeloBase):
 
 
 class Pago(ModeloBase):  # Heredar de ModeloBase si aplica
+    from encrypted_model_fields.fields import EncryptedCharField
     TOLERANCE = Decimal('0.01')
     activo = models.BooleanField(
         default=True, verbose_name="Estado activo",
@@ -3085,8 +3070,8 @@ class Pago(ModeloBase):  # Heredar de ModeloBase si aplica
         default=False, verbose_name="¿Pago sujeto a IGTF?",
         help_text="Marcar si este pago específico genera IGTF."
     )
-    referencia_pago = models.CharField(
-        max_length=100, verbose_name="Referencia de Pago", blank=True,
+    referencia_pago = EncryptedCharField(
+        verbose_name="Referencia de Pago", blank=True,
         help_text="Identificador único del pago (ej. N° transferencia)."
     )
     fecha_notificacion_pago = models.DateField(

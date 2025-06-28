@@ -929,27 +929,91 @@ input[type="file"] { position: absolute; opacity: 0; width: 0.1px; height: 0.1px
 .select2-results__option[aria-selected=true] { background-color: rgba(92, 119, 255, 0.1) !important; color: #bee3f8 !important; }
 .select2-results__message { color: var(--text-muted) !important; padding: 0.6rem 1.2rem !important; }
 
-/* === DATATABLES STYLES === */
-/* (Se mantiene igual que el CSS de v14.2 FIXED) */
-.dataTables_wrapper { padding: 0.5rem 0; color: var(--text-muted); font-size: 0.9rem; }
-.dataTables_length, .dataTables_filter { margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
-.dataTables_filter { justify-content: flex-end; }
-.dataTables_length label, .dataTables_filter label { color: var(--text-muted); margin-bottom: 0; font-weight: 500; }
-.dataTables_length select, .dataTables_filter input[type="search"] { padding: 0.5rem 1rem; background: rgba(16, 21, 36, 0.8); border: 1px solid rgb(92, 119, 225); border-radius: 25px; color: #ffffff; font-size: 0.9rem; transition: all 0.3s; line-height: 1.5; appearance: none; -webkit-appearance: none; -moz-appearance: none; margin: 0; display: inline-block; width: auto; min-width: 80px; }
-.dataTables_length select { padding-right: 2rem; }
-.dataTables_length select:focus, .dataTables_filter input[type="search"]:focus { outline: none; border-color: rgb(92, 119, 225); box-shadow: 0 0 0 3px rgb(92, 119, 225); }
-.dataTables_info { padding-top: 0.8rem; color: var(--text-muted); }
-.dataTables_paginate { padding-top: 0.5rem; text-align: center; }
-.dataTables_paginate .paginate_button { display: inline-block; padding: 0.6rem 1rem; margin: 0 3px; border-radius: 20px; border: 1px solid var(--border-light); background: var(--glass-bg); color: var(--text-muted); text-decoration: none; cursor: pointer; transition: var(--transition); font-size: 0.9rem; user-select: none; }
-.dataTables_paginate .paginate_button:hover { background: rgba(255, 255, 255, 0.2); border-color: rgba(255, 255, 255, 0.4); color: var(--text-light); }
-.dataTables_paginate .paginate_button.current, .dataTables_paginate .paginate_button.current:hover { background: var(--primary); border-color: transparent; color: white; cursor: default; box-shadow: 0 4px 10px rgba(var(--primary-rgb), 0.4); }
-.dataTables_paginate .paginate_button.disabled, .dataTables_paginate .paginate_button.disabled:hover { color: #666 !important; border-color: rgba(255, 255, 255, 0.1) !important; background: rgba(16, 21, 36, 0.5) !important; cursor: default; box-shadow: none; transform: none; }
-table.dataTable thead .sorting::before, table.dataTable thead .sorting_asc::before, table.dataTable thead .sorting_desc::before, table.dataTable thead .sorting::after, table.dataTable thead .sorting_asc::after, table.dataTable thead .sorting_desc::after { content: "" !important; display: none !important; }
-table.dataTable thead .sorting, table.dataTable thead .sorting_asc, table.dataTable thead .sorting_desc { cursor: pointer; position: relative; padding-right: 25px; }
-table.dataTable thead .sorting::after, table.dataTable thead .sorting_asc::after, table.dataTable thead .sorting_desc::after { position: absolute; bottom: 0.7em; right: 0.8em; display: block; opacity: 0.5; content: "↕️"; font-size: 0.8em; }
-table.dataTable thead .sorting:hover::after, table.dataTable thead .sorting_asc:hover::after, table.dataTable thead .sorting_desc:hover::after { opacity: 1; }
-table.dataTable thead .sorting_asc::after { content: "▲"; opacity: 1; }
-table.dataTable thead .sorting_desc::after { content: "▼"; opacity: 1; }
+
+/* --- Contenedores y texto general --- */
+.dataTables_wrapper .dt-layout-row {
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+.dataTables_wrapper .dt-length label,
+.dataTables_wrapper .dt-search label,
+.dataTables_wrapper .dt-info {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+/* --- Input de búsqueda y Selector de longitud --- */
+.dataTables_wrapper .dt-input {
+    background: var(--glass-bg) !important;
+    border: 1px solid var(--border-light) !important;
+    color: var(--text-light) !important;
+    border-radius: var(--glass-border-radius) !important;
+    box-shadow: var(--glass-box-shadow) !important;
+    backdrop-filter: var(--blur) !important;
+    -webkit-backdrop-filter: var(--blur) !important;
+    padding: 0.5rem 1rem !important;
+    transition: var(--transition) !important;
+}
+
+.dataTables_wrapper .dt-input:focus {
+    border-color: var(--text-light) !important;
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.5) !important;
+    outline: none !important;
+}
+
+.dataTables_wrapper .dt-length select option {
+    background: var(--bg-dark);
+    color: var(--text-light);
+}
+
+/* --- Paginación --- */
+.dataTables_wrapper .dt-paging .paginate_button {
+    background: transparent !important;
+    border: 1px solid var(--border-light) !important;
+    color: var(--text-muted) !important;
+    box-shadow: none !important;
+    margin: 0 3px !important;
+    border-radius: 50% !important;
+    transition: var(--transition) !important;
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.dataTables_wrapper .dt-paging .paginate_button:hover {
+    color: var(--text-light) !important;
+    border-color: var(--text-light) !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.5) !important;
+    transform: translateY(-2px);
+}
+
+.dataTables_wrapper .dt-paging .paginate_button.current,
+.dataTables_wrapper .dt-paging .paginate_button.current:hover {
+    background: var(--primary) !important;
+    border-color: var(--primary) !important;
+    color: white !important;
+    box-shadow: 0 0 15px rgba(var(--primary-rgb), 0.7) !important;
+    transform: none;
+}
+
+.dataTables_wrapper .dt-paging .paginate_button.disabled,
+.dataTables_wrapper .dt-paging .paginate_button.disabled:hover {
+    opacity: 0.4 !important;
+    background: transparent !important;
+    border-color: var(--border-light) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+/* --- Estilo de la Tabla --- */
+table.dataTable {
+    border-bottom: none !important; /* Evitar doble borde en la última fila */
+}
 
 @media (min-width: 768px) {
     .dataTables_length { float: left; }

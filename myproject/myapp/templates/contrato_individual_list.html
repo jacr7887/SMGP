@@ -1,12 +1,18 @@
 {% extends "home.html" %}
 {% load static %}
-{% load querystring_tags %}
 {% load humanize %}
+
+{% block extra_head %}
+{# Solo cargamos el CSS base de DataTables. Los estilos vienen de tu styles.css #}
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.min.css">
+{% endblock %}
+
+{% block title %}Listado de Contratos Individuales{% endblock %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 id="main-heading">📄 Listado Completo de Contratos Individuales</h1>
+    <h1 id="main-heading">📄 Listado de Contratos Individuales</h1>
 
     <div class="header-actions">
       {% if perms.myapp.add_contratoindividual %}
@@ -16,138 +22,97 @@
       {% endif %}
     </div>
 
-    <form method="get" class="search-form mb-3" aria-label="Formulario de búsqueda de contratos individuales">
-      <input
-        type="text"
-        name="search"
-        placeholder="🔍 Buscar (N° Contrato, Afiliado, Cédula, Plan...)" {# Placeholder más específico #}
-        value="{{ search_query|escape }}"
-        aria-label="Campo de búsqueda global"
-        class="search-input"
-      />
-      <button type="submit" class="nav_link">Buscar</button>
-      <a href="{% url 'myapp:contrato_individual_list' %}" class="nav_link" style="margin-left: 10px;" title="Limpiar búsqueda y filtros">Limpiar</a>
-    </form>
-
-    <div class="table-container" role="region" aria-labelledby="table-caption">
-      <table class="data-table" role="table">
-        <caption id="table-caption" class="visually-hidden">
-          Lista completa de contratos individuales registrados. Haga clic en las cabeceras para ordenar.
-        </caption>
-        <thead role="rowgroup">
-          <tr role="row">
-            {# --- Cabeceras Reordenadas y Ajustadas --- #}
-            <th class="sort-header {% if current_sort == 'numero_contrato' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='numero_contrato' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">📄 N° Contrato {% if current_sort == 'numero_contrato' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header {% if current_sort == 'afiliado__primer_apellido' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='afiliado__primer_apellido' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">👤 Afiliado {% if current_sort == 'afiliado__primer_apellido' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header {% if current_sort == 'afiliado__cedula' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='afiliado__cedula' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🆔 Cédula Af. {% if current_sort == 'afiliado__cedula' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header {% if current_sort == 'ramo' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='ramo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🌿 Ramo {% if current_sort == 'ramo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header {% if current_sort == 'fecha_inicio_vigencia' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='fecha_inicio_vigencia' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">➡️ Inicio Vig. {% if current_sort == 'fecha_inicio_vigencia' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header {% if current_sort == 'fecha_fin_vigencia' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='fecha_fin_vigencia' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">⏹️ Fin Vig. {% if current_sort == 'fecha_fin_vigencia' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-
-            {# --- NUEVA CABECERA: Tarifa Aplicada --- #}
-            <th class="sort-header {% if current_sort == 'tarifa_aplicada__id' %}active{% endif %}" role="columnheader">
-              <a href="?{% query_transform sort='tarifa_aplicada__id' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
-                🏷️ Tarifa {% if current_sort == 'tarifa_aplicada__id' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
-              </a>
-            </th>
-            {# --- FIN NUEVA CABECERA --- #}
-
-            {# --- Cabeceras para campos calculados (MANTENIDAS pero ajustadas) --- #}
-            <th class="sort-header text-end {% if current_sort == 'monto_total' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='monto_total' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💰 Prima Total {% if current_sort == 'monto_total' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header text-end {% if current_sort == 'monto_cuota_estimada' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='monto_cuota_estimada' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💲 Cuota {% if current_sort == 'monto_cuota_estimada' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-
-            <th class="sort-header {% if current_sort == 'forma_pago' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='forma_pago' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💳 F. Pago {% if current_sort == 'forma_pago' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header text-end {% if current_sort == 'cantidad_cuotas_estimadas' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='cantidad_cuotas_estimadas' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🔢 Cuotas {% if current_sort == 'cantidad_cuotas_estimadas' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            {# --- FIN Cabeceras calculadas --- #}
-
-            <th class="sort-header text-end {% if current_sort == 'pagos_realizados' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='pagos_realizados' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">✅ Pagos R. {% if current_sort == 'pagos_realizados' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header {% if current_sort == 'estatus' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='estatus' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🚦 Estatus Vig. {% if current_sort == 'estatus' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header {% if current_sort == 'intermediario__nombre_completo' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='intermediario__nombre_completo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🤝 Intermediario {% if current_sort == 'intermediario__nombre_completo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header text-center {% if current_sort == 'activo' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='activo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💡 Activo {% if current_sort == 'activo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th role="columnheader">⚙️ Acciones</th> {# Sin ordenar #}
+    <div class="table-container">
+      <table id="contratos-table" class="data-table" style="width:100%">
+        <thead>
+          <tr>
+            {# --- CABECERAS COMPLETAS (COMO EN TU ORIGINAL) --- #}
+            <th>N° Contrato</th>
+            <th>Afiliado</th>
+            <th>Cédula Af.</th>
+            <th>Ramo</th>
+            <th>Inicio Vig.</th>
+            <th>Fin Vig.</th>
+            <th>Tarifa</th>
+            <th>Prima Total</th>
+            <th>Cuota</th>
+            <th>F. Pago</th>
+            <th>Cuotas</th>
+            <th>Pagos R.</th>
+            <th>Estatus</th>
+            <th>Intermediario</th>
+            <th>Activo</th>
+            <th>Acciones</th>
           </tr>
         </thead>
-        <tbody role="rowgroup">
+        <tbody>
           {% for contrato in object_list %}
-          <tr role="row">
-            {# --- Celdas Reordenadas y Ajustadas --- #}
-            <td role="cell"><a href="{% url 'myapp:contrato_individual_detail' contrato.pk %}" title="Ver detalle">{{ contrato.numero_contrato|escape|default:"-" }}</a></td>
-            <td role="cell">{{ contrato.afiliado.nombre_completo|escape|default:"-" }}</td>
-            <td role="cell">{{ contrato.afiliado.cedula|escape|default:"-" }}</td>
-            <td role="cell">{{ contrato.get_ramo_display|escape }}</td>
-            <td role="cell">{{ contrato.fecha_inicio_vigencia|date:"d/m/Y"|default:"-" }}</td>
-            <td role="cell">{{ contrato.fecha_fin_vigencia|date:"d/m/Y"|default:"-" }}</td>
-
-            {# --- NUEVA CELDA: Tarifa Aplicada (Mostrar __str__ o ID) --- #}
-            <td role="cell" title="{{ contrato.tarifa_aplicada }}">
-              {% if contrato.tarifa_aplicada %}
-                {{ contrato.tarifa_aplicada.id|default:"-" }} {# O muestra el __str__ completo si prefieres #}
-              {% else %}
-                -
-              {% endif %}
-            </td>
-            {# --- FIN NUEVA CELDA --- #}
-
-            {# --- Celdas campos calculados (MANTENIDAS) --- #}
-            <td class="text-end" role="cell">${{ contrato.monto_total|floatformat:2|intcomma|default:"0.00" }}</td>
-            <td class="text-end" role="cell">${{ contrato.monto_cuota_estimada|floatformat:2|intcomma|default:"-" }}</td>
-            <td role="cell">{{ contrato.get_forma_pago_display|escape }}</td>
-            <td class="text-end" role="cell">{{ contrato.cantidad_cuotas_estimadas|default:"-" }}</td> 
-            {# --- FIN Celdas calculadas --- #}
-
-            <td class="text-end" role="cell">{{ contrato.pagos_realizados|default:"0" }}</td>
-            <td role="cell"><span class="badge {% if contrato.estatus == 'VIGENTE' %}badge-success{% elif contrato.estatus == 'VENCIDO' %}badge-danger{% else %}badge-warning{% endif %}">{{ contrato.get_estatus_display|escape }}</span></td>
-            <td role="cell">{{ contrato.intermediario.nombre_completo|escape|default:"-" }}</td>
-            <td class="text-center" role="cell">{% if contrato.activo %}✅{% else %}🔴{% endif %}</td>
-
-            {# --- Acciones (Sin cambios) --- #}
-            <td class="actions" role="cell">
-              <div class="action-group">
-                 {% if perms.myapp.view_contratoindividual %}
-                  <a href="{% url 'myapp:contrato_individual_detail' contrato.pk %}" class="action-icon" title="Ver Detalles" aria-label="Ver detalles del contrato {{ contrato.numero_contrato|escape }}">👁️</a>
-                {% endif %}
-                {% if perms.myapp.change_contratoindividual %}
-                  <a href="{% url 'myapp:contrato_individual_update' contrato.pk %}" class="action-icon" title="Editar" aria-label="Editar contrato {{ contrato.numero_contrato|escape }}">✏️</a>
-                {% endif %}
-                {% if perms.myapp.delete_contratoindividual %}
-                  <a href="{% url 'myapp:contrato_individual_delete' contrato.pk %}" class="action-icon delete-link" title="Eliminar" aria-label="Eliminar contrato {{ contrato.numero_contrato|escape }}">❌</a>
-                {% endif %}
-              </div>
-            </td>
-          </tr>
-          {% empty %}
-          <tr role="row">
-            {# --- ¡IMPORTANTE! Ajusta colspan al número TOTAL de THs en tu thead --- #}
-            {# Contando las cabeceras de arriba, parecen ser 17 (incluyendo Acciones) #}
-            <td colspan="17" class="no-results" role="cell">
-              📭 No se encontraron contratos individuales que coincidan con la búsqueda.
-            </td>
-          </tr>
+            {% if contrato.decryption_error %}
+              <tr class="table-danger">
+                <td colspan="16">⚠️ Error al leer datos para el contrato con ID: {{ contrato.pk }}.</td>
+              </tr>
+            {% else %}
+              <tr>
+                {# --- CELDAS COMPLETAS (COMO EN TU ORIGINAL) --- #}
+                <td><a href="{% url 'myapp:contrato_individual_detail' contrato.pk %}" title="Ver detalle">{{ contrato.numero_contrato|default:"-" }}</a></td>
+                <td>{{ contrato.afiliado.nombre_completo|default:"-" }}</td>
+                <td>{{ contrato.afiliado.cedula|default:"-" }}</td>
+                <td>{{ contrato.get_ramo_display }}</td>
+                <td>{{ contrato.fecha_inicio_vigencia|date:"d/m/Y"|default:"-" }}</td>
+                <td>{{ contrato.fecha_fin_vigencia|date:"d/m/Y"|default:"-" }}</td>
+                <td title="{{ contrato.tarifa_aplicada }}">
+                  {% if contrato.tarifa_aplicada %}
+                    {{ contrato.tarifa_aplicada.codigo_tarifa|truncatechars:15|default:"-" }}
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+                <td class="text-end">${{ contrato.monto_total|floatformat:2|intcomma|default:"0.00" }}</td>
+                <td class="text-end">${{ contrato.monto_cuota_estimada|floatformat:2|intcomma|default:"-" }}</td>
+                <td>{{ contrato.get_forma_pago_display }}</td>
+                <td class="text-end">{{ contrato.cantidad_cuotas_estimadas|default:"-" }}</td>
+                <td class="text-end">{{ contrato.pagos_realizados|default:"0" }}</td>
+                <td><span class="badge {% if contrato.estatus == 'VIGENTE' %}badge-success{% elif contrato.estatus == 'VENCIDO' %}badge-danger{% else %}badge-warning{% endif %}">{{ contrato.get_estatus_display }}</span></td>
+                <td>{{ contrato.intermediario.nombre_completo|default:"-" }}</td>
+                <td class="text-center">
+                  {% if contrato.activo %}
+                    <span class="badge badge-success">Sí</span>
+                  {% else %}
+                    <span class="badge badge-danger">No</span>
+                  {% endif %}
+                </td>
+                <td class="actions">
+                  <div class="action-group">
+                    <a href="{% url 'myapp:contrato_individual_detail' contrato.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
+                    <a href="{% url 'myapp:contrato_individual_update' contrato.pk %}" class="action-icon" title="Editar">✏️</a>
+                    <a href="{% url 'myapp:contrato_individual_delete' contrato.pk %}" class="action-icon delete-link" title="Eliminar">❌</a>
+                  </div>
+                </td>
+              </tr>
+            {% endif %}
           {% endfor %}
         </tbody>
       </table>
     </div>
-
-    {# --- PAGINACIÓN (Sin cambios) --- #}
-    {% if is_paginated %}
-    <nav aria-label="Navegación de páginas de contratos individuales">
-      <div class="django-pagination">
-        {% if page_obj.has_previous %}
-          <a href="?{% query_transform page=1 %}" class="btn-pagination" aria-label="Primera página">« Primera</a>
-          <a href="?{% query_transform page=page_obj.previous_page_number %}" class="btn-pagination" aria-label="Página anterior">‹ Anterior</a>
-        {% endif %}
-        <span class="pagination-current">
-          Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
-        </span>
-        {% if page_obj.has_next %}
-          <a href="?{% query_transform page=page_obj.next_page_number %}" class="btn-pagination" aria-label="Siguiente página">Siguiente ›</a>
-          <a href="?{% query_transform page=page_obj.paginator.num_pages %}" class="btn-pagination" aria-label="Última página">Última »</a>
-        {% endif %}
-      </div>
-    </nav>
-    {% endif %}
-
   </section>
 </div>
-
 {% endblock content %}
+
+{% block extra_scripts %}
+<script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+<script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
+<script>
+$(document).ready(function() {
+    $('#contratos-table').DataTable({
+        language: { "url": "//cdn.datatables.net/plug-ins/2.0.8/i18n/es-ES.json" },
+        "dom":
+            "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" +
+            "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" +
+            "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
+        "columnDefs": [
+            { "orderable": false, "targets": -1 } // Deshabilita ordenar en la última columna (Acciones)
+        ]
+    });
+});
+</script>
+{% endblock %}

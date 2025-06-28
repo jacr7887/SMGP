@@ -2,84 +2,84 @@
 import os
 import sys
 from pathlib import Path
-import environ
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.translation import gettext_lazy as _
-from decouple import config
+from urllib.parse import urlparse
+import logging
 
-FERNET_KEY = config('FERNET_KEY')
+logger = logging.getLogger(__name__)
 
-# --- LÓGICA DE RUTAS UNIFICADA Y ROBUSTA ---
+# ==============================================================================
+# --- FUNCIÓN AUXILIAR PARA REEMPLAZAR A DECOUPLE ---
+# ==============================================================================
+
+
+_sentinel = object()  # Objeto único para usar como centinela
+
+
+def get_env_variable(var_name, default=_sentinel, cast=None):
+    """
+    Lee una variable de entorno. Si no existe, usa el valor por defecto.
+    Si no hay valor por defecto, lanza un error.
+    Permite convertir el tipo de dato (cast).
+    """
+    value = os.environ.get(var_name)
+
+    if value is None:
+        # La variable no está en el entorno. Verificamos si hay un default.
+        if default is _sentinel:
+            # No se proporcionó un default, es un error crítico.
+            raise ImproperlyConfigured(
+                f"La variable de entorno requerida '{var_name}' no está definida."
+            )
+        # Se proporcionó un default, lo usamos.
+        value = default
+
+    # Si el valor final es None (porque el default era None), lo devolvemos sin castear.
+    if value is None:
+        return None
+
+    # Si se especifica una función de 'cast', se aplica.
+    if cast:
+        return cast(value)
+
+    return value
+
+
+# ==============================================================================
+# --- 1. LÓGICA DE RUTAS (Tu lógica original, está perfecta) ---
+# ==============================================================================
 IS_FROZEN = getattr(sys, 'frozen', False)
 
 if IS_FROZEN:
-    # MODO CONGELADO (.exe)
-    # BASE_DIR apunta a la carpeta _internal, donde están los recursos de solo lectura (templates, static).
     BASE_DIR = Path(sys._MEIPASS)
-    # WRITABLE_DIR apunta a una carpeta junto al .exe para datos de usuario (media, logs, cache, db).
     WRITABLE_DIR = Path(sys.executable).parent / "app_data_smgp"
 else:
-    # MODO DESARROLLO (python manage.py runserver)
-    # BASE_DIR es la raíz del proyecto.
     BASE_DIR = Path(__file__).resolve().parent.parent
-    # WRITABLE_DIR es una carpeta local para datos de desarrollo.
     WRITABLE_DIR = BASE_DIR / "local_app_data_smgp"
 
-# Aseguramos que el directorio de datos escribibles exista.
 WRITABLE_DIR.mkdir(parents=True, exist_ok=True)
 
+# ==============================================================================
+# --- 2. CONFIGURACIÓN DE SEGURIDAD Y CIFRADO ---
+# ==============================================================================
+SECRET_KEY = get_env_variable('SECRET_KEY')
+DEBUG = get_env_variable('DEBUG', default='False',
+                         cast=lambda v: v.lower() in ('true', '1', 't'))
+ALLOWED_HOSTS = get_env_variable('ALLOWED_HOSTS', cast=lambda v: [
+                                 s.strip() for s in v.split(',')])
 
-# --- CARGA DE VARIABLES DE ENTORNO ---
-# El hook o start.py ya se encargan de crear el .env si no existe.
-# Aquí solo lo leemos.
-env = environ.Env(
-    DEBUG=(bool, False),
-    ALLOWED_HOSTS=(list, ['127.0.0.1', 'localhost']),
-    DATABASE_URL=(str, f'sqlite:///{WRITABLE_DIR / "dev_db.sqlite3"}'),
-    SESSION_COOKIE_AGE=(int, 86400),
-    DATA_UPLOAD_MAX_NUMBER_FIELDS=(int, 5000),
-    SECRET_KEY=(str, ''),
-    SMGP_LICENSE_VERIFY_KEY_B64=(
-        str, '48FUC+B/1sYVGhvmnRQuXKWwKqcIsg1cE49xF5VRxIY='),
-    DJANGO_SUPERUSER_USERNAME=(str, 'admin'),
-    DJANGO_SUPERUSER_EMAIL=(str, 'admin@example.com'),
-    DJANGO_SUPERUSER_PASSWORD=(str, None),
-    DJANGO_SUPERUSER_PRIMER_NOMBRE=(str, 'Admin'),
-    DJANGO_SUPERUSER_PRIMER_APELLIDO=(str, 'User'),
-    SECURE_SSL_REDIRECT=(bool, False),
-    SECURE_HSTS_SECONDS=(int, 0),
-    SECURE_HSTS_INCLUDE_SUBDOMAINS=(bool, False),
-    SECURE_HSTS_PRELOAD=(bool, False),
-    SESSION_COOKIE_SECURE=(bool, False),
-    CSRF_COOKIE_SECURE=(bool, False),
-    DB_CONN_MAX_AGE=(int, 600),
-    DB_CONNECT_TIMEOUT=(int, None),
-    CACHE_DEFAULT_TIMEOUT=(int, 300),
-    CACHE_DEFAULT_MAX_ENTRIES=(int, 500),
-)
+# --- Configuración de Cifrado ---
+MASTER_ENCRYPTION_KEY = get_env_variable('FERNET_KEY')
+FERNET_KEYS = [MASTER_ENCRYPTION_KEY]
+FIELD_ENCRYPTION_KEY = MASTER_ENCRYPTION_KEY
+logger.critical(
+    f"CLAVE DE CIFRADO MAESTRA CARGADA: ...{MASTER_ENCRYPTION_KEY[-6:]}")
 
-# El .env se lee desde junto al .exe (congelado) o desde la raíz del proyecto (desarrollo).
-env_file_path = Path(sys.executable).parent / \
-    '.env' if IS_FROZEN else BASE_DIR / '.env'
-if env_file_path.is_file():
-    environ.Env.read_env(env_file=str(env_file_path))
-
-
-# --- VARIABLES DE CONFIGURACIÓN CRÍTICAS ---
-SECRET_KEY = env('SECRET_KEY')
-DEBUG = env('DEBUG')
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
-
-if not SECRET_KEY and not DEBUG:
-    raise ImproperlyConfigured(
-        "CRITICAL ERROR! SECRET_KEY no definida y DEBUG es False.")
-elif not SECRET_KEY and DEBUG:
-    SECRET_KEY = 'django_insecure_debug_only_fallback_key_for_smgp_project_12345!@#$%'
-
-
-# --- APLICACIONES Y MIDDLEWARE ---
+# ==============================================================================
+# --- 3. APLICACIONES Y MIDDLEWARE (Sin cambios) ---
+# ==============================================================================
 INSTALLED_APPS = [
-    # 1. Apps nativas de Django
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -88,8 +88,6 @@ INSTALLED_APPS = [
     'whitenoise.runserver_nostatic',
     'django.contrib.staticfiles',
     'django.contrib.humanize',
-
-    # 2. Apps de terceros
     'django_filters',
     'django_select2',
     'rangefilter',
@@ -97,8 +95,6 @@ INSTALLED_APPS = [
     'pgtrigger',
     'widget_tweaks',
     'background_task',
-
-    # 3. Mi aplicación siempre al final
     'myapp.apps.MyappConfig'
 ]
 MIDDLEWARE = [
@@ -115,19 +111,17 @@ MIDDLEWARE = [
     'myapp.middleware.CustomSessionMiddleware',
     'myapp.middleware.LicenseCheckMiddleware',
 ]
-
 ROOT_URLCONF = 'myproject.urls'
 WSGI_APPLICATION = 'myproject.wsgi.application'
 
-
-# --- PLANTILLAS ---
+# ==============================================================================
+# --- 4. PLANTILLAS, BASE DE DATOS Y AUTENTICACIÓN ---
+# ==============================================================================
 TEMPLATES = [{'BACKEND': 'django.template.backends.django.DjangoTemplates',
               'DIRS': [BASE_DIR / 'templates'], 'APP_DIRS': True,
               'OPTIONS': {'context_processors': [
                   'django.template.context_processors.debug',
                   'django.template.context_processors.request',
-                  'django.template.context_processors.request',
-
                   'django.contrib.auth.context_processors.auth',
                   'django.contrib.messages.context_processors.messages',
                   'myapp.context_processors.system_notifications',
@@ -136,15 +130,25 @@ TEMPLATES = [{'BACKEND': 'django.template.backends.django.DjangoTemplates',
                   'myapp.templatetags.comision_tags',
               ]}}]
 
-
 # --- BASE DE DATOS ---
-DATABASES = {'default': env.db_url_config(env('DATABASE_URL'))}
-DATABASES['default']['CONN_MAX_AGE'] = env.int('DB_CONN_MAX_AGE')
-if env.int('DB_CONNECT_TIMEOUT', default=None) is not None:
+db_url_str = get_env_variable('DATABASE_URL')
+db_url = urlparse(db_url_str)
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': db_url.path[1:],
+        'USER': db_url.username,
+        'PASSWORD': db_url.password,
+        'HOST': db_url.hostname,
+        'PORT': db_url.port,
+        'CONN_MAX_AGE': get_env_variable('DB_CONN_MAX_AGE', default=600, cast=int),
+    }
+}
+db_connect_timeout = get_env_variable('DB_CONNECT_TIMEOUT', default=None)
+if db_connect_timeout is not None:
     DATABASES['default'].setdefault('OPTIONS', {})
-    DATABASES['default']['OPTIONS']['connect_timeout'] = env.int(
-        'DB_CONNECT_TIMEOUT')
-
+    DATABASES['default']['OPTIONS']['connect_timeout'] = int(
+        db_connect_timeout)
 
 # --- AUTENTICACIÓN ---
 AUTH_USER_MODEL = 'myapp.Usuario'
@@ -158,8 +162,9 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-
-# --- INTERNACIONALIZACIÓN ---
+# ==============================================================================
+# --- 5. INTERNACIONALIZACIÓN, ARCHIVOS, LOGS Y CACHÉ ---
+# ==============================================================================
 LANGUAGE_CODE = 'es'
 TIME_ZONE = 'America/Caracas'
 USE_I18N = True
@@ -167,19 +172,18 @@ USE_TZ = True
 LANGUAGES = [('es', _('Español')), ('en', _('Inglés'))]
 LOCALE_PATHS = [BASE_DIR / 'locale']
 
-
-# --- ARCHIVOS ESTÁTICOS Y DE MEDIOS ---
 STATIC_URL = '/static/'
-# En modo congelado, los estáticos están DENTRO del bundle. En desarrollo, collectstatic los junta aquí.
-STATIC_ROOT = BASE_DIR / 'static' if IS_FROZEN else BASE_DIR / \
-    'staticfiles_collected_for_pyinstaller'
+if IS_FROZEN:
+    STATIC_ROOT = BASE_DIR / 'static'
+    STATICFILES_DIRS = []
+else:
+    STATIC_ROOT = BASE_DIR / 'staticfiles_collected_for_pyinstaller'
+    STATICFILES_DIRS = [BASE_DIR / 'myapp' / 'static']
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
-# Los archivos de medios siempre van a la carpeta escribible.
 MEDIA_ROOT = WRITABLE_DIR / 'media_user_uploads'
 MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
-
 
 # --- LOGS Y CACHÉ ---
 LOG_DIR = WRITABLE_DIR / 'logs'
@@ -190,8 +194,8 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 CACHES = {
     'default': {'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
                 'LOCATION': str(CACHE_DIR / 'default_cache'),
-                'TIMEOUT': env.int('CACHE_DEFAULT_TIMEOUT'),
-                'OPTIONS': {'MAX_ENTRIES': env.int('CACHE_DEFAULT_MAX_ENTRIES')}},
+                'TIMEOUT': get_env_variable('CACHE_DEFAULT_TIMEOUT', default=300, cast=int),
+                'OPTIONS': {'MAX_ENTRIES': get_env_variable('CACHE_DEFAULT_MAX_ENTRIES', default=500, cast=int)}},
     'graphs': {'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
                'LOCATION': str(CACHE_DIR / 'graphs_cache'), 'TIMEOUT': 3600,
                'OPTIONS': {'MAX_ENTRIES': 100}},
@@ -216,32 +220,43 @@ LOGGING = {
     'root': {'handlers': ['console', 'file_info'], 'level': 'WARNING'},
 }
 
-
-# --- OTRAS CONFIGURACIONES ---
+# ==============================================================================
+# --- 6. OTRAS CONFIGURACIONES DE DJANGO Y DE LA APLICACIÓN ---
+# ==============================================================================
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
-SESSION_COOKIE_AGE = env.int('SESSION_COOKIE_AGE')
-DATA_UPLOAD_MAX_NUMBER_FIELDS = env.int('DATA_UPLOAD_MAX_NUMBER_FIELDS')
+SESSION_COOKIE_AGE = get_env_variable(
+    'SESSION_COOKIE_AGE', default=86400, cast=int)
+DATA_UPLOAD_MAX_NUMBER_FIELDS = get_env_variable(
+    'DATA_UPLOAD_MAX_NUMBER_FIELDS', default=5000, cast=int)
 
 # --- SEGURIDAD ---
 SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = 'DENY'
 SECURE_CONTENT_TYPE_NOSNIFF = True
-SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT')
-SECURE_HSTS_SECONDS = env.int('SECURE_HSTS_SECONDS')
-SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool('SECURE_HSTS_INCLUDE_SUBDOMAINS')
-SECURE_HSTS_PRELOAD = env.bool('SECURE_HSTS_PRELOAD')
-SESSION_COOKIE_SECURE = env.bool('SESSION_COOKIE_SECURE')
-CSRF_COOKIE_SECURE = env.bool('CSRF_COOKIE_SECURE')
+SECURE_SSL_REDIRECT = get_env_variable(
+    'SECURE_SSL_REDIRECT', default='False', cast=lambda v: v.lower() in ('true', '1', 't'))
+SECURE_HSTS_SECONDS = get_env_variable(
+    'SECURE_HSTS_SECONDS', default=0, cast=int)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = get_env_variable(
+    'SECURE_HSTS_INCLUDE_SUBDOMAINS', default='False', cast=lambda v: v.lower() in ('true', '1', 't'))
+SECURE_HSTS_PRELOAD = get_env_variable(
+    'SECURE_HSTS_PRELOAD', default='False', cast=lambda v: v.lower() in ('true', '1', 't'))
+SESSION_COOKIE_SECURE = get_env_variable(
+    'SESSION_COOKIE_SECURE', default='False', cast=lambda v: v.lower() in ('true', '1', 't'))
+CSRF_COOKIE_SECURE = get_env_variable(
+    'CSRF_COOKIE_SECURE', default='False', cast=lambda v: v.lower() in ('true', '1', 't'))
 CSRF_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_SAMESITE = 'Lax'
 
 # --- CONFIGURACIÓN ESPECÍFICA DE LA APLICACIÓN ---
-DJANGO_SUPERUSER_USERNAME = env('DJANGO_SUPERUSER_USERNAME')
-DJANGO_SUPERUSER_EMAIL = env('DJANGO_SUPERUSER_EMAIL')
-DJANGO_SUPERUSER_PASSWORD = env('DJANGO_SUPERUSER_PASSWORD')
-DJANGO_SUPERUSER_PRIMER_NOMBRE = env('DJANGO_SUPERUSER_PRIMER_NOMBRE')
-DJANGO_SUPERUSER_PRIMER_APELLIDO = env('DJANGO_SUPERUSER_PRIMER_APELLIDO')
+DJANGO_SUPERUSER_USERNAME = get_env_variable('DJANGO_SUPERUSER_USERNAME')
+DJANGO_SUPERUSER_EMAIL = get_env_variable('DJANGO_SUPERUSER_EMAIL')
+DJANGO_SUPERUSER_PASSWORD = get_env_variable('DJANGO_SUPERUSER_PASSWORD')
+DJANGO_SUPERUSER_PRIMER_NOMBRE = get_env_variable(
+    'DJANGO_SUPERUSER_PRIMER_NOMBRE')
+DJANGO_SUPERUSER_PRIMER_APELLIDO = get_env_variable(
+    'DJANGO_SUPERUSER_PRIMER_APELLIDO')
 
 LICENSE_EXEMPT_URL_NAMES = [
     'myapp:login', 'myapp:logout', 'myapp:license_invalid', 'myapp:activate_license',
@@ -250,4 +265,4 @@ LICENSE_EXEMPT_URL_NAMES = [
     'admin:myapp_licenseinfo_change', 'admin:myapp_licenseinfo_delete',
     'admin:myapp_licenseinfo_history', 'admin:myapp_licenseinfo_view',
 ]
-SMGP_LICENSE_VERIFY_KEY_B64 = env('SMGP_LICENSE_VERIFY_KEY_B64')
+SMGP_LICENSE_VERIFY_KEY_B64 = get_env_variable('SMGP_LICENSE_VERIFY_KEY_B64')

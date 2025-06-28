@@ -1,123 +1,91 @@
 {% extends "home.html" %}
 {% load static %}
 {% load humanize %}
-{% load querystring_tags %} {# Mantenlo por si usas la ordenación #}
+
+{% block extra_head %}
+{# Solo cargamos el CSS base de DataTables. Los estilos ya están en styles.css #}
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.min.css">
+{% endblock %}
+
+{% block title %}{{ title }}{% endblock %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 id="main-heading">📋 Listado de Auditoría del Sistema</h1>
+    <h1 id="main-heading">🛡️ {{ title }}</h1>
 
-    {# Botones de acción (si aplica, usualmente no para auditoría) #}
-    <div class="header-actions">
-        <a href="{% url 'myapp:home' %}" class="nav_link">Volver a Inicio</a>
-    </div>
+    {# No hay botón de "Crear Nuevo" para la auditoría #}
 
-    {# --- Barra de Búsqueda Simple --- #}
-    <form method="get" class="search-form mb-3" aria-label="Formulario de búsqueda de auditoría">
-      {# No necesitas csrf_token para GET #}
-      <input
-        type="text"
-        name="search" {# Usar 'search' si tu vista lo espera para búsqueda general #}
-        placeholder="🔍 Buscar por Usuario, Tabla, IP, Detalle..." {# Placeholder actualizado #}
-        value="{{ search_query|escape }}" {# Variable del contexto de la vista #}
-        aria-label="Campo de búsqueda"
-        class="search-input"
-      />
-      <button type="submit" class="nav_link">Buscar</button>
-      <a href="{% url 'myapp:auditoria_sistema_list' %}" class="nav_link" style="margin-left: 10px;" title="Limpiar búsqueda">Limpiar</a>
-    </form>
-    {# --- FIN Barra de Búsqueda Simple --- #}
-
-    {# --- SECCIÓN DE FILTROS DETALLADOS ELIMINADA --- #}
-    {# Ya no renderizamos {{ filter.form.as_p }} ni el grid de filtros #}
-
-    {# --- Tabla de Datos --- #}
-    <div class="table-container" role="region" aria-labelledby="table-caption">
-      <table class="data-table" role="table">
-        <caption id="table-caption" class="visually-hidden">
-          Lista completa de registros de auditoría del sistema. Haga clic en las cabeceras para ordenar.
-        </caption>
-        <thead role="rowgroup">
-          <tr role="row">
-            {# Cabeceras ordenables (como estaban antes, son correctas) #}
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='tiempo_inicio' order=current_order|toggle_order:'asc' search=search_query page=1 %}">⏰ Inicio {% if current_sort == 'tiempo_inicio' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='tipo_accion' order=current_order|toggle_order:'asc' search=search_query page=1 %}">🔄 Tipo Acción {% if current_sort == 'tipo_accion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='usuario__username' order=current_order|toggle_order:'asc' search=search_query page=1 %}">👤 Usuario {% if current_sort == 'usuario__username' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='tabla_afectada' order=current_order|toggle_order:'asc' search=search_query page=1 %}">📦 Tabla {% if current_sort == 'tabla_afectada' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='registro_id_afectado' order=current_order|toggle_order:'asc' search=search_query page=1 %}">🔢 ID Reg. {% if current_sort == 'registro_id_afectado' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='resultado_accion' order=current_order|toggle_order:'asc' search=search_query page=1 %}">✅ Resultado {% if current_sort == 'resultado_accion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='direccion_ip' order=current_order|toggle_order:'asc' search=search_query page=1 %}">🌐 IP {% if current_sort == 'direccion_ip' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th role="columnheader">📝 Detalle</th>
-            <th role="columnheader">📱 Agente</th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='tiempo_final' order=current_order|toggle_order:'asc' search=search_query page=1 %}">⏳ Fin {% if current_sort == 'tiempo_final' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='control_fecha_actual' order=current_order|toggle_order:'asc' search=search_query page=1 %}">⏱️ Control {% if current_sort == 'control_fecha_actual' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th role="columnheader">⚙️ Acciones</th>
+    <div class="table-container">
+      <table id="auditoria-table" class="data-table" style="width:100%">
+        <thead>
+          <tr>
+            {# --- CABECERAS COMPLETAS PARA AUDITORIA --- #}
+            <th>Fecha y Hora</th>
+            <th>Usuario</th>
+            <th>Tipo de Acción</th>
+            <th>Tabla Afectada</th>
+            <th>ID Registro</th>
+            <th>Resultado</th>
+            <th>Dirección IP</th>
+            <th>Detalle</th>
+            <th>Acciones</th>
           </tr>
         </thead>
-        <tbody role="rowgroup">
-          {% for auditoria in object_list %}
-          <tr role="row">
-            {# Celdas de datos (como estaban antes, son correctas) #}
-            <td role="cell">{{ auditoria.tiempo_inicio|date:"d/m/y H:i:s" }}</td>
-            <td role="cell">{{ auditoria.get_tipo_accion_display|default:auditoria.tipo_accion }}</td>
-            <td role="cell">{{ auditoria.usuario.get_full_name|default:auditoria.usuario.username|default:"Sistema" }}</td>
-            <td role="cell">{{ auditoria.tabla_afectada|default:"-" }}</td>
-            <td role="cell">{{ auditoria.registro_id_afectado|default:"-" }}</td>
-            <td role="cell">
-              <span class="badge {% if auditoria.resultado_accion == 'EXITO' %}badge-success{% elif auditoria.resultado_accion == 'ERROR' %}badge-danger{% else %}badge-secondary{% endif %}">
-                {{ auditoria.get_resultado_accion_display|default:auditoria.resultado_accion }}
-              </span>
-            </td>
-            <td role="cell">{{ auditoria.direccion_ip|default:"-" }}</td>
-            <td role="cell" title="{{ auditoria.detalle_accion|escape|default:'' }}">{{ auditoria.detalle_accion|escape|truncatechars:50|default:"-" }}</td>
-            <td role="cell" title="{{ auditoria.agente_usuario|escape|default:'' }}">{{ auditoria.agente_usuario|escape|truncatechars:30|default:"-" }}</td>
-            <td role="cell">{{ auditoria.tiempo_final|date:"d/m/y H:i:s"|default:"-" }}</td>
-            <td role="cell">{{ auditoria.control_fecha_actual|date:"d/m/y H:i:s" }}</td>
-
-            <td class="actions" role="cell">
-              <div class="action-group">
-                {% if perms.myapp.view_auditoriasistema %}
-                <a href="{% url 'myapp:auditoria_sistema_detail' auditoria.pk %}"
-                   class="action-icon"
-                   aria-label="Ver detalles de la auditoría {{ auditoria.pk }}">
-                  👁️
-                </a>
-                {% endif %}
-              </div>
-            </td>
-          </tr>
-          {% empty %}
-          <tr role="row">
-            <td colspan="12" class="no-results" role="cell"> {# Ajustado colspan #}
-              📭 No se encontraron registros de auditoría que coincidan con la búsqueda.
-            </td>
-          </tr>
+        <tbody>
+          {% for log in object_list %}
+              <tr>
+                {# --- CELDAS COMPLETAS PARA AUDITORIA --- #}
+                <td>{{ log.tiempo_inicio|date:"d/m/Y H:i:s" }}</td>
+                <td>{{ log.usuario.get_full_name|default:log.usuario.username|default:"Sistema" }}</td>
+                <td>{{ log.get_tipo_accion_display }}</td>
+                <td>{{ log.tabla_afectada|default:"N/A" }}</td>
+                <td>{{ log.registro_id_afectado|default:"N/A" }}</td>
+                <td>
+                  <span class="badge 
+                      {% if log.resultado_accion == 'EXITO' %}badge-success
+                      {% elif 'FALLIDO' in log.resultado_accion or 'ERROR' in log.resultado_accion %}badge-danger
+                      {% else %}badge-info{% endif %}">
+                      {{ log.get_resultado_accion_display }}
+                  </span>
+                </td>
+                <td>{{ log.direccion_ip|default:"N/A" }}</td>
+                <td title="{{ log.detalle_accion|escape }}">{{ log.detalle_accion|truncatechars:50 }}</td>
+                <td class="actions">
+                  <div class="action-group">
+                    <a href="{% url 'myapp:auditoria_sistema_detail' log.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
+                  </div>
+                </td>
+              </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-
-    {# --- Paginación (Usa query_transform para mantener búsqueda simple) --- #}
-    {% if is_paginated %}
-    <nav aria-label="Navegación de páginas de auditoría">
-      <div class="django-pagination">
-        {% if page_obj.has_previous %}
-          <a href="?{% query_transform page=1 search=search_query %}" class="btn-pagination" aria-label="Primera página">« Primera</a>
-          <a href="?{% query_transform page=page_obj.previous_page_number search=search_query %}" class="btn-pagination" aria-label="Página anterior">‹ Anterior</a>
-        {% endif %}
-        <span class="pagination-current">
-          Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
-        </span>
-        {% if page_obj.has_next %}
-          <a href="?{% query_transform page=page_obj.next_page_number search=search_query %}" class="btn-pagination" aria-label="Siguiente página">Siguiente ›</a>
-          <a href="?{% query_transform page=page_obj.paginator.num_pages search=search_query %}" class="btn-pagination" aria-label="Última página">Última »</a>
-        {% endif %}
-      </div>
-    </nav>
-    {% endif %}
-
   </section>
 </div>
-
 {% endblock content %}
+
+{% block extra_scripts %}
+<script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+<script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    $('#auditoria-table').DataTable({
+        // Usamos la variable global definida en home.html
+        language: dataTableLanguage,
+        
+        // Ordenar por defecto por la primera columna (Fecha) en orden descendente
+        "order": [[ 0, "desc" ]],
+
+        "dom":
+            "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" +
+            "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" +
+            "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
+        "columnDefs": [
+            { "orderable": false, "targets": -1 } // Deshabilita ordenar en la última columna (Acciones)
+        ]
+    });
+});
+</script>
+{% endblock %}

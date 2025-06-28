@@ -1,234 +1,124 @@
 {% extends "home.html" %}
 {% load static %}
 {% load humanize %}
-{% load querystring_tags %}
 
-{% block title %}Listado de Comisiones Registradas{% endblock %}
-
-{% block form_media_css %} {# Para el CSS de los widgets del filtro, si es necesario #}
-    {{ block.super }}
-    {% if filter %}{{ filter.form.media.css }}{% endif %}
-{% endblock form_media_css %}
-
-{% block extra_css %}
-{{ block.super }}
-<style>
-  .search-form-container {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
-  .search-form-container .search-input {
-    flex-grow: 1;
-  }
-  .search-form-container .nav_link {
-    flex-shrink: 0;
-  }
-  /* Estilos para Select2 con tu tema oscuro (COPIA Y AJUSTA DESDE TU CSS FUNCIONAL) */
-  .dark-group .select2-container .select2-selection--single,
-  .dark-group .select2-container .select2-selection--multiple {
-    background-color: #2a2f45 !important; 
-    border: 1px solid #4b5378 !important; 
-    color: #fff !important;
-    border-radius: 0.25rem !important; /* O tu border-radius */
-    min-height: 38px; /* Ajusta a la altura de tus inputs */
-    padding-top: 0.1rem; 
-    padding-bottom: 0.1rem;
-  }
-  .dark-group .select2-container--default .select2-selection--single .select2-selection__rendered {
-    color: #fff !important;
-    line-height: 36px !important; /* Ajusta */
-  }
-  .dark-group .select2-container--default .select2-selection--single .select2-selection__arrow b {
-    border-color: #fff transparent transparent transparent !important;
-  }
-  /* Estilos para el desplegable de Select2 */
-  .select2-dropdown { 
-    background-color: #2a2f45 !important;
-    border: 1px solid #4b5378 !important;
-    color: #fff !important;
-  }
-  .select2-container--default .select2-results__option--highlighted[aria-selected] {
-    background-color: #4b5378 !important;
-    color: #fff !important;
-  }
-   .select2-container--default .select2-results__option {
-    color: #ccc !important;
-  }
-   .select2-container--default .select2-results__option[aria-selected=true] {
-    background-color: #3a3f58 !important;
-  }
-  .select2-search--dropdown .select2-search__field {
-    background-color: #1e2235 !important;
-    color: #fff !important;
-    border: 1px solid #4b5378 !important;
-  }
-  /* Para selecciones múltiples */
-  .dark-group .select2-container--default .select2-selection--multiple .select2-selection__choice {
-    background-color: #4b5378 !important;
-    border: 1px solid #3a3f58 !important;
-    color: #fff !important;
-    margin-top: 4px !important; 
-  }
-  .dark-group .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
-    color: #aaa !important;
-  }
-  .dark-group .select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover {
-    color: #fff !important;
-  }
-</style>
+{% block extra_head %}
+{# Solo cargamos el CSS base de DataTables. Los estilos ya están en styles.css #}
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.min.css">
 {% endblock %}
+
+{% block title %}{{ title }}{% endblock %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
-    <section>
-        <h1 id="main-heading">💸 Listado de Comisiones Registradas</h1>
+  <section>
+    <h1 id="main-heading">💸 {{ title }}</h1>
 
-        <div class="header-actions mb-3">
-            <a href="{% url 'myapp:liquidacion_comisiones' %}" class="nav_link">💰 Ver Liquidación Pendientes</a>
-        </div>
+    <div class="header-actions">
+      <a href="{% url 'myapp:liquidacion_comisiones' %}" class="nav_link">💰 Ver Liquidación Pendientes</a>
+    </div>
 
-        {# --- BUSCADOR SIMPLE ARRIBA DE LA TABLA --- #}
-        <form method="get" action="{% url 'myapp:registro_comision_list' %}" role="search">
-            <div class="search-form-container">
-                <input type="text" class="search-input" name="search_query"
-                       placeholder="Buscar (ID, Intermediario, Factura, N° Recibo...)" 
-                       value="{{ search_query|default:'' }}"
-                       aria-label="Buscar comisiones">
-                
-                {% for key, value_list in request.GET.lists %}
-                    {% if key != "search_query" and key != "page" %}
-                        {% for value in value_list %}
-                            <input type="hidden" name="{{ key }}" value="{{ value }}">
-                        {% endfor %}
-                    {% endif %}
-                {% endfor %}
-                <button type="submit" class="nav_link">🔍 Buscar</button>
-                <a href="{% url 'myapp:registro_comision_list' %}" class="nav_link" title="Limpiar búsqueda y filtros">🧹 Limpiar Todo</a>
-            </div>
-        </form>
-        
-        {% if messages %}
-            {% for message in messages %}
-                <div class="alert alert-{{ message.tags }} alert-dismissible fade show compact-form" role="alert" style="margin-bottom: 1rem;">
-                    {{ message|escape }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
-                </div>
-            {% endfor %}
-        {% endif %}
-
-        <div class="table-container" role="region" aria-labelledby="table-caption-comisiones">
-            <table class="data-table" role="table">
-                <caption id="table-caption-comisiones" class="visually-hidden">Tabla de Registros de Comisiones</caption>
-                <thead>
-                    <tr role="row">
-                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='id' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">🆔 ID {% if current_sort == 'id' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
-                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='intermediario__nombre_completo' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">👤 Benef. {% if current_sort == 'intermediario__nombre_completo' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
-                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='tipo_comision' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">📋 Tipo {% if current_sort == 'tipo_comision' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
-                        <th class="sort-header text-end" scope="col"><a href="?{% query_transform sort='monto_comision' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">💰 Monto {% if current_sort == 'monto_comision' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
-                        <th class="sort-header text-end" scope="col"><a href="?{% query_transform sort='monto_base_calculo' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">💲 Base {% if current_sort == 'monto_base_calculo' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
-                        <th class="sort-header text-end" scope="col"><a href="?{% query_transform sort='porcentaje_aplicado' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">📊 % {% if current_sort == 'porcentaje_aplicado' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
-                        <th scope="col">🧾 Factura</th>
-                        <th scope="col">💳 P. Cliente</th>
-                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='intermediario_vendedor__nombre_completo' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">👨‍💼 Vend. {% if current_sort == 'intermediario_vendedor__nombre_completo' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
-                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='estatus_pago_comision' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">🚦 Estado {% if current_sort == 'estatus_pago_comision' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
-                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='fecha_calculo' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">📅 F. Cálculo {% if current_sort == 'fecha_calculo' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
-                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='fecha_pago_a_intermediario' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">🗓️ F. Pago Int. {% if current_sort == 'fecha_pago_a_intermediario' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
-                        <th class="sort-header" scope="col"><a href="?{% query_transform sort='usuario_que_liquido__username' order=current_order|toggle_order:'asc' search_query=search_query page=1 %}{{ filter_params_pagination }}">🧑‍💻 Liquidó {% if current_sort == 'usuario_que_liquido__username' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
-                        
-                        {# === INICIO DE LA NUEVA COLUMNA === #}
-                        <th scope="col" class="text-center">📎 Comp.</th>
-                        {# === FIN DE LA NUEVA COLUMNA === #}
-                        
-                        <th scope="col" class="actions-header">⚙️ Acciones</th>
-                    </tr>
-                </thead>
-                <tbody role="rowgroup">
-                    {% for comision in object_list %}
-                    <tr role="row" class="{% cycle 'row1' 'row2' %}">
-                        <td role="cell" data-label="ID:"><a href="{% url 'myapp:registro_comision_detail' comision.pk %}">{{ comision.pk|escape }}</a></td>
-                        <td role="cell" data-label="Inter. Benef.:">{% if comision.intermediario %}<a href="{% url 'myapp:intermediario_detail' comision.intermediario.pk %}">{{ comision.intermediario.nombre_completo|truncatechars:20|default:comision.intermediario.codigo|escape }}</a>{% else %}N/A{% endif %}</td>
-                        <td role="cell" data-label="Tipo:">{{ comision.get_tipo_comision_display|escape }}</td>
-                        <td class="text-end" role="cell" data-label="Monto Comisión:">{{ comision.monto_comision|floatformat:2|intcomma|default:"0.00" }}</td>
-                        <td class="text-end" role="cell" data-label="Base Cálculo:">{{ comision.monto_base_calculo|floatformat:2|intcomma|default:"0.00" }}</td>
-                        <td class="text-end" role="cell" data-label="% Aplic.:">{{ comision.porcentaje_aplicado|floatformat:2|default:"0.00" }}%</td>
-                        <td role="cell" data-label="Factura:">{% if comision.factura_origen %}<a href="{% url 'myapp:factura_detail' comision.factura_origen.pk %}">{{ comision.factura_origen.numero_recibo|default_if_none:"Ver"|truncatechars:15|escape }}</a>{% else %}N/A{% endif %}</td>
-                        <td role="cell" data-label="Pago Cliente:">{% if comision.pago_cliente %}<a href="{% url 'myapp:pago_detail' comision.pago_cliente.pk %}">{{ comision.pago_cliente.referencia_pago|default_if_none:"Ver"|truncatechars:10|escape }}</a>{% else %}N/A{% endif %}</td>
-                        <td role="cell" data-label="Inter. Vendedor:">{% if comision.intermediario_vendedor %}<a href="{% url 'myapp:intermediario_detail' comision.intermediario_vendedor.pk %}">{{ comision.intermediario_vendedor.nombre_completo|truncatechars:20|default:comision.intermediario_vendedor.codigo|escape }}</a>{% else %}N/A{% endif %}</td>
-                        <td role="cell" data-label="Estado Pago:"><span class="badge {% if comision.estatus_pago_comision == 'PAGADA' %}badge-success{% elif comision.estatus_pago_comision == 'PENDIENTE' %}badge-warning{% elif comision.estatus_pago_comision == 'ANULADA' %}badge-danger{% else %}badge-secondary{% endif %}">{{ comision.get_estatus_pago_comision_display|escape }}</span></td>
-                        <td role="cell" data-label="Fecha Cálculo:">{{ comision.fecha_calculo|date:"d/m/y H:i"|default:"-" }}</td>
-                        <td role="cell" data-label="Fecha Pago Int.:">{{ comision.fecha_pago_a_intermediario|date:"d/m/y"|default:"-" }}</td>
-                        <td role="cell" data-label="Liquidó:">{% if comision.usuario_que_liquido %}{{ comision.usuario_que_liquido.username|default:"N/A" }}{% else %}-{% endif %}</td>
-                        
-                        {# === INICIO DEL CONTENIDO DE LA NUEVA CELDA === #}
-                        <td role="cell" data-label="Comprobante:" class="text-center">
-                            {% if comision.comprobante_pago %}
-                                <a href="{{ comision.comprobante_pago.url }}" class="file-popup-trigger action-icon" data-popup-title="Comprobante Comisión #{{ comision.pk }}">
-                                    📎
-                                </a>
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        {# === FIN DEL CONTENIDO DE LA NUEVA CELDA === #}
-                        
-                        <td class="actions" role="cell" data-label="Acciones:">
-                            <div class="action-group">
-                                {% if perms.myapp.view_registrocomision %}<a href="{% url 'myapp:registro_comision_detail' comision.pk %}" class="action-icon" title="Ver Detalles">👁️</a>{% endif %}
-                                {% if comision.estatus_pago_comision == 'PENDIENTE' and perms.myapp.change_registrocomision %}
-                                <form method="post" action="{% url 'myapp:marcar_comisiones_pagadas' %}" style="display: inline;" class="action-form">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="comisiones_a_pagar_ids" value="{{ comision.id }}">
-                                    <button type="submit" class="action-icon-btn btn-success btn-sm" title="Marcar como Pagada">✅</button>
-                                </form>
-                                {% endif %}
-                            </div>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr role="row"><td colspan="15" class="no-results" role="cell">🚫 No se encontraron registros de comisiones que coincidan con los criterios.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        {% if is_paginated %}
-        <nav aria-label="Navegación de páginas de comisiones" class="mt-4">
-          <div class="django-pagination">
-            <span class="pagination-step-links">
-                {% if page_obj.has_previous %}
-                    <a href="?{% query_transform page=1 search_query=search_query %}{{ filter_params_pagination }}{{ sort_params_pagination }}" class="btn-pagination" aria-label="Primera página">« Primera</a>
-                    <a href="?{% query_transform page=page_obj.previous_page_number search_query=search_query %}{{ filter_params_pagination }}{{ sort_params_pagination }}" class="btn-pagination" aria-label="Página anterior">‹ Anterior</a>
-                {% else %}
-                    <span class="btn-pagination disabled" aria-disabled="true">« Primera</span>
-                    <span class="btn-pagination disabled" aria-disabled="true">‹ Anterior</span>
-                {% endif %}
-                
-                <span class="pagination-current" aria-current="page">
-                  Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}.
-                </span>
-                
-                {% if page_obj.has_next %}
-                    <a href="?{% query_transform page=page_obj.next_page_number search_query=search_query %}{{ filter_params_pagination }}{{ sort_params_pagination }}" class="btn-pagination" aria-label="Siguiente página">Siguiente ›</a>
-                    <a href="?{% query_transform page=page_obj.paginator.num_pages search_query=search_query %}{{ filter_params_pagination }}{{ sort_params_pagination }}" class="btn-pagination" aria-label="Última página">Última »</a>
-                {% else %}
-                    <span class="btn-pagination disabled" aria-disabled="true">Siguiente ›</span>
-                    <span class="btn-pagination disabled" aria-disabled="true">Última »</span>
-                {% endif %}
-            </span>
-          </div>
-        </nav>
-        {% endif %}
-    </section>
+    <div class="table-container">
+      <table id="comisiones-table" class="data-table" style="width:100%">
+        <thead>
+          <tr>
+            {# --- CABECERAS COMPLETAS PARA REGISTRO COMISION --- #}
+            <th>ID</th>
+            <th>Beneficiario</th>
+            <th>Tipo</th>
+            <th>Monto</th>
+            <th>Base Cálculo</th>
+            <th>% Aplicado</th>
+            <th>Factura Origen</th>
+            <th>Venta de</th>
+            <th>Estado</th>
+            <th>F. Cálculo</th>
+            <th>F. Pago</th>
+            <th>Liquidado Por</th>
+            <th>Comp.</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for comision in object_list %}
+              <tr>
+                {# --- CELDAS COMPLETAS PARA REGISTRO COMISION --- #}
+                <td><a href="{% url 'myapp:registro_comision_detail' comision.pk %}">{{ comision.pk }}</a></td>
+                <td>
+                    {% if comision.intermediario %}
+                        <a href="{% url 'myapp:intermediario_detail' comision.intermediario.pk %}">{{ comision.intermediario.nombre_completo|truncatechars:20 }}</a>
+                    {% else %}N/A{% endif %}
+                </td>
+                <td>{{ comision.get_tipo_comision_display }}</td>
+                <td class="text-end">${{ comision.monto_comision|floatformat:2|intcomma }}</td>
+                <td class="text-end">${{ comision.monto_base_calculo|floatformat:2|intcomma }}</td>
+                <td class="text-end">{{ comision.porcentaje_aplicado|floatformat:2 }}%</td>
+                <td>
+                    {% if comision.factura_origen %}
+                        <a href="{% url 'myapp:factura_detail' comision.factura_origen.pk %}">{{ comision.factura_origen.numero_recibo|truncatechars:15 }}</a>
+                    {% else %}N/A{% endif %}
+                </td>
+                <td>
+                    {% if comision.intermediario_vendedor %}
+                        <a href="{% url 'myapp:intermediario_detail' comision.intermediario_vendedor.pk %}">{{ comision.intermediario_vendedor.nombre_completo|truncatechars:20 }}</a>
+                    {% else %}N/A{% endif %}
+                </td>
+                <td>
+                  <span class="badge 
+                      {% if comision.estatus_pago_comision == 'PAGADA' %}badge-success
+                      {% elif comision.estatus_pago_comision == 'PENDIENTE' %}badge-warning
+                      {% elif comision.estatus_pago_comision == 'ANULADA' %}badge-danger
+                      {% else %}badge-info{% endif %}">
+                      {{ comision.get_estatus_pago_comision_display }}
+                  </span>
+                </td>
+                <td>{{ comision.fecha_calculo|date:"d/m/y H:i" }}</td>
+                <td>{{ comision.fecha_pago_a_intermediario|date:"d/m/y"|default:"-" }}</td>
+                <td>{{ comision.usuario_que_liquido.username|default:"-" }}</td>
+                <td class="text-center">
+                  {% if comision.comprobante_pago %}
+                    <a href="{{ comision.comprobante_pago.url }}" class="file-popup-trigger action-icon" data-popup-title="Comprobante Comisión #{{ comision.pk }}" target="_blank">
+                        📎
+                    </a>
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+                <td class="actions">
+                  <div class="action-group">
+                    <a href="{% url 'myapp:registro_comision_detail' comision.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
+                  </div>
+                </td>
+              </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
 </div>
 {% endblock content %}
 
-{% block form_media_js %} {# Poner el JS de los widgets de filtro aquí, después de jQuery y Select2.js #}
-    {{ block.super }}
-    {% if filter %}{{ filter.form.media.js }}{% endif %}
-{% endblock form_media_js %}
+{% block extra_scripts %}
+<script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+<script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
 
-{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('#comisiones-table').DataTable({
+        // Usamos la variable global definida en home.html
+        language: dataTableLanguage,
+        
+        // Ordenar por defecto por la columna de Fecha de Cálculo (la 10ª, índice 9) en orden descendente
+        "order": [[ 9, "desc" ]],
 
-{% endblock extra_js %}
+        "dom":
+            "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" +
+            "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" +
+            "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
+        "columnDefs": [
+            { "orderable": false, "targets": -1 } // Deshabilita ordenar en la última columna (Acciones)
+        ]
+    });
+});
+</script>
+{% endblock %}

@@ -5,7 +5,8 @@ import logging
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from datetime import date, timedelta, datetime
 import collections
-
+from django.conf import settings
+from myapp.models import Usuario
 from django.core.management.base import BaseCommand
 from django.db import transaction, IntegrityError
 from django.contrib.auth import get_user_model
@@ -83,7 +84,7 @@ class Command(BaseCommand):
             lambda: {'requested': 0, 'created': 0, 'failed': 0, 'errors': collections.Counter()})
         stats['LicenseInfo']['requested'] = 1
         stats['Tarifa']['requested'] = options.get('tarifas')
-        stats['User']['requested'] = options.get('users')
+        stats['Usuario']['requested'] = options.get('usuarios')
         stats['Intermediario']['requested'] = options.get('intermediarios')
         stats['AfiliadoIndividual']['requested'] = options.get('afiliados_ind')
         stats['AfiliadoColectivo']['requested'] = options.get('afiliados_col')
@@ -139,7 +140,7 @@ class Command(BaseCommand):
         signals_to_manage = [
             (post_save, pago_post_save_handler, Pago),
             (post_delete, pago_post_delete_handler, Pago),
-            (post_save, configurar_usuario, User),
+            # (post_save, configurar_usuario, User),
             # (pre_save, validar_afiliado_colectivo, AfiliadoColectivo), # <-- ELIMINAR
             # (pre_save, validar_formatos_basicos_contrato, ContratoIndividual), # <-- ELIMINAR
             # (pre_save, validar_formatos_basicos_contrato, ContratoColectivo), # <-- ELIMINAR
@@ -401,28 +402,62 @@ class Command(BaseCommand):
                                     f"Failed to create emergency tariff: {e}"))
 
                     # --- 3. Usuarios ---
-                    model_name = 'User'
+                    model_name = 'User'  # Mantenemos 'User' como la clave
                     stats_m = stats[model_name]
+                    user_ids_created = []  # Asegúrate de que esta lista esté definida
+
                     try:
-                        admin_email = 'admin@example.com'
-                        admin_user, created = User.objects.get_or_create(email=admin_email, defaults={
-                                                                         'primer_nombre': 'Admin', 'primer_apellido': 'User', 'nivel_acceso': 5, 'tipo_usuario': 'ADMIN', 'fecha_nacimiento': fake.date_of_birth(minimum_age=30, maximum_age=60), 'activo': True})
+                        # Leemos las credenciales del superusuario desde settings
+                        admin_email = settings.DJANGO_SUPERUSER_EMAIL
+                        admin_password = settings.DJANGO_SUPERUSER_PASSWORD
+
+                        # Usamos get_or_create con el modelo User (que es un alias de Usuario)
+                        admin_user, created = User.objects.get_or_create(
+                            email=admin_email,
+                            defaults={
+                                'primer_nombre': settings.DJANGO_SUPERUSER_PRIMER_NOMBRE,
+                                'primer_apellido': settings.DJANGO_SUPERUSER_PRIMER_APELLIDO,
+                                'nivel_acceso': 5,
+                                'tipo_usuario': 'ADMIN',
+                                'fecha_nacimiento': fake.date_of_birth(minimum_age=30, maximum_age=60),
+                                'activo': True,
+                                'is_staff': True,
+                                'is_superuser': True
+                            }
+                        )
+
+                        # Si el usuario es nuevo, establecemos la contraseña.
+                        # Si ya existe, nos aseguramos de que tenga los flags correctos.
                         if created:
-                            admin_user.set_password('password')
-                            admin_user.save()
+                            admin_user.set_password(admin_password)
+
+                        admin_user.is_staff = True
+                        admin_user.is_superuser = True
+                        admin_user.save()
+
+                        print("="*50)
+                        print(
+                            f"!!! Superusuario '{admin_email}' configurado con la contraseña del entorno. !!!")
+                        print("="*50)
+
                         if admin_user.pk not in user_ids_created:
                             user_ids_created.append(admin_user.pk)
                         stats_m['created'] += 1
+
                     except Exception as e:
                         stats_m['failed'] += 1
                         stats_m['errors'][e.__class__.__name__] += 1
                         logger.error(
                             f"Error creando usuario admin: {e}", exc_info=True)
+
+                    # Creación de usuarios de prueba (Faker)
+                    # Usamos el bucle original que tenías
                     for _ in range(max(0, stats_m['requested'] - 1 if stats_m['requested'] > 0 else 0)):
                         user_email = None
                         try:
                             for _ in range(5):
                                 user_email_raw = fake.unique.email()
+                                # Usa User
                                 if not User.objects.filter(email=user_email_raw).exists():
                                     user_email = user_email_raw
                                     break
@@ -430,13 +465,35 @@ class Command(BaseCommand):
                                 stats_m['failed'] += 1
                                 stats_m['errors']['UniqueEmailFail_User'] += 1
                                 continue
-                            user_obj = User(email=user_email, primer_nombre=fake.first_name(), segundo_nombre=fake.first_name() if fake.boolean(chance_of_getting_true=60) else None, primer_apellido=fake.last_name(), segundo_apellido=fake.last_name() if fake.boolean(chance_of_getting_true=50) else None, tipo_usuario=random.choice([c[0] for c in CommonChoices.TIPO_USUARIO]), fecha_nacimiento=fake.date_of_birth(
-                                minimum_age=18, maximum_age=75), departamento=random.choice([c[0] for c in CommonChoices.DEPARTAMENTO] + [None]*2), telefono=generate_phone_ve() if fake.boolean(chance_of_getting_true=85) else None, direccion=fake.address() if fake.boolean(chance_of_getting_true=80) else None, nivel_acceso=random.randint(1, 5), activo=fake.boolean(chance_of_getting_true=95))
+
+                            # Usa tu modelo real `User` (alias de Usuario)
+                            user_obj = User(
+                                email=user_email,
+                                primer_nombre=fake.first_name(),
+                                segundo_nombre=fake.first_name() if fake.boolean(
+                                    chance_of_getting_true=60) else None,
+                                primer_apellido=fake.last_name(),
+                                segundo_apellido=fake.last_name() if fake.boolean(
+                                    chance_of_getting_true=50) else None,
+                                tipo_usuario=random.choice(
+                                    [c[0] for c in CommonChoices.TIPO_USUARIO]),
+                                fecha_nacimiento=fake.date_of_birth(
+                                    minimum_age=18, maximum_age=75),
+                                departamento=random.choice(
+                                    [c[0] for c in CommonChoices.DEPARTAMENTO] + [None]*2),
+                                telefono=generate_phone_ve() if fake.boolean(
+                                    chance_of_getting_true=85) else None,
+                                direccion=fake.address() if fake.boolean(chance_of_getting_true=80) else None,
+                                nivel_acceso=random.randint(1, 4),
+                                activo=fake.boolean(chance_of_getting_true=95)
+                            )
                             user_obj.set_password('password')
                             user_obj.save()
+
                             if user_obj.pk not in user_ids_created:
                                 user_ids_created.append(user_obj.pk)
                             stats_m['created'] += 1
+
                         except IntegrityError as e:
                             stats_m['failed'] += 1
                             stats_m['errors'][e.__class__.__name__] += 1
@@ -447,6 +504,7 @@ class Command(BaseCommand):
                             stats_m['errors'][e.__class__.__name__] += 1
                             logger.error(
                                 f"Error creando User: {e}", exc_info=True)
+                    # --- [FIN DE LA CORRECCIÓN] ---
 
                     # --- 4. Intermediarios ---
                     model_name = 'Intermediario'

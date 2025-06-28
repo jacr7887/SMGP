@@ -16,9 +16,9 @@ admin.site.site_header = 'SMGP - Administración'
 admin.site.site_title = 'Panel de Control SMGP'
 admin.site.index_title = 'Sistema Mágico de Gestión de Pólizas'
 
-# Servir archivos de MEDIOS SIEMPRE (para el contexto del .exe)
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-
-# WhiteNoise debería manejar los estáticos desde STATIC_ROOT en el .exe,
-# por lo que la siguiente línea para STATIC_URL usualmente no es necesaria.
-# urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+# # --- 3. AÑADIR ESTE BLOQUE AL FINAL DEL ARCHIVO ---
+# if settings.DEBUG:
+#     # Esto le dice a Django que sirva los archivos de MEDIA_ROOT
+#     # cuando DEBUG es True.
+#     urlpatterns += static(settings.MEDIA_URL,
+#                           document_root=settings.MEDIA_ROOT)

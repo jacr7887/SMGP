@@ -1,148 +1,96 @@
 {% extends "home.html" %}
 {% load static %}
-{% load querystring_tags %} 
 {% load humanize %}
+
+{% block extra_head %}
+{# CSS de DataTables y estilos personalizados (idénticos a las otras plantillas) #}
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.min.css">
+
+{% endblock %}
+
+{% block title %}{{ title }}{% endblock %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 id="main-heading">🏢 Listado Completo de Contratos Colectivos</h1>
+    <h1 id="main-heading">📄 Listado de Contratos Colectivos</h1>
 
     <div class="header-actions">
       {% if perms.myapp.add_contratocolectivo %}
-      <a href="{% url 'myapp:contrato_colectivo_create' %}" class="nav_link" aria-label="Crear nuevo contrato colectivo">
+      <a href="{% url 'myapp:contrato_colectivo_create' %}" class="nav_link">
         ➕ Nuevo Contrato Colectivo
       </a>
       {% endif %}
     </div>
 
-    <form method="get" class="search-form mb-3" aria-label="Formulario de búsqueda de contratos colectivos">
-      <input
-        type="text"
-        name="search"
-        placeholder="🔍 Buscar (N° Contrato, Razón Social, RIF...)"
-        value="{{ search_query|escape }}"
-        aria-label="Campo de búsqueda global"
-        class="search-input"
-      />
-      <button type="submit" class="nav_link">Buscar</button>
-      <a href="{% url 'myapp:contrato_colectivo_list' %}" class="nav_link" style="margin-left: 10px;" title="Limpiar búsqueda y filtros">Limpiar</a>
-    </form>
-
-    <div class="table-container" role="region" aria-labelledby="table-caption">
-      <table class="data-table" role="table">
-        <caption id="table-caption" class="visually-hidden">
-          Lista completa de contratos colectivos registrados. Haga clic en las cabeceras para ordenar.
-        </caption>
-        <thead role="rowgroup">
-          <tr role="row">
-            <th class="sort-header {% if current_sort == 'numero_contrato' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='numero_contrato' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">📄 N° Contrato {% if current_sort == 'numero_contrato' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header {% if current_sort == 'razon_social' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='razon_social' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🏢 Razón Social {% if current_sort == 'razon_social' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header {% if current_sort == 'rif' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='rif' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🆔 RIF {% if current_sort == 'rif' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header {% if current_sort == 'ramo' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='ramo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🌿 Ramo {% if current_sort == 'ramo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header {% if current_sort == 'fecha_inicio_vigencia' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='fecha_inicio_vigencia' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">➡️ Inicio Vig. {% if current_sort == 'fecha_inicio_vigencia' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header {% if current_sort == 'fecha_fin_vigencia' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='fecha_fin_vigencia' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">⏹️ Fin Vig. {% if current_sort == 'fecha_fin_vigencia' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header text-center {% if current_sort == 'periodo_vigencia_meses' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='periodo_vigencia_meses' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">⏳ Dur. (M) {% if current_sort == 'periodo_vigencia_meses' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header {% if current_sort == 'tarifa_aplicada__id' %}active{% endif %}" role="columnheader">
-              <a href="?{% query_transform sort='tarifa_aplicada__id' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
-                🏷️ Tarifa {% if current_sort == 'tarifa_aplicada__id' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
-              </a>
-            </th>
-            <th class="sort-header text-end {% if current_sort == 'monto_total' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='monto_total' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💰 Prima Total {% if current_sort == 'monto_total' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            
-            {# --- CABECERA CUOTA CORREGIDA --- #}
-            <th class="sort-header text-end {% if current_sort == 'monto_cuota_estimada' %}active{% endif %}" role="columnheader">
-                <a href="?{% query_transform sort='monto_cuota_estimada' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
-                    💲 Cuota {% if current_sort == 'monto_cuota_estimada' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
-                </a>
-            </th>
-            <th class="sort-header {% if current_sort == 'forma_pago' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='forma_pago' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💳 F. Pago {% if current_sort == 'forma_pago' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            
-            {# --- CABECERA CUOTAS CORREGIDA --- #}
-            <th class="sort-header text-end {% if current_sort == 'cantidad_cuotas_estimadas' %}active{% endif %}" role="columnheader">
-                <a href="?{% query_transform sort='cantidad_cuotas_estimadas' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
-                    🔢 Cuotas {% if current_sort == 'cantidad_cuotas_estimadas' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
-                </a>
-            </th>
-
-            <th class="sort-header text-end {% if current_sort == 'pagos_realizados' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='pagos_realizados' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">✅ Pagos R. {% if current_sort == 'pagos_realizados' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header text-end {% if current_sort == 'cantidad_empleados' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='cantidad_empleados' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">👥 Empleados {% if current_sort == 'cantidad_empleados' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header {% if current_sort == 'estatus' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='estatus' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🚦 Estatus Vig. {% if current_sort == 'estatus' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header {% if current_sort == 'intermediario__nombre_completo' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='intermediario__nombre_completo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🤝 Intermediario {% if current_sort == 'intermediario__nombre_completo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header text-center {% if current_sort == 'activo' %}active{% endif %}" role="columnheader"><a href="?{% query_transform sort='activo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💡 Activo {% if current_sort == 'activo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th role="columnheader">⚙️ Acciones</th>
+    <div class="table-container">
+      <table id="contratos-colectivos-table" class="data-table" style="width:100%">
+        <thead>
+          <tr>
+            <th>N° Contrato</th>
+            <th>Razón Social</th>
+            <th>RIF</th>
+            <th>Ramo</th>
+            <th>Inicio Vig.</th>
+            <th>Fin Vig.</th>
+            <th>Prima Total</th>
+            <th>Estatus</th>
+            <th>Empleados</th>
+            <th>Intermediario</th>
+            <th>Acciones</th>
           </tr>
         </thead>
-        <tbody role="rowgroup">
+        <tbody>
           {% for contrato in object_list %}
-          <tr role="row">
-            <td role="cell"><a href="{% url 'myapp:contrato_colectivo_detail' contrato.pk %}" title="Ver detalle">{{ contrato.numero_contrato|escape|default:"-" }}</a></td>
-            <td role="cell">{{ contrato.razon_social|escape|default:"-" }}</td>
-            <td role="cell">{{ contrato.rif|escape|default:"-" }}</td>
-            <td role="cell">{{ contrato.get_ramo_display|escape }}</td>
-            <td role="cell">{{ contrato.fecha_inicio_vigencia|date:"d/m/Y"|default:"-" }}</td>
-            <td role="cell">{{ contrato.fecha_fin_vigencia|date:"d/m/Y"|default:"-" }}</td>
-            <td class="text-center" role="cell">{{ contrato.periodo_vigencia_meses|default:"-" }}</td>
-            <td role="cell" title="{{ contrato.tarifa_aplicada }}">
-              {% if contrato.tarifa_aplicada %}{{ contrato.tarifa_aplicada.id|default:"-" }}{% else %}-{% endif %}
-            </td>
-            <td class="text-end" role="cell">${{ contrato.monto_total|floatformat:2|intcomma|default:"0.00" }}</td>
-            
-            {# --- CELDA CUOTA CORREGIDA --- #}
-            <td class="text-end" role="cell">${{ contrato.monto_cuota_estimada|floatformat:2|intcomma|default:"-" }}</td>
-            <td role="cell">{{ contrato.get_forma_pago_display|escape }}</td>
-            
-            {# --- CELDA CUOTAS CORREGIDA --- #}
-            <td class="text-end" role="cell">{{ contrato.cantidad_cuotas_estimadas|default:"-" }}</td>
-
-            <td class="text-end" role="cell">{{ contrato.pagos_realizados|default:"0" }}</td>
-            <td class="text-end" role="cell">{{ contrato.cantidad_empleados|intcomma|default:"-" }}</td>
-            <td role="cell"><span class="badge {% if contrato.estatus == 'VIGENTE' %}badge-success{% elif contrato.estatus == 'VENCIDO' %}badge-danger{% else %}badge-warning{% endif %}">{{ contrato.get_estatus_display|escape }}</span></td>
-            <td role="cell">{{ contrato.intermediario.nombre_completo|escape|default:"-" }}</td>
-            <td class="text-center" role="cell">{% if contrato.activo %}✅{% else %}🔴{% endif %}</td>
-            <td class="actions" role="cell">
-              <div class="action-group">
-                 {% if perms.myapp.view_contratocolectivo %}
-                  <a href="{% url 'myapp:contrato_colectivo_detail' contrato.pk %}" class="action-icon" title="Ver Detalles" aria-label="Ver detalles del contrato {{ contrato.numero_contrato|escape }}">👁️</a>
-                {% endif %}
-                {% if perms.myapp.change_contratocolectivo %}
-                  <a href="{% url 'myapp:contrato_colectivo_update' contrato.pk %}" class="action-icon" title="Editar" aria-label="Editar contrato {{ contrato.numero_contrato|escape }}">✏️</a>
-                {% endif %}
-                {% if perms.myapp.delete_contratocolectivo %}
-                  <a href="{% url 'myapp:contrato_colectivo_delete' contrato.pk %}" class="action-icon delete-link" title="Eliminar" aria-label="Eliminar contrato {{ contrato.numero_contrato|escape }}">❌</a>
-                {% endif %}
-              </div>
-            </td>
-          </tr>
-          {% empty %}
-          <tr role="row">
-            <td colspan="18" class="no-results" role="cell">
-              📭 No se encontraron contratos colectivos que coincidan con la búsqueda.
-            </td>
-          </tr>
+            {% if contrato.decryption_error %}
+              <tr class="table-danger">
+                <td colspan="11">⚠️ Error al leer datos para el contrato con ID: {{ contrato.pk }}.</td>
+              </tr>
+            {% else %}
+              <tr>
+                <td><a href="{% url 'myapp:contrato_colectivo_detail' contrato.pk %}" title="Ver detalle">{{ contrato.numero_contrato|default:"-" }}</a></td>
+                <td>{{ contrato.razon_social|default:"-" }}</td>
+                <td>{{ contrato.rif|default:"-" }}</td>
+                <td>{{ contrato.get_ramo_display }}</td>
+                <td>{{ contrato.fecha_inicio_vigencia|date:"d/m/Y"|default:"-" }}</td>
+                <td>{{ contrato.fecha_fin_vigencia|date:"d/m/Y"|default:"-" }}</td>
+                <td class="text-end">${{ contrato.monto_total|floatformat:2|intcomma|default:"0.00" }}</td>
+                <td><span class="badge {% if contrato.estatus == 'VIGENTE' %}badge-success{% elif contrato.estatus == 'VENCIDO' %}badge-danger{% else %}badge-warning{% endif %}">{{ contrato.get_estatus_display }}</span></td>
+                <td class="text-end">{{ contrato.cantidad_empleados|default:"-" }}</td>
+                <td>{{ contrato.intermediario.nombre_completo|default:"-" }}</td>
+                <td class="actions">
+                  <div class="action-group">
+                    <a href="{% url 'myapp:contrato_colectivo_detail' contrato.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
+                    <a href="{% url 'myapp:contrato_colectivo_update' contrato.pk %}" class="action-icon" title="Editar">✏️</a>
+                    <a href="{% url 'myapp:contrato_colectivo_delete' contrato.pk %}" class="action-icon delete-link" title="Eliminar">❌</a>
+                  </div>
+                </td>
+              </tr>
+            {% endif %}
           {% endfor %}
         </tbody>
       </table>
     </div>
-
-    {% if is_paginated %}
-    <nav aria-label="Navegación de páginas de contratos colectivos">
-      <div class="django-pagination">
-        {% if page_obj.has_previous %}
-          <a href="?{% query_transform page=1 %}" class="btn-pagination" aria-label="Primera página">« Primera</a>
-          <a href="?{% query_transform page=page_obj.previous_page_number %}" class="btn-pagination" aria-label="Página anterior">‹ Anterior</a>
-        {% endif %}
-        <span class="pagination-current">
-          Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
-        </span>
-        {% if page_obj.has_next %}
-          <a href="?{% query_transform page=page_obj.next_page_number %}" class="btn-pagination" aria-label="Siguiente página">Siguiente ›</a>
-          <a href="?{% query_transform page=page_obj.paginator.num_pages %}" class="btn-pagination" aria-label="Última página">Última »</a>
-        {% endif %}
-      </div>
-    </nav>
-    {% endif %}
-
   </section>
 </div>
 {% endblock content %}
+
+{% block extra_scripts %}
+<script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+<script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    $('#contratos-colectivos-table').DataTable({
+        language: { "url": "//cdn.datatables.net/plug-ins/2.0.8/i18n/es-ES.json" },
+        "dom":
+            "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" +
+            "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" +
+            "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
+        "columnDefs": [
+            { "orderable": false, "targets": -1 } // Deshabilita ordenar en la última columna (Acciones)
+        ]
+    });
+});
+</script>
+{% endblock %}

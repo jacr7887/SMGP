@@ -1,192 +1,107 @@
 {% extends "home.html" %}
 {% load static %}
-{% load querystring_tags %} {# Asegúrate que este tag library esté correctamente cargado #}
 {% load humanize %}
 
-{% block title %}Listado de Intermediarios{% endblock %}
+{% block extra_head %}
+{# Solo cargamos el CSS base de DataTables. Los estilos ya están en styles.css #}
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.min.css">
+{% endblock %}
+
+{% block title %}{{ title }}{% endblock %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
   <section>
-
-    <h1 id="main-heading">🤝 Listado Completo de Intermediarios</h1>
-
+    <h1 id="main-heading">🤝 {{ title }}</h1>
 
     <div class="header-actions">
       {% if perms.myapp.add_intermediario %}
-      <a href="{% url 'myapp:intermediario_create' %}" class="nav_link" aria-label="Crear nuevo intermediario">
+      <a href="{% url 'myapp:intermediario_create' %}" class="nav_link">
         ➕ Nuevo Intermediario
       </a>
       {% endif %}
     </div>
 
-    {# --- Formulario de Búsqueda General --- #}
-    <form method="get" class="search-form mb-3" aria-label="Formulario de búsqueda de intermediarios">
-      <input
-        type="text"
-        name="q" {# Coincide con request.GET.get('search',...) en la vista #}
-        placeholder="🔍 Buscar por Nombre, Código, RIF, Email..."
-        value="{{ search_query|escape }}" {# Usa la variable del contexto #}
-        aria-label="Campo de búsqueda global"
-        class="search-input"
-      />
-      <button type="submit" class="nav_link">Buscar</button>
-      <a href="{% url 'myapp:intermediario_list' %}" class="nav_link" style="margin-left: 10px;" title="Limpiar búsqueda y filtros">Limpiar</a>
-    </form>
-
-    <div class="table-container" role="region" aria-labelledby="table-caption">
-      <table class="data-table" role="table">
-        <caption id="table-caption" class="visually-hidden">
-          Lista completa de intermediarios registrados. Haga clic en las cabeceras para ordenar.
-        </caption>
-        <thead role="rowgroup">
-          <tr role="row">
-            <th class="sort-header" role="columnheader">
-              <a href="?{% query_transform sort='codigo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% if filter %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}{% endif %}">
-                🔑 Código {% if current_sort == 'codigo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
-              </a>
-            </th>
-            <th class="sort-header" role="columnheader">
-              <a href="?{% query_transform sort='nombre_completo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% if filter %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}{% endif %}">
-                👤 Nombre Completo {% if current_sort == 'nombre_completo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
-              </a>
-            </th>
-            <th class="sort-header" role="columnheader">
-              <a href="?{% query_transform sort='rif' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% if filter %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}{% endif %}">
-                🆔 RIF {% if current_sort == 'rif' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
-              </a>
-            </th>
-            <th class="sort-header" role="columnheader">
-              <a href="?{% query_transform sort='email_contacto' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% if filter %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}{% endif %}">
-                📧 Email Contacto {% if current_sort == 'email_contacto' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
-              </a>
-            </th>
-            <th class="sort-header" role="columnheader">
-              <a href="?{% query_transform sort='telefono_contacto' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% if filter %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}{% endif %}">
-                📞 Tel. Contacto {% if current_sort == 'telefono_contacto' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
-              </a>
-            </th>
-            <th class="sort-header text-end" role="columnheader"> {# Alineado a la derecha para números #}
-              <a href="?{% query_transform sort='porcentaje_comision' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% if filter %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}{% endif %}">
-                💲 % Comisión {% if current_sort == 'porcentaje_comision' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
-              </a>
-            </th>
-            {# --- NUEVA CABECERA PARA PORCENTAJE OVERRIDE --- #}
-            <th class="sort-header text-end" role="columnheader"> {# Alineado a la derecha #}
-              <a href="?{% query_transform sort='porcentaje_override' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% if filter %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}{% endif %}">
-                🔗 % Override {% if current_sort == 'porcentaje_override' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
-              </a>
-            </th>
-            {# --- FIN NUEVA CABECERA --- #}
-            <th class="sort-header" role="columnheader">
-              <a href="?{% query_transform sort='activo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% if filter %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}{% endif %}">
-                💡 Activo {% if current_sort == 'activo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
-              </a>
-            </th>
-            <th class="sort-header" role="columnheader">
-              <a href="?{% query_transform sort='direccion_fiscal' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% if filter %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}{% endif %}">
-                📍 Dir. Fiscal {% if current_sort == 'direccion_fiscal' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
-              </a>
-            </th>
-            <th class="sort-header" role="columnheader">
-              <a href="?{% query_transform sort='intermediario_relacionado__nombre_completo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% if filter %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}{% endif %}">
-                ⬆️ Interm. Rel. {% if current_sort == 'intermediario_relacionado__nombre_completo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
-              </a>
-            </th>
-            <th class="sort-header" role="columnheader">
-              <a href="?{% query_transform sort='fecha_creacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% if filter %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}{% endif %}">
-                ➕ F. Creación {% if current_sort == 'fecha_creacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
-              </a>
-            </th>
-            <th class="sort-header" role="columnheader">
-              <a href="?{% query_transform sort='fecha_modificacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% if filter %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}{% endif %}">
-                🔄 F. Modificación {% if current_sort == 'fecha_modificacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
-              </a>
-            </th>
-
-            <th role="columnheader">⚙️ Acciones</th>
+    <div class="table-container">
+      <table id="intermediarios-table" class="data-table" style="width:100%">
+        <thead>
+          <tr>
+            {# --- CABECERAS COMPLETAS PARA INTERMEDIARIO --- #}
+            <th>Código</th>
+            <th>Nombre Completo</th>
+            <th>RIF</th>
+            <th>Email</th>
+            <th>Teléfono</th>
+            <th>Dirección Fiscal</th>
+            <th>Intermediario Padre</th>
+            <th>Comisión (%)</th>
+            <th>Override (%)</th>
+            <th>Activo</th>
+            <th>F. Creación</th>
+            <th>F. Modificación</th>
+            <th>Acciones</th>
           </tr>
         </thead>
-        <tbody role="rowgroup">
+        <tbody>
           {% for intermediario in object_list %}
-          <tr role="row">
-            <td role="cell" data-label="Código:">{{ intermediario.codigo|escape }}</td>
-            <td role="cell" data-label="Nombre Completo:">{{ intermediario.nombre_completo|escape }}</td>
-            <td role="cell" data-label="RIF:">{{ intermediario.rif|escape|default:"-" }}</td>
-            <td role="cell" data-label="Email Contacto:">{{ intermediario.email_contacto|escape|default:"-" }}</td>
-            <td role="cell" data-label="Tel. Contacto:">{{ intermediario.telefono_contacto|escape|default:"-" }}</td>
-            <td class="text-end" role="cell" data-label="% Comisión:">{{ intermediario.porcentaje_comision|floatformat:2|default:"0.00" }}%</td>
-            {# --- NUEVA CELDA PARA PORCENTAJE OVERRIDE --- #}
-            <td class="text-end" role="cell" data-label="% Override:">{{ intermediario.porcentaje_override|floatformat:2|default:"0.00" }}%</td>
-            {# --- FIN NUEVA CELDA --- #}
-            <td role="cell" data-label="Activo:">{% if intermediario.activo %}✅ Sí{% else %}🔴 No{% endif %}</td>
-            <td role="cell" data-label="Dir. Fiscal:" title="{{ intermediario.direccion_fiscal|escape|default:'' }}">{{ intermediario.direccion_fiscal|escape|truncatechars:30|default:"-" }}</td>
-            <td role="cell" data-label="Interm. Rel.:">
-                {% if intermediario.intermediario_relacionado %}
-                    <a href="{% url 'myapp:intermediario_detail' intermediario.intermediario_relacionado.pk %}" title="{{ intermediario.intermediario_relacionado.nombre_completo|escape }}">
-                        {{ intermediario.intermediario_relacionado.codigo|escape }}
-                    </a>
-                {% else %}
-                    -
-                {% endif %}
-            </td>
-            <td role="cell" data-label="F. Creación:">{{ intermediario.fecha_creacion|date:"d/m/y H:i" }}</td>
-            <td role="cell" data-label="F. Modificación:">{{ intermediario.fecha_modificacion|date:"d/m/y H:i" }}</td>
-
-            <td class="actions" role="cell" data-label="Acciones:">
-              <div class="action-group">
-                 {% if perms.myapp.view_intermediario %}
-                  <a href="{% url 'myapp:intermediario_detail' intermediario.pk %}" class="action-icon" title="Ver Detalles" aria-label="Ver detalles del intermediario {{ intermediario.nombre_completo|escape }}">👁️</a>
-                {% endif %}
-                {% if perms.myapp.change_intermediario %}
-                  <a href="{% url 'myapp:intermediario_update' intermediario.pk %}" class="action-icon" title="Editar" aria-label="Editar intermediario {{ intermediario.nombre_completo|escape }}">✏️</a>
-                {% endif %}
-                {% if perms.myapp.delete_intermediario %}
-                  <a href="{% url 'myapp:intermediario_delete' intermediario.pk %}" class="action-icon delete-link" title="Eliminar" aria-label="Eliminar intermediario {{ intermediario.nombre_completo|escape }}">❌</a>
-                {% endif %}
-              </div>
-            </td>
-          </tr>
-          {% empty %}
-          <tr role="row">
-            <td colspan="13" class="no-results" role="cell"> {# Ajusta el colspan al nuevo número de columnas (13 ahora) #}
-               {% if search_query %}
-                 📭 No se encontraron intermediarios que coincidan con la búsqueda "{{ search_query|escape }}".
-               {% elif filter and filter.form.is_bound %}
-                 📭 No se encontraron intermediarios que coincidan con los filtros aplicados. <a href="{% url 'myapp:intermediario_list' %}">Limpiar filtros</a>.
-               {% else %}
-                 📭 No hay intermediarios registrados todavía. {% if perms.myapp.add_intermediario %}<a href="{% url 'myapp:intermediario_create' %}">Crear uno nuevo</a>.{% endif %}
-               {% endif %}
-            </td>
-          </tr>
+            {% if intermediario.decryption_error %}
+              <tr class="table-danger">
+                <td colspan="13">⚠️ Error al leer datos para el intermediario con ID: {{ intermediario.pk }}.</td>
+              </tr>
+            {% else %}
+              <tr>
+                {# --- CELDAS COMPLETAS PARA INTERMEDIARIO --- #}
+                <td>{{ intermediario.codigo|default:"-" }}</td>
+                <td>{{ intermediario.nombre_completo|default:"-" }}</td>
+                <td>{{ intermediario.rif|default:"N/A" }}</td>
+                <td>{{ intermediario.email_contacto|default:"N/A" }}</td>
+                <td>{{ intermediario.telefono_contacto|default:"N/A" }}</td>
+                <td title="{{ intermediario.direccion_fiscal|escape|default:'' }}">{{ intermediario.direccion_fiscal|truncatechars:30|default:"N/A" }}</td>
+                <td>{{ intermediario.intermediario_relacionado.nombre_completo|default:"-" }}</td>
+                <td class="text-end">{{ intermediario.porcentaje_comision|floatformat:2 }}%</td>
+                <td class="text-end">{{ intermediario.porcentaje_override|floatformat:2 }}%</td>
+                <td class="text-center">
+                  {% if intermediario.activo %}
+                    <span class="badge badge-success">Sí</span>
+                  {% else %}
+                    <span class="badge badge-danger">No</span>
+                  {% endif %}
+                </td>
+                <td>{{ intermediario.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                <td>{{ intermediario.fecha_modificacion|date:"d/m/Y H:i" }}</td>
+                <td class="actions">
+                  <div class="action-group">
+                    <a href="{% url 'myapp:intermediario_detail' intermediario.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
+                    <a href="{% url 'myapp:intermediario_update' intermediario.pk %}" class="action-icon" title="Editar">✏️</a>
+                    <a href="{% url 'myapp:intermediario_delete' intermediario.pk %}" class="action-icon delete-link" title="Eliminar">❌</a>
+                  </div>
+                </td>
+              </tr>
+            {% endif %}
           {% endfor %}
         </tbody>
       </table>
     </div>
-
-    {% if is_paginated %}
-    <nav aria-label="Navegación de páginas de intermediarios">
-      <div class="django-pagination">
-        {% if page_obj.has_previous %}
-          <a href="?{% query_transform page=1 search=search_query %}{% if filter %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}{% endif %}" class="btn-pagination" aria-label="Primera página">« Primera</a>
-          <a href="?{% query_transform page=page_obj.previous_page_number search=search_query %}{% if filter %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}{% endif %}" class="btn-pagination" aria-label="Página anterior">‹ Anterior</a>
-        {% else %}
-            <span class="btn-pagination disabled" aria-disabled="true">« Primera</span>
-            <span class="btn-pagination disabled" aria-disabled="true">‹ Anterior</span>
-        {% endif %}
-        <span class="pagination-current">
-          Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
-        </span>
-        {% if page_obj.has_next %}
-          <a href="?{% query_transform page=page_obj.next_page_number search=search_query %}{% if filter %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}{% endif %}" class="btn-pagination" aria-label="Siguiente página">Siguiente ›</a>
-          <a href="?{% query_transform page=page_obj.paginator.num_pages search=search_query %}{% if filter %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}{% endif %}" class="btn-pagination" aria-label="Última página">Última »</a>
-        {% else %}
-            <span class="btn-pagination disabled" aria-disabled="true">Siguiente ›</span>
-            <span class="btn-pagination disabled" aria-disabled="true">Última »</span>
-        {% endif %}
-      </div>
-    </nav>
-    {% endif %}
   </section>
 </div>
 {% endblock content %}
+
+{% block extra_scripts %}
+<script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+<script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    $('#intermediarios-table').DataTable({
+        language: { "url": "//cdn.datatables.net/plug-ins/2.0.8/i18n/es-ES.json" },
+        "dom":
+            "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" +
+            "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" +
+            "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
+        "columnDefs": [
+            { "orderable": false, "targets": -1 } // Deshabilita ordenar en la última columna (Acciones)
+        ]
+    });
+});
+</script>
+{% endblock %}

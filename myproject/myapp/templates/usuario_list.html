@@ -1,110 +1,119 @@
 {% extends "home.html" %}
-{% load static humanize %}
-{% load querystring_tags %} {# ¡Esencial para que la ordenación y paginación funcionen! #}
+{% load static %}
+{% load humanize %}
+
+{% block extra_head %}
+{# Solo cargamos el CSS base de DataTables. Los estilos ya están en styles.css #}
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.min.css">
+{% endblock %}
+
+{% block title %}{{ title }}{% endblock %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 id="main-heading">👥 Listado de Usuarios del Sistema</h1>
+    <h1 id="main-heading">👥 {{ title }}</h1>
 
     <div class="header-actions">
       {% if perms.myapp.add_usuario %}
-      <a href="{% url 'myapp:usuario_create' %}" class="nav_link" aria-label="Agregar nuevo usuario del sistema">
-        <i class="fas fa-plus-circle me-1"></i> Nuevo Usuario
+      <a href="{% url 'myapp:usuario_create' %}" class="nav_link">
+        ➕ Nuevo Usuario
       </a>
       {% endif %}
     </div>
 
-    {# Formulario de Búsqueda - Corregido para usar 'search' #}
-    <form method="get" class="search-form mb-3" action="." aria-label="Formulario de búsqueda de usuarios">
-      <input
-        type="text"
-        name="search" {# CORREGIDO: Usamos 'search' para ser consistentes #}
-        placeholder="🔍 Buscar por Nombre, Apellido, Correo..."
-        value="{{ search_query|default:'' }}" {# Usa la variable de contexto de la vista #}
-        aria-label="Campo de búsqueda global"
-        class="search-input"
-      />
-      <button type="submit" class="nav_link">Buscar</button>
-      <a href="{% url 'myapp:usuario_list' %}" class="nav_link" style="margin-left: 10px;" title="Limpiar búsqueda y filtros">Limpiar</a>
-    </form>
-
-    <div class="table-container" role="region" aria-labelledby="table-caption">
-      <table class="data-table" role="table">
-        <caption id="table-caption" class="visually-hidden">
-          Lista de usuarios registrados en el sistema. Haga clic en las cabeceras para ordenar.
-        </caption>
-        <thead role="rowgroup">
-          <tr role="row">
-            {# --- TODAS TUS COLUMNAS, AHORA CON ORDENACIÓN --- #}
-            <th class="sort-header" scope="col"><a href="?{% query_transform sort='email' order=current_order|toggle_order:'asc' search=search_query page=1 %}">📧 Correo {% if current_sort == 'email' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
-            <th class="sort-header" scope="col"><a href="?{% query_transform sort='primer_apellido' order=current_order|toggle_order:'asc' search=search_query page=1 %}">👤 Nombre Completo {% if current_sort == 'primer_apellido' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
-            <th class="sort-header" scope="col"><a href="?{% query_transform sort='tipo_usuario' order=current_order|toggle_order:'asc' search=search_query page=1 %}">🏷️ Tipo {% if current_sort == 'tipo_usuario' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
-            <th class="sort-header" scope="col"><a href="?{% query_transform sort='nivel_acceso' order=current_order|toggle_order:'asc' search=search_query page=1 %}">📊 Nivel {% if current_sort == 'nivel_acceso' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
-            <th class="sort-header" scope="col"><a href="?{% query_transform sort='departamento' order=current_order|toggle_order:'asc' search=search_query page=1 %}">🏢 Departamento {% if current_sort == 'departamento' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
-            <th class="sort-header" scope="col"><a href="?{% query_transform sort='intermediario__nombre_completo' order=current_order|toggle_order:'asc' search=search_query page=1 %}">🤝 Intermediario {% if current_sort == 'intermediario__nombre_completo' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
-            <th scope="col">📞 Teléfono</th>
-            <th class="sort-header" scope="col"><a href="?{% query_transform sort='activo' order=current_order|toggle_order:'asc' search=search_query page=1 %}">✅ Estado {% if current_sort == 'activo' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
-            <th class="sort-header" scope="col"><a href="?{% query_transform sort='date_joined' order=current_order|toggle_order:'asc' search=search_query page=1 %}">📅 Registro {% if current_sort == 'date_joined' %}<span>{% if current_order == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}</a></th>
-            <th scope="col">⚙️ Acciones</th>
+    <div class="table-container">
+      <table id="usuarios-table" class="data-table" style="width:100%">
+        <thead>
+          <tr>
+            {# --- CABECERAS COMPLETAS PARA USUARIO --- #}
+            <th>Nombre Completo</th>
+            <th>Email</th>
+            <th>Tipo</th>
+            <th>Nivel</th>
+            <th>Departamento</th>
+            <th>Intermediario</th>
+            <th>Activo</th>
+            <th>Staff</th>
+            <th>Superusuario</th>
+            <th>Último Login</th>
+            <th>Fecha Registro</th>
+            <th>Acciones</th>
           </tr>
         </thead>
-        <tbody role="rowgroup">
+        <tbody>
           {% for usuario in object_list %}
-          <tr role="row">
-            <td role="cell" data-label="Correo">{{ usuario.email }}</td>
-            <td role="cell" data-label="Nombre Completo">{{ usuario.get_full_name }}</td>
-            <td role="cell" data-label="Tipo">{{ usuario.get_tipo_usuario_display }}</td>
-            <td role="cell" data-label="Nivel">{{ usuario.get_nivel_acceso_display }}</td>
-            <td role="cell" data-label="Departamento">{{ usuario.get_departamento_display|default:"N/A" }}</td>
-            <td role="cell" data-label="Intermediario">{{ usuario.intermediario.nombre_completo|default:"N/A" }}</td>
-            <td role="cell" data-label="Teléfono">{{ usuario.telefono|default:"N/A" }}</td>
-            <td role="cell" data-label="Estado">
-                {% if usuario.activo %}
-                    <span style="color: green;" title="Usuario activo">✅ Activo</span>
-                {% else %}
-                    <span style="color: red;" title="Usuario inactivo">❌ Inactivo</span>
-                {% endif %}
-            </td>
-            <td role="cell" data-label="Registro">{{ usuario.date_joined|date:"d/m/Y" }}</td>
-            <td class="actions" role="cell" data-label="Acciones">
-              <div class="action-group">
-                <a href="{% url 'myapp:usuario_detail' usuario.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
-                <a href="{% url 'myapp:usuario_update' usuario.pk %}" class="action-icon" title="Editar">✏️</a>
-                <a href="{% url 'myapp:usuario_delete' usuario.pk %}" class="action-icon delete-link" title="Eliminar">❌</a>
-              </div>
-            </td>
-          </tr>
-          {% empty %}
-          <tr role="row">
-            <td colspan="10" class="no-results" role="cell">
-              📭 No se encontraron usuarios que coincidan con los criterios de búsqueda.
-            </td>
-          </tr>
+            {% if usuario.decryption_error %}
+              <tr class="table-danger">
+                <td colspan="12">⚠️ Error al leer datos para el usuario con ID: {{ usuario.pk }}.</td>
+              </tr>
+            {% else %}
+              <tr>
+                {# --- CELDAS COMPLETAS PARA USUARIO --- #}
+                <td>{{ usuario.get_full_name|default:"N/A" }}</td>
+                <td>{{ usuario.email|default:"N/A" }}</td>
+                <td>{{ usuario.get_tipo_usuario_display }}</td>
+                <td>{{ usuario.get_nivel_acceso_display }}</td>
+                <td>{{ usuario.get_departamento_display|default:"-" }}</td>
+                <td>{{ usuario.intermediario.nombre_completo|default:"-" }}</td>
+                <td class="text-center">
+                  {% if usuario.activo %}
+                    <span class="badge badge-success">Sí</span>
+                  {% else %}
+                    <span class="badge badge-danger">No</span>
+                  {% endif %}
+                </td>
+                <td class="text-center">
+                  {% if usuario.is_staff %}
+                    <span class="badge badge-info">Sí</span>
+                  {% else %}
+                    <span>No</span>
+                  {% endif %}
+                </td>
+                <td class="text-center">
+                  {% if usuario.is_superuser %}
+                    <span class="badge badge-warning">Sí</span>
+                  {% else %}
+                    <span>No</span>
+                  {% endif %}
+                </td>
+                <td>{{ usuario.last_login|date:"d/m/Y H:i"|default:"Nunca" }}</td>
+                <td>{{ usuario.date_joined|date:"d/m/Y" }}</td>
+                <td class="actions">
+                  <div class="action-group">
+                    <a href="{% url 'myapp:usuario_detail' usuario.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
+                    <a href="{% url 'myapp:usuario_update' usuario.pk %}" class="action-icon" title="Editar">✏️</a>
+                    {% if request.user.pk != usuario.pk %} {# No permitir borrarse a uno mismo #}
+                    <a href="{% url 'myapp:usuario_delete' usuario.pk %}" class="action-icon delete-link" title="Eliminar">❌</a>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% endif %}
           {% endfor %}
         </tbody>
       </table>
     </div>
-
-    {# Paginación - Corregida para usar el tag en todas las URLs #}
-    {% if is_paginated %}
-    <nav aria-label="Navegación de páginas de usuarios">
-      <div class="django-pagination">
-        <span class="pagination-current">
-          Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}.
-        </span>
-        {% if page_obj.has_previous %}
-          <a href="?{% query_transform page=1 %}" class="btn-pagination" aria-label="Primera página">« Primera</a>
-          <a href="?{% query_transform page=page_obj.previous_page_number %}" class="btn-pagination" aria-label="Página anterior">‹ Anterior</a>
-        {% endif %}
-        {% if page_obj.has_next %}
-          <a href="?{% query_transform page=page_obj.next_page_number %}" class="btn-pagination" aria-label="Siguiente página">Siguiente ›</a>
-          <a href="?{% query_transform page=page_obj.paginator.num_pages %}" class="btn-pagination" aria-label="Última página">Última »</a>
-        {% endif %}
-      </div>
-    </nav>
-    {% endif %}
-
   </section>
 </div>
 {% endblock content %}
+
+{% block extra_scripts %}
+<script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+<script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    $('#usuarios-table').DataTable({
+        language: { "url": "//cdn.datatables.net/plug-ins/2.0.8/i18n/es-ES.json" },
+        "dom":
+            "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" +
+            "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" +
+            "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
+        "columnDefs": [
+            { "orderable": false, "targets": -1 } // Deshabilita ordenar en la última columna (Acciones)
+        ]
+    });
+});
+</script>
+{% endblock %}

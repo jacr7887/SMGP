@@ -1,0 +1,19 @@
+{% load i18n %}
+<h3>{% blocktrans with filter_title=title %} Por {{ filter_title }} {% endblocktrans %}</h3>
+<ul>
+    <li>
+        <form method="get" action="">
+            {# Mantener los otros filtros activos #}
+            {% for key, value in all_params.items %}
+                {% if key != parameter_name %}
+                    <input type="hidden" name="{{ key }}" value="{{ value }}">
+                {% endif %}
+            {% endfor %}
+            <input type="text" 
+                   name="{{ parameter_name }}" 
+                   value="{{ request.GET|get_item:parameter_name|default:'' }}" 
+                   placeholder="Buscar...">
+            <button type="submit">{% trans 'Buscar' %}</button>
+        </form>
+    </li>
+</ul>

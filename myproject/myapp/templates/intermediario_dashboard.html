@@ -1,131 +1,89 @@
 {% extends "base.html" %}
 {% load static humanize %}
 
-{% block title %}Mi Dashboard - SMGP{% endblock title %}
+{% block title %}{{ dashboard_title|default:"Mi Dashboard" }}{% endblock title %}
 
-{% block extra_css %}
+{% block extra_head %}
 {{ block.super }}
 <style>
     /* Estilos generales y de grid (IDÉNTICOS A REPORTE GENERAL) */
-    .kpi-grid-container,
-    .visualizations-grid-container,
-    .tables-grid-container {
+    .kpi-grid-container, .visualizations-grid-container {
         display: grid;
         gap: 1.5rem;
     }
-
-    @media (min-width: 1400px) {
-        .kpi-grid-container { grid-template-columns: repeat(6, 1fr); }
-        .visualizations-grid-container { grid-template-columns: repeat(3, 1fr); }
-        .tables-grid-container { grid-template-columns: repeat(2, 1fr); }
-    }
-    @media (min-width: 1200px) and (max-width: 1399.98px) {
-        .kpi-grid-container { grid-template-columns: repeat(4, 1fr); }
-    }
-    @media (min-width: 992px) and (max-width: 1199.98px) {
-         .kpi-grid-container { grid-template-columns: repeat(3, 1fr); }
-    }
-    @media (min-width: 768px) and (max-width: 991.98px) {
-        .kpi-grid-container, .visualizations-grid-container { grid-template-columns: repeat(2, 1fr); }
-        .tables-grid-container { grid-template-columns: 1fr; }
-    }
-    @media (max-width: 767.98px) {
-        .kpi-grid-container, .visualizations-grid-container, .tables-grid-container { grid-template-columns: 1fr; gap: 1rem; }
-    }
-    .full-width-table { grid-column: 1 / -1; }
-
-    /* === ESTILO LIQUID GLASS (IDÉNTICO A REPORTE GENERAL) === */
-    .kpi-card, .chart-card, .table-container-dashboard {
-        background: rgba(40, 40, 60, 0.45);
-        backdrop-filter: blur(18px);
-        -webkit-backdrop-filter: blur(18px);
-        border-radius: 20px;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    .kpi-grid-container { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .visualizations-grid-container { grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); }
+    
+    /* Estilo Glassmorphism para TODAS las tarjetas */
+    .kpi-card, .chart-card {
+        background: var(--glass-bg);
+        backdrop-filter: var(--blur);
+        -webkit-backdrop-filter: var(--blur);
+        border-radius: var(--glass-border-radius);
+        border: 1px solid var(--border-light);
+        box-shadow: var(--glass-box-shadow);
+        color: #FFFFFF;
+        padding: 1.5rem;
+        transition: var(--transition);
         display: flex;
         flex-direction: column;
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-        color: #FFFFFF;
     }
-    .kpi-card:hover { transform: translateY(-5px); box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45); }
+    .kpi-card:hover, .chart-card:hover { 
+        transform: translateY(-5px); 
+        box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45); 
+    }
     
-    .kpi-card { border-left-width: 8px; }
-
-    .kpi-card .kpi-content-wrapper { padding: 1.2rem; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; flex-grow: 1; }
-    .kpi-icon { font-size: 2.2rem; opacity: 0.5; margin-bottom: 0.5rem; text-shadow: 0 0 10px rgba(0,0,0,0.5); }
-    .kpi-label { font-size: 0.8rem; text-transform: uppercase; font-weight: 500; opacity: 0.7; margin-bottom: 0.2rem; color: #E0E0E0; }
-    .kpi-value { font-weight: 700; line-height: 1.1; font-size: clamp(1.4rem, 4vw, 1.8rem); color: #FFFFFF; text-shadow: 0 0 8px rgba(255, 255, 255, 0.4); }
-    .kpi-secondary { font-size: 0.8rem; color: #B0B0C0; opacity: 0.9; margin-top: 0.2rem; }
-    .kpi-footer { background: rgba(0, 0, 0, 0.2); border-top: 1px solid rgba(255, 255, 255, 0.1); padding: 0.5rem 1rem; font-size: 0.75rem; color: #A0A0B0; text-align: center; border-bottom-left-radius: 20px; border-bottom-right-radius: 20px;}
-    .kpi-footer a { color: #C0C0D0; text-decoration: none; font-weight: 500; }
-    .kpi-footer a:hover { color: #FFFFFF; }
+    /* Estilos específicos de KPI */
+    .kpi-card { border-left: 8px solid; padding: 0; }
+    .kpi-content-wrapper { padding: 1.2rem; text-align: center; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    .kpi-icon { font-size: 2.2rem; opacity: 0.5; margin-bottom: 0.5rem; }
+    .kpi-label { font-size: 0.8rem; text-transform: uppercase; font-weight: 500; opacity: 0.7; color: #E0E0E0; }
+    .kpi-value { font-weight: 700; font-size: clamp(1.4rem, 4vw, 1.8rem); }
     
     /* Paleta de colores para KPIs */
-    .kpi-card.kpi-bg-blue    { border-left-color: #0d6efd; background: linear-gradient(135deg, rgba(13, 110, 253, 0.15), rgba(40, 40, 60, 0.45)); }
-    .kpi-card.kpi-bg-warm-red { border-left-color: #e74c3c; background: linear-gradient(135deg, rgba(231, 76, 60, 0.2), rgba(40, 40, 60, 0.45)); }
-    .kpi-card.kpi-bg-success  { border-left-color: #198754; background: linear-gradient(135deg, rgba(25, 135, 84, 0.2), rgba(40, 40, 60, 0.45)); }
-    .kpi-card.kpi-bg-cyan     { border-left-color: #0dcaf0; background: linear-gradient(135deg, rgba(13, 202, 240, 0.15), rgba(40, 40, 60, 0.45)); }
-    .kpi-card.kpi-bg-danger   { border-left-color: #dc3545; background: linear-gradient(135deg, rgba(220, 53, 69, 0.2), rgba(40, 40, 60, 0.45)); }
-    .kpi-card.kpi-bg-teal     { border-left-color: #20c997; background: linear-gradient(135deg, rgba(32, 201, 151, 0.2), rgba(40, 40, 60, 0.45)); }
-    .kpi-card.kpi-bg-dark     { border-left-color: #495057; background: linear-gradient(135deg, rgba(73, 80, 87, 0.25), rgba(40, 40, 60, 0.45)); }
-    .kpi-card.kpi-bg-pink     { border-left-color: #d63384; background: linear-gradient(135deg, rgba(214, 51, 132, 0.15), rgba(40, 40, 60, 0.45)); }
+    .kpi-bg-blue { border-left-color: #0d6efd; }
+    .kpi-bg-success { border-left-color: #198754; }
+    .kpi-bg-warning { border-left-color: #ffc107; }
+    .kpi-bg-danger { border-left-color: #dc3545; }
+    .kpi-bg-info { border-left-color: #0dcaf0; }
+    .kpi-bg-dark { border-left-color: #6c757d; }
     
-    /* Títulos y Tablas */
-    .section-title { text-align: center; }
-    .card-title { font-size: 1.1rem; color: var(--text-light); text-align: center; padding: 1rem; margin-bottom: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+    .chart-card { padding: 1rem; }
+    .section-title { text-align: center; color: var(--text-muted); }
 </style>
-{% endblock extra_css %}
+{% endblock extra_head %}
 
 {% block content %}
-<div class="dark-container page-report-general" role="main" aria-labelledby="report-title">
-    <h1 id="report-title" class="main-title mb-4 section-title"><i class="fas fa-tachometer-alt me-2"></i>{{ dashboard_title|default:"Mi Dashboard" }}</h1>
-    {% if error %}<div class="alert alert-danger" role="alert"><i class="fas fa-exclamation-triangle me-2"></i>{{ error }}</div>{% endif %}
-
+<div class="dark-container page-report-general" role="main">
+    <h1 class="main-title mb-4 section-title"><i class="fas fa-tachometer-alt me-2"></i>{{ dashboard_title }}</h1>
+    
     <section class="mb-5">
-        <h2 class="h4 mb-3 text-muted section-title"><i class="fas fa-chart-pie me-2"></i>Rendimiento de Mi Cartera</h2>
+        <h2 class="h4 mb-3 section-title">Rendimiento de Mi Cartera</h2>
         <div class="kpi-grid-container">
-
-            <div class="kpi-card kpi-bg-blue animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-coins"></i></div><div class="kpi-text-content"><div class="kpi-label">Mis Primas Vendidas</div><div class="kpi-value">$ {{ kpi_primas_brutas|floatformat:0|intcomma }}</div></div></div><div class="kpi-footer"><span>Total de mi cartera</span></div></div>
-            <div class="kpi-card kpi-bg-success animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-money-bill-alt"></i></div><div class="kpi-text-content"><div class="kpi-label">Mis Comisiones Pagadas</div><div class="kpi-value">$ {{ kpi_comisiones_pagadas|floatformat:0|intcomma }}</div></div></div><div class="kpi-footer"><span>Total que he recibido</span></div></div>
-            <div class="kpi-card kpi-bg-orange animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-hand-holding-usd"></i></div><div class="kpi-text-content"><div class="kpi-label">Mis Comisiones Pendientes</div><div class="kpi-value">$ {{ kpi_comisiones_pendientes|floatformat:0|intcomma }}</div></div></div><div class="kpi-footer"><span>Pendiente por liquidar</span></div></div>
-            <div class="kpi-card kpi-bg-danger animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-chart-line-down"></i></div><div class="kpi-text-content"><div class="kpi-label">Ratio Siniestralidad Cartera</div><div class="kpi-value">{{ kpi_ratio_siniestralidad|floatformat:2 }}%</div></div></div><div class="kpi-footer"><span>(Siniestros / Primas)</span></div></div>
-            <div class="kpi-card kpi-bg-dark animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-file-signature"></i></div><div class="kpi-text-content"><div class="kpi-label">Mis Contratos Activos</div><div class="kpi-value">{{ kpi_total_contratos|intcomma }}</div></div></div><div class="kpi-footer"><span>Total en mi cartera</span></div></div>
-            <div class="kpi-card kpi-bg-pink animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-bell"></i></div><div class="kpi-text-content"><div class="kpi-label">Contratos a Vencer</div><div class="kpi-value">{{ kpi_contratos_a_vencer|intcomma }}</div></div></div><div class="kpi-footer"><span>Próximos 60 días</span></div></div>
-
+            <div class="kpi-card kpi-bg-blue"><div class="kpi-content-wrapper"><div class="kpi-icon">💰</div><div class="kpi-label">Mis Primas Vendidas</div><div class="kpi-value">${{ kpi_primas_brutas|floatformat:0|intcomma }}</div></div></div>
+            <div class="kpi-card kpi-bg-success"><div class="kpi-content-wrapper"><div class="kpi-icon">💵</div><div class="kpi-label">Mis Comisiones Pagadas</div><div class="kpi-value">${{ kpi_comisiones_pagadas|floatformat:0|intcomma }}</div></div></div>
+            <div class="kpi-card kpi-bg-warning"><div class="kpi-content-wrapper"><div class="kpi-icon">⏳</div><div class="kpi-label">Mis Comisiones Pendientes</div><div class="kpi-value">${{ kpi_comisiones_pendientes|floatformat:0|intcomma }}</div></div></div>
+            <div class="kpi-card kpi-bg-danger"><div class="kpi-content-wrapper"><div class="kpi-icon">🔥</div><div class="kpi-label">Ratio Siniestralidad Cartera</div><div class="kpi-value">{{ kpi_ratio_siniestralidad|floatformat:2 }}%</div></div></div>
+            <div class="kpi-card kpi-bg-dark"><div class="kpi-content-wrapper"><div class="kpi-icon">📄</div><div class="kpi-label">Mis Contratos Activos</div><div class="kpi-value">{{ kpi_total_contratos|intcomma }}</div></div></div>
+            <div class="kpi-card kpi-bg-info"><div class="kpi-content-wrapper"><div class="kpi-icon">🎟️</div><div class="kpi-label">Ticket Promedio</div><div class="kpi-value">${{ kpi_ticket_promedio|floatformat:0|intcomma }}</div></div></div>
+            <div class="kpi-card kpi-bg-danger"><div class="kpi-content-wrapper"><div class="kpi-icon">🆘</div><div class="kpi-label">Reclamaciones Abiertas</div><div class="kpi-value">{{ kpi_reclamaciones_abiertas|intcomma }}</div></div></div>
+            <div class="kpi-card kpi-bg-warning"><div class="kpi-content-wrapper"><div class="kpi-icon">🔔</div><div class="kpi-label">Contratos a Vencer</div><div class="kpi-value">{{ kpi_contratos_a_vencer|intcomma }}</div></div></div>
         </div>
     </section>
 
-    <!-- Puedes añadir aquí visualizaciones específicas para el intermediario en el futuro -->
-    <!-- 
-    <section class="mb-5">
-        <h2 class="h4 mb-3 text-muted section-title"><i class="fas fa-chart-line me-2"></i>Mis Gráficos</h2>
+    <section>
+        <h2 class="h4 mb-3 section-title"><i class="fas fa-chart-bar me-2"></i>Visualizaciones de Mi Cartera</h2>
         <div class="visualizations-grid-container">
-            (Aquí irían los gráficos filtrados)
+            <div class="chart-card">{{ plotly_primas_por_ramo|safe }}</div>
+            <div class="chart-card">{{ plotly_estados_contratos|safe }}</div>
+            <div class="chart-card">{{ plotly_estados_reclamaciones|safe }}</div>
         </div>
     </section>
-    -->
     
 </div>
 {% endblock content %}
 
-{% block extra_js %}
+{% block extra_scripts %}
 {{ block.super }}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const animatedItems = document.querySelectorAll('.animated');
-    if (typeof IntersectionObserver !== 'undefined') {
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('visible');
-                    observer.unobserve(entry.target); 
-                }
-            });
-        }, { threshold: 0.05 });
-        animatedItems.forEach(item => observer.observe(item));
-    } else {
-        animatedItems.forEach(item => item.classList.add('visible'));
-    }
-});
-</script>
-{% endblock extra_js %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+{% endblock extra_scripts %}

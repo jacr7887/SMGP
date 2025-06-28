@@ -1,113 +1,114 @@
 {% extends "home.html" %}
 {% load static %}
-{% load querystring_tags %}
 {% load humanize %}
+
+{% block extra_head %}
+{# Solo cargamos el CSS base de DataTables. Los estilos ya están en styles.css #}
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.min.css">
+{% endblock %}
+
+{% block title %}{{ title }}{% endblock %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 id="main-heading">💲 Listado Completo de Tarifas</h1>
+    <h1 id="main-heading">🏷️ {{ title }}</h1>
 
     <div class="header-actions">
       {% if perms.myapp.add_tarifa %}
-      <a href="{% url 'myapp:tarifa_create' %}" class="nav_link" aria-label="Crear nueva tarifa">
+      <a href="{% url 'myapp:tarifa_create' %}" class="nav_link">
         ➕ Nueva Tarifa
       </a>
       {% endif %}
     </div>
 
-    <form method="get" class="search-form mb-3" aria-label="Formulario de búsqueda de tarifas">
-      <input
-        type="text"
-        name="search"
-        placeholder="🔍 Buscar por Ramo, Rango Etario..."
-        value="{{ search_query|escape }}"
-        aria-label="Campo de búsqueda global"
-        class="search-input"
-      />
-      <button type="submit" class="nav_link">Buscar</button>
-      <a href="{% url 'myapp:tarifa_list' %}" class="nav_link" style="margin-left: 10px;" title="Limpiar búsqueda y filtros">Limpiar</a>
-    </form>
-
-    <div class="table-container" role="region" aria-labelledby="table-caption">
-      <table class="data-table" role="table">
-        <caption id="table-caption" class="visually-hidden">
-          Lista completa de tarifas registradas. Haga clic en las cabeceras para ordenar.
-        </caption>
-        <thead role="rowgroup">
-          <tr role="row">
-            {# --- Cabeceras Ordenables - TODOS LOS CAMPOS --- #}
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='codigo_tarifa' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">#️⃣ Código {% if current_sort == 'codigo_tarifa' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='ramo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🌿 Ramo {% if current_sort == 'ramo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='rango_etario' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🔞 Rango Etario {% if current_sort == 'rango_etario' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='fecha_aplicacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">📅 F. Aplicación {% if current_sort == 'fecha_aplicacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='monto_anual' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💰 Monto Anual {% if current_sort == 'monto_anual' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='tipo_fraccionamiento' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">쪼 Fraccionamiento {% if current_sort == 'tipo_fraccionamiento' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='activo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💡 Activo {% if current_sort == 'activo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            {# Campos ModeloBase #}
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='fecha_creacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">➕ F. Creación {% if current_sort == 'fecha_creacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='fecha_modificacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🔄 F. Modificación {% if current_sort == 'fecha_modificacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-
-            <th role="columnheader">⚙️ Acciones</th>
+    <div class="table-container">
+      <table id="tarifas-table" class="data-table" style="width:100%">
+        <thead>
+          <tr>
+            {# --- CABECERAS COMPLETAS PARA TARIFA --- #}
+            <th>Código</th>
+            <th>Ramo</th>
+            <th>Rango Etario</th>
+            <th>Monto Anual</th>
+            <th>Fecha Aplicación</th>
+            <th>Fraccionamiento</th>
+            <th>Activo</th>
+            <th>F. Creación</th>
+            <th>Acciones</th>
           </tr>
         </thead>
-        <tbody role="rowgroup">
+        <tbody>
           {% for tarifa in object_list %}
-          <tr role="row">
-            <td role="cell">{{ tarifa.codigo_tarifa|escape|default:"N/A" }}</td>
-            <td role="cell">{{ tarifa.get_ramo_display|escape }}</td>
-            <td role="cell">{{ tarifa.get_rango_etario_display|escape }}</td>
-            <td role="cell">{{ tarifa.fecha_aplicacion|date:"d/m/Y" }}</td>
-            <td role="cell">${{ tarifa.monto_anual|floatformat:2|intcomma }}</td>
-            <td role="cell">{{ tarifa.tipo_fraccionamiento|escape|default:"-" }}</td>
-            <td role="cell">{% if tarifa.activo %}✅ Sí{% else %}🔴 No{% endif %}</td>
-            <td role="cell">{{ tarifa.fecha_creacion|date:"d/m/y H:i" }}</td>
-            <td role="cell">{{ tarifa.fecha_modificacion|date:"d/m/y H:i" }}</td>
-
-            <td class="actions" role="cell">
-              <div class="action-group">
-                 {% if perms.myapp.view_tarifa %}
-                  <a href="{% url 'myapp:tarifa_detail' tarifa.pk %}" class="action-icon" title="Ver Detalles" aria-label="Ver detalles de la tarifa {{ tarifa.pk }}">👁️</a>
-                {% endif %}
-                {% if perms.myapp.change_tarifa %}
-                  <a href="{% url 'myapp:tarifa_update' tarifa.pk %}" class="action-icon" title="Editar" aria-label="Editar tarifa {{ tarifa.pk }}">✏️</a>
-                {% endif %}
-                {% if perms.myapp.delete_tarifa %}
-                  <a href="{% url 'myapp:tarifa_delete' tarifa.pk %}" class="action-icon delete-link" title="Eliminar" aria-label="Eliminar tarifa {{ tarifa.pk }}">❌</a>
-                {% endif %}
-              </div>
-            </td>
-          </tr>
-          {% empty %}
-          <tr role="row">
-            <td colspan="17" class="no-results" role="cell"> {# Ajustado colspan (16 datos + 1 acción) #}
-              📭 No se encontraron tarifas que coincidan con la búsqueda.
-            </td>
-          </tr>
+              <tr>
+                {# --- CELDAS COMPLETAS PARA TARIFA --- #}
+                <td>{{ tarifa.codigo_tarifa|default:"-" }}</td>
+                <td>{{ tarifa.get_ramo_display }}</td>
+                <td>{{ tarifa.get_rango_etario_display }}</td>
+                <td class="text-end">${{ tarifa.monto_anual|floatformat:2|intcomma|default:"0.00" }}</td>
+                <td>{{ tarifa.fecha_aplicacion|date:"d/m/Y" }}</td>
+                <td>{{ tarifa.get_tipo_fraccionamiento_display|default:"N/A" }}</td>
+                <td class="text-center">
+                  {% if tarifa.activo %}
+                    <span class="badge badge-success">Sí</span>
+                  {% else %}
+                    <span class="badge badge-danger">No</span>
+                  {% endif %}
+                </td>
+                <td>{{ tarifa.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                <td class="actions">
+                  <div class="action-group">
+                    <a href="{% url 'myapp:tarifa_detail' tarifa.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
+                    <a href="{% url 'myapp:tarifa_update' tarifa.pk %}" class="action-icon" title="Editar">✏️</a>
+                    <a href="{% url 'myapp:tarifa_delete' tarifa.pk %}" class="action-icon delete-link" title="Eliminar">❌</a>
+                  </div>
+                </td>
+              </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-
-    {% if is_paginated %}
-    <nav aria-label="Navegación de páginas de tarifas">
-      <div class="django-pagination">
-        {% if page_obj.has_previous %}
-          <a href="?{% query_transform page=1 %}" class="btn-pagination" aria-label="Primera página">« Primera</a>
-          <a href="?{% query_transform page=page_obj.previous_page_number %}" class="btn-pagination" aria-label="Página anterior">‹ Anterior</a>
-        {% endif %}
-        <span class="pagination-current">
-          Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
-        </span>
-        {% if page_obj.has_next %}
-          <a href="?{% query_transform page=page_obj.next_page_number %}" class="btn-pagination" aria-label="Siguiente página">Siguiente ›</a>
-          <a href="?{% query_transform page=page_obj.paginator.num_pages %}" class="btn-pagination" aria-label="Última página">Última »</a>
-        {% endif %}
-      </div>
-    </nav>
-    {% endif %}
-
   </section>
 </div>
-
 {% endblock content %}
+
+{% block extra_scripts %}
+<script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+<script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    $('#tarifas-table').DataTable({
+        // Traducción local para evitar errores de carga
+        language: {
+            "processing": "Procesando...",
+            "lengthMenu": "Mostrar _MENU_ registros",
+            "zeroRecords": "No se encontraron resultados",
+            "emptyTable": "Ningún dato disponible en esta tabla",
+            "info": "Mostrando registros del _START_ al _END_ de un total de _TOTAL_ registros",
+            "infoEmpty": "Mostrando registros del 0 al 0 de un total de 0 registros",
+            "infoFiltered": "(filtrado de un total de _MAX_ registros)",
+            "search": "Buscar:",
+            "loadingRecords": "Cargando...",
+            "paginate": {
+                "first": "Primero",
+                "last": "Último",
+                "next": "Siguiente",
+                "previous": "Anterior"
+            },
+            "aria": {
+                "sortAscending": ": Activar para ordenar la columna de manera ascendente",
+                "sortDescending": ": Activar para ordenar la columna de manera descendente"
+            }
+        },
+        "dom":
+            "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" +
+            "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" +
+            "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
+        "columnDefs": [
+            { "orderable": false, "targets": -1 } // Deshabilita ordenar en la última columna (Acciones)
+        ]
+    });
+});
+</script>
+{% endblock %}

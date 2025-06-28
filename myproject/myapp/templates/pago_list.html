@@ -1,130 +1,126 @@
 {% extends "home.html" %}
 {% load static %}
-{% load querystring_tags %}
 {% load humanize %}
+
+{% block extra_head %}
+{# Solo cargamos el CSS base de DataTables. Los estilos ya están en styles.css #}
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.min.css">
+{% endblock %}
+
+{% block title %}{{ title }}{% endblock %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 id="main-heading">💳 Listado Completo de Pagos Registrados</h1>
+    <h1 id="main-heading">💰 {{ title }}</h1>
 
     <div class="header-actions">
       {% if perms.myapp.add_pago %}
-      <a href="{% url 'myapp:pago_create' %}" class="nav_link" aria-label="Registrar nuevo pago">
-        ➕ Registrar Pago
+      <a href="{% url 'myapp:pago_create' %}" class="nav_link">
+        ➕ Nuevo Pago
       </a>
       {% endif %}
     </div>
 
-    <form method="get" class="search-form mb-3" action="." aria-label="Formulario de búsqueda de pagos">
-      <input
-        type="text"
-        name="search"
-        placeholder="🔍 Buscar por Referencia, Factura, Reclamación..."
-        value="{{ search_query|escape|default:'' }}"
-        aria-label="Campo de búsqueda global"
-        class="search-input"
-      />
-      <button type="submit" class="nav_link">Buscar</button>
-      <a href="{% url 'myapp:pago_list' %}" class="nav_link" style="margin-left: 10px;" title="Limpiar búsqueda y filtros">Limpiar</a>
-    </form>
-
-    <div class="table-container" role="region" aria-labelledby="table-caption">
-      <table class="data-table" role="table">
-        <caption id="table-caption" class="visually-hidden">
-          Lista completa de pagos registrados. Haga clic en las cabeceras para ordenar.
-        </caption>
-        <thead role="rowgroup">
-          <tr role="row">
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='id' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">#️⃣ ID Pago {% if current_sort == 'id' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='factura__numero_recibo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🧾 Factura {% if current_sort == 'factura__numero_recibo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader">
-                <a href="?{% query_transform sort='reclamacion__numero_reclamacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
-                    📢 Reclamación {% if current_sort == 'reclamacion__numero_reclamacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}
-                </a>
-            </th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='fecha_pago' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">📅 Fecha Pago {% if current_sort == 'fecha_pago' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='monto_pago' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💰 Monto {% if current_sort == 'monto_pago' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='forma_pago' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💳 Forma Pago {% if current_sort == 'forma_pago' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='referencia_pago' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">#️⃣ Referencia {% if current_sort == 'referencia_pago' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='fecha_notificacion_pago' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🔔 F. Notificación {% if current_sort == 'fecha_notificacion_pago' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='observaciones_pago' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💬 Observaciones {% if current_sort == 'observaciones_pago' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th role="columnheader">📎 Docs. Soporte</th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='activo' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">💡 Activo {% if current_sort == 'activo' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='fecha_creacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">➕ F. Creación {% if current_sort == 'fecha_creacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th class="sort-header" role="columnheader"><a href="?{% query_transform sort='fecha_modificacion' order=current_order|toggle_order:'asc' search=search_query page=1 %}{% for key, value in filter.form.cleaned_data.items %}{% if value %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">🔄 F. Modificación {% if current_sort == 'fecha_modificacion' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% else %}↕️{% endif %}</a></th>
-            <th role="columnheader">⚙️ Acciones</th>
+    <div class="table-container">
+      <table id="pagos-table" class="data-table" style="width:100%">
+        <thead>
+          <tr>
+            <th>ID Pago</th>
+            <th>Asociado a</th>
+            <th>Monto</th>
+            <th>Forma de Pago</th>
+            <th>Fecha de Pago</th>
+            <th>Referencia</th>
+            <th>Soporte</th>
+            <th>IGTF</th>
+            <th>Activo</th>
+            <th>F. Creación</th>
+            <th>Acciones</th>
           </tr>
         </thead>
-        <tbody role="rowgroup">
+        <tbody>
           {% for pago in object_list %}
-          <tr role="row">
-            <td role="cell">{{ pago.pk }}</td>
-            <td role="cell">{% if pago.factura %}<a href="{% url 'myapp:factura_detail' pago.factura.pk %}">{{ pago.factura.numero_recibo|default:"N/A" }}</a>{% else %}-{% endif %}</td>
-            <td role="cell">
-                {% if pago.reclamacion %}
-                    <a href="{% url 'myapp:reclamacion_detail' pago.reclamacion.pk %}">
-                        {{ pago.reclamacion.numero_reclamacion|default:pago.reclamacion.pk }}
-                    </a>
-                {% else %}
+            {% if pago.decryption_error %}
+              <tr class="table-danger">
+                <td colspan="11">⚠️ Error al leer datos para el pago con ID: {{ pago.pk }}.</td>
+              </tr>
+            {% else %}
+              <tr>
+                <td>{{ pago.pk }}</td>
+                <td>
+                    {% if pago.factura %}
+                        <a href="{% url 'myapp:factura_detail' pago.factura.pk %}">
+                            Factura: {{ pago.factura.numero_recibo|default:"N/A" }}
+                        </a>
+                    {% elif pago.reclamacion %}
+                        <a href="{% url 'myapp:reclamacion_detail' pago.reclamacion.pk %}">
+                            Reclamación: {{ pago.reclamacion.numero_reclamacion|default:"N/A" }}
+                        </a>
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td class="text-end">${{ pago.monto_pago|floatformat:2|intcomma|default:"0.00" }}</td>
+                <td>{{ pago.get_forma_pago_display }}</td>
+                <td>{{ pago.fecha_pago|date:"d/m/Y"|default:"-" }}</td>
+                <td>{{ pago.referencia_pago|default:"-" }}</td>
+                <td>
+                  {% if pago.documentos_soporte_pago %}
+                    <a href="{{ pago.documentos_soporte_pago.url }}" class="file-popup-trigger" target="_blank">📎 Ver</a>
+                  {% else %}
                     -
-                {% endif %}
-            </td>
-            <td role="cell">{{ pago.fecha_pago|date:"d/m/Y"|default:"-" }}</td>
-            <td role="cell" style="text-align: right;">${{ pago.monto_pago|floatformat:2|intcomma|default:"0.00" }}</td>
-            <td role="cell">{{ pago.get_forma_pago_display|escape|default:"-" }}</td>
-            <td role="cell">{{ pago.referencia_pago|escape|default:"-" }}</td>
-            <td role="cell">{{ pago.fecha_notificacion_pago|date:"d/m/Y"|default:"-" }}</td>
-            <td role="cell" title="{{ pago.observaciones_pago|escape|default:'' }}">{{ pago.observaciones_pago|escape|truncatechars:40|default:"-" }}</td>
-            <td role="cell">{% if pago.documentos_soporte_pago %}<a href="{{ pago.documentos_soporte_pago.url }}"class="file-popup-trigger"data-popup-title="Soporte de Pago #{{ pago.pk }}">  📎 Ver</a>{% else %}-{% endif %}</td>
-            <td role="cell">{% if pago.activo %}✅ Sí{% else %}🔴 No{% endif %}</td>
-            <td role="cell">{{ pago.fecha_creacion|date:"d/m/y H:i"|default:"-" }}</td>
-            <td role="cell">{{ pago.fecha_modificacion|date:"d/m/y H:i"|default:"-" }}</td>
-
-            <td class="actions" role="cell">
-              <div class="action-group">
-                 {% if perms.myapp.view_pago %}
-                  <a href="{% url 'myapp:pago_detail' pago.pk %}" class="action-icon" title="Ver Detalles" aria-label="Ver detalles del pago {{ pago.pk }}">👁️</a>
-                {% endif %}
-                {% if perms.myapp.change_pago %}
-                  <a href="{% url 'myapp:pago_update' pago.pk %}" class="action-icon" title="Editar" aria-label="Editar pago {{ pago.pk }}">✏️</a>
-                {% endif %}
-                {% if perms.myapp.delete_pago %}
-                  <a href="{% url 'myapp:pago_delete' pago.pk %}" class="action-icon delete-link" title="Eliminar" aria-label="Eliminar pago {{ pago.pk }}">❌</a>
-                {% endif %}
-              </div>
-            </td>
-          </tr>
-          {% empty %}
-          <tr role="row">
-            <td colspan="15" class="no-results" role="cell">
-              📭 No se encontraron pagos que coincidan con la búsqueda{% if search_query %} para "{{ search_query|escape }}"{% endif %}.
-            </td>
-          </tr>
+                  {% endif %}
+                </td>
+                <td class="text-center">
+                  {# --- ¡AQUÍ ESTÁ LA CORRECCIÓN! --- #}
+                  {% if pago.aplica_igtf_pago %}
+                    <span class="badge badge-info">Sí</span>
+                  {% else %}
+                    <span class="badge badge-danger">No</span>
+                  {% endif %}
+                </td>
+                <td class="text-center">
+                  {% if pago.activo %}
+                    <span class="badge badge-success">Sí</span>
+                  {% else %}
+                    <span class="badge badge-danger">No</span>
+                  {% endif %}
+                </td>
+                <td>{{ pago.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                <td class="actions">
+                  <div class="action-group">
+                    <a href="{% url 'myapp:pago_detail' pago.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
+                    <a href="{% url 'myapp:pago_update' pago.pk %}" class="action-icon" title="Editar">✏️</a>
+                    <a href="{% url 'myapp:pago_delete' pago.pk %}" class="action-icon delete-link" title="Eliminar">❌</a>
+                  </div>
+                </td>
+              </tr>
+            {% endif %}
           {% endfor %}
         </tbody>
       </table>
     </div>
-
-    {% if is_paginated %}
-    <nav aria-label="Navegación de páginas de pagos">
-      <div class="django-pagination">
-        <span class="pagination-current">
-          Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
-        </span>
-        {% if page_obj.has_previous %}
-          <a href="?{% query_transform page=1 %}" class="btn-pagination" aria-label="Primera página">« Primera</a>
-          <a href="?{% query_transform page=page_obj.previous_page_number %}" class="btn-pagination" aria-label="Página anterior">‹ Anterior</a>
-        {% endif %}
-        {% if page_obj.has_next %}
-          <a href="?{% query_transform page=page_obj.next_page_number %}" class="btn-pagination" aria-label="Siguiente página">Siguiente ›</a>
-          <a href="?{% query_transform page=page_obj.paginator.num_pages %}" class="btn-pagination" aria-label="Última página">Última »</a>
-        {% endif %}
-      </div>
-    </nav>
-    {% endif %}
-
   </section>
 </div>
-
 {% endblock content %}
+
+{% block extra_scripts %}
+<script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+<script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    $('#pagos-table').DataTable({
+        language: { "url": "//cdn.datatables.net/plug-ins/2.0.8/i18n/es-ES.json" },
+        "dom":
+            "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" +
+            "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" +
+            "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
+        "columnDefs": [
+            { "orderable": false, "targets": -1 }
+        ]
+    });
+});
+</script>
+{% endblock %}

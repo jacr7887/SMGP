@@ -1,34 +1,37 @@
 # myapp/templatetags/querystring_tags.py
-from django import template
 
-register = template.Library()  # Es importante tener esta línea
+from django import template
+from django.utils.http import urlencode
+
+register = template.Library()
 
 
 @register.simple_tag(takes_context=True)
-def query_transform(context, **kwargs):
+def querystring(context, **kwargs):
     """
-    Updates the current request's query parameters with new values.
+    Permite manipular los parámetros GET de la URL actual de forma segura.
+    Esta versión es robusta y no falla si 'request' no está en el contexto,
+    lo cual es crucial para que las páginas de error 500 no se rompan.
     """
-    # Asegurarse que 'request' está en el contexto
-    if 'request' not in context:
-        return ''
-    query = context['request'].GET.copy()
-    for k, v in kwargs.items():
-        # Convertir bool a 'true'/'false' string si es necesario, o manejar None
-        if isinstance(v, bool):
-            query[k] = str(v).lower()
-        elif v is None:
-            if k in query:  # Eliminar si el valor es None
-                del query[k]
+    # Intenta obtener el objeto request del contexto.
+    # Si no existe (ej. en una página de error 500), usa un diccionario vacío.
+    request = context.get('request')
+    if request:
+        query_params = request.GET.copy()
+    else:
+        # Si no hay request, no podemos saber los parámetros actuales.
+        # Empezamos con un diccionario vacío.
+        query_params = {}
+
+    # Itera sobre los argumentos que nos pasaron al llamar el tag
+    for key, value in kwargs.items():
+        # Si el valor es None, elimina ese parámetro de la URL
+        if value is None:
+            query_params.pop(key, None)  # pop de forma segura
         else:
-            query[k] = v  # Convertir otros tipos a string si es necesario
-    return query.urlencode()
+            # Si no, añade o actualiza el parámetro
+            query_params[key] = str(value)  # Convertir a string para seguridad
 
-
-@register.filter
-def toggle_order(current_order, default='asc'):
-    """ Toggles between 'asc' and 'desc' """
-    # Manejar None o string vacío
-    if not current_order:
-        return 'desc'  # Si no hay orden actual, el siguiente clic ordena descendentemente
-    return 'desc' if current_order.lower() == 'asc' else 'asc'
+    # Codifica los parámetros de nuevo en un string de URL.
+    # El método 'urlencode' se asegura de que todo esté correctamente escapado.
+    return urlencode(query_params)
