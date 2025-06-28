@@ -2,7 +2,6 @@
 {% load static humanize %}
 
 {% block extra_head %}
-<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.min.css">
 {% endblock %}
 
 {% block title %}{{ page_title|default:"Mis Comisiones" }}{% endblock %}
@@ -67,8 +66,6 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="https://code.jquery.com/jquery-3.7.0.js"></script>
-<script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
 <script>
 $(document).ready(function() {
     $('#mis-comisiones-table').DataTable({

@@ -7,6 +7,13 @@
     {% load static i18n humanize %}
 
     <link rel="stylesheet" href="{% static 'styles.css' %}" />
+
+    <link 
+      rel="stylesheet" 
+      type="text/css" 
+      href="https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.min.css"
+      integrity="sha384-zUxWDVAcow8yNu+q4VFsyZA3qWsKKGdWPW0SVjaR12LQze4SY8Nr75US6VDhbWkf"
+      crossorigin="anonymous">
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
     <script src="{% static 'plotly.js' %}"></script>
 
@@ -269,10 +276,27 @@
       </div>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+ 
+    <!-- 1. jQuery (con integridad) -->
+    <script
+      src="https://code.jquery.com/jquery-3.7.1.min.js"
+      integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo="
+      crossorigin="anonymous"></script>
+    
+    <!-- 2. DataTables JS (con el hash de integridad CORRECTO) -->
+    <script 
+      src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"
+      integrity="sha384-nJy9D0UBD2LV93ED7IXSsdWfa9PumZvn70zRSR/oFw5Zq0x6gWwWdpLeGsbVATVg"
+      crossorigin="anonymous"></script>
+      
+    <!-- 3. Plotly JS (cargado localmente) -->
+    <script src="{% static 'plotly.js' %}"></script>
+
+    <!-- 4. Twemoji (cargado una sola vez) -->
+    <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
+
     {% if form.media.js %}{{ form.media.js }}{% endif %}
     <script id="mark-notification-read-url" data-url="{% url 'myapp:mark_notification_read' %}" type="application/json"></script>
-    <script src="{% static 'scripts.js' %}"></script>
 
     {# Scripts generales que ya tenías #}
     <script>
@@ -309,12 +333,6 @@
         });
       });
     </script>
-
-  <script
-    src="https://code.jquery.com/jquery-3.7.1.min.js"
-    integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo="
-    crossorigin="anonymous"></script>    
-    {% if form.media.js %}{{ form.media.js }}{% endif %}
     
     {# URL para el script de notificaciones #}
     <script id="mark-notification-read-url" data-url="{% url 'myapp:mark_notification_read' %}" type="application/json"></script>
@@ -343,7 +361,6 @@
 
     {# Bloque para JavaScript específico de cada página que herede de base.html #}
     {% block extra_js %}
-    {# Aquí es donde iría el script de notificaciones si no está en scripts.js #}
     <script>
     // JavaScript para la interactividad de las notificaciones
     document.addEventListener('DOMContentLoaded', function() {
