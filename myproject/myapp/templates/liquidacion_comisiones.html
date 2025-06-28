@@ -2,7 +2,6 @@
 {% load static humanize %}
 
 {% block extra_head %}
-<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.min.css">
 {# Los estilos para el modal y la tabla ya están en tu styles.css principal #}
 <style>
     /* Estilos específicos para el modal que podrían no estar en tu CSS principal */
@@ -128,8 +127,6 @@
 {% endblock content %}
 
 {% block extra_scripts %}
-<script src="https://code.jquery.com/jquery-3.7.0.js"></script>
-<script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
 <script>
 $(document).ready(function() {
     $('#liquidacion-table').DataTable({
