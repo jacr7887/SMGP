@@ -101,13 +101,39 @@ class NotificacionAdmin(admin.ModelAdmin):
 
 @admin.register(LicenseInfo)
 class LicenseInfoAdmin(admin.ModelAdmin):
-    list_display = ('__str__', 'license_key', 'expiry_date',
-                    'is_valid', 'last_updated')
-    readonly_fields = ('last_updated',)
-    def has_add_permission(
-        self, request): return not LicenseInfo.objects.exists()
+    """
+    Clase de administración para el modelo LicenseInfo.
+    Esta configuración hace que los campos críticos sean de solo lectura.
+    """
 
-    def has_delete_permission(self, request, obj=None): return False
+    # Lista de campos a mostrar en la vista de lista (opcional, pero recomendado)
+    list_display = ('id', 'expiry_date', 'last_updated')
+
+    # === LA PARTE MÁS IMPORTANTE: CAMPOS DE SOLO LECTURA ===
+    # Estos campos se mostrarán en el formulario de cambio, pero no se podrán editar.
+    readonly_fields = ('license_key', 'expiry_date', 'last_updated')
+
+    def has_add_permission(self, request):
+        """
+        Impide que se puedan crear nuevas instancias de LicenseInfo desde el admin.
+        Asumimos que la licencia se crea por otros medios (ej. un comando de gestión).
+        """
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        """
+        Impide que se pueda borrar la licencia desde el admin.
+        """
+        return False
+
+    def get_actions(self, request):
+        """
+        Deshabilita la acción de borrado en la vista de lista.
+        """
+        actions = super().get_actions(request)
+        if 'delete_selected' in actions:
+            del actions['delete_selected']
+        return actions
 
 
 @admin.register(AuditoriaSistema)

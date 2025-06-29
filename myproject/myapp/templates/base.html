@@ -72,25 +72,25 @@
           <ul class="nav_menu">
             
             {# --- INICIO DE LA LÓGICA CORREGIDA DEL SIDEBAR --- #}
-                    
-            {# 1. El superusuario y el admin ven el Dashboard de Admin #}
-            {% if user.is_superuser or user.tipo_usuario == 'ADMIN' %}
-            <li class="nav_item {% i request.resolver_match.url_name == 'home' %}active{% endif %}">
-                <a href="{% url 'myapp:home' %}" class="nav_link-sidebar"><span class="nav_icon">👑</span><span class="nav_text">Dashboard Admin</span></a>
-            </li>
             
-            {# 2. El intermediario ve su propio dashboard #}
-            {% elif user.tipo_usuario == 'INTERMEDIARIO' %}
-            <li class="nav_item {% if request.resolver_match.url_name == 'intermediario_dashboard' %}active{% endif %}">
-                <a href="{% url 'myapp:intermediario_dashboard' %}" class="nav_link-sidebar"><span class="nav_icon">🏠</span><span class="nav_text">Mi Dashboard</span></a>
-            </li>
+        {# 1. El superusuario y el admin ven el Dashboard de Admin #}
+        {% if user.is_superuser or user.tipo_usuario == 'ADMIN' %}
+        <li class="nav_item {% if request.resolver_match.url_name == 'home' %}active{% endif %}">
+            <a href="{% url 'myapp:home' %}" class="nav_link-sidebar"><span class="nav_icon">👑</span><span class="nav_text">Dashboard Admin</span></a>
+        </li>
+        
+        {# 2. El intermediario ve su propio dashboard #}
+        {% elif user.tipo_usuario == 'INTERMEDIARIO' %}
+        <li class="nav_item {% if request.resolver_match.url_name == 'intermediario_dashboard' %}active{% endif %}">
+            <a href="{% url 'myapp:intermediario_dashboard' %}" class="nav_link-sidebar"><span class="nav_icon">🏠</span><span class="nav_text">Mi Dashboard</span></a>
+        </li>
 
-            {# 3. El cliente y el auditor (u otros) ven una página de inicio genérica #}
-            {% else %}
-            <li class="nav_item {% if request.resolver_match.url_name == 'home' %}active{% endif %}">
-                <a href="{% url 'myapp:home' %}" class="nav_link-sidebar"><span class="nav_icon">🏠</span><span class="nav_text">Inicio</span></a>
-            </li>
-            {% endif %}
+        {# 3. El cliente y el auditor (u otros) ven una página de inicio genérica #}
+        {% else %}
+        <li class="nav_item {% if request.resolver_match.url_name == 'home' %}active{% endif %}">
+            <a href="{% url 'myapp:home' %}" class="nav_link-sidebar"><span class="nav_icon">🏠</span><span class="nav_text">Inicio</span></a>
+        </li>
+        {% endif %}
 
             {# 2. Resto de los menús basados en permisos #}
             {% if user.is_staff %}
@@ -261,7 +261,13 @@
              <div class="messages_container" aria-live="polite">
                {% for message in messages %}
                <div class="alert alert-{{ message.tags|default:'info' }} fade show" role="alert">
-                    {% if message.tags == 'success' %}<i class="fas fa-check-circle me-2"></i>{% elif message.tags == 'warning' %}<i class="fas fa-exclamation-triangle me-2"></i>{% elif message.tags == 'error' or message.tags == 'danger' %}<i class="fas fa-times-circle me-2"></i>{% elif message.tags == 'info' %}<i class="fas fa-info-circle me-2"></i>{% endif %}
+                    {# --- ¡AQUÍ ESTÁ LA CORRECCIÓN DEFINITIVA! --- #}
+                    {# Se usa la etiqueta HTML <i> en lugar de {% i %} #}
+                    {% if message.tags == 'success' %}<i class="fas fa-check-circle me-2"></i>
+                    {% elif message.tags == 'warning' %}<i class="fas fa-exclamation-triangle me-2"></i>
+                    {% elif message.tags == 'error' or message.tags == 'danger' %}<i class="fas fa-times-circle me-2"></i>
+                    {% elif message.tags == 'info' %}<i class="fas fa-info-circle me-2"></i>
+                    {% endif %}
                     <span>{{ message }}</span>
                </div>
                {% endfor %}
@@ -269,6 +275,7 @@
             {% endif %}
             
             {% block content %}{% endblock %}
+            
             
           </main>
 
@@ -299,8 +306,11 @@
     <!-- 4. Twemoji (cargado una sola vez) -->
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
 
+    <!-- 5. Tu archivo de scripts generales (cargado una sola vez) -->
+    <script src="{% static 'scripts.js' %}"></script>
     {% if form.media.js %}{{ form.media.js }}{% endif %}
     <script id="mark-notification-read-url" data-url="{% url 'myapp:mark_notification_read' %}" type="application/json"></script>
+    <script src="{% static 'scripts.js' %}"></script>
 
     {# Scripts generales que ya tenías #}
     <script>
@@ -365,6 +375,7 @@
 
     {# Bloque para JavaScript específico de cada página que herede de base.html #}
     {% block extra_js %}
+    {# Aquí es donde iría el script de notificaciones si no está en scripts.js #}
     <script>
     // JavaScript para la interactividad de las notificaciones
     document.addEventListener('DOMContentLoaded', function() {

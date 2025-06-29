@@ -1,0 +1,379 @@
+/* static/css/jazzmin_custom.css (Versión 11.0 - The Final Fix) */
+
+:root {
+    --bg-dark: #0f1224;
+    --glass-white: rgba(255, 255, 255, 0.1);
+    --border-light: rgba(255, 255, 255, 0.15);
+    --text-light: #ffffff;
+    --text-muted: rgba(255, 255, 255, 0.7);
+    --primary: rgba(92, 119, 255, 0.9);
+    --link-blue: #87CEEB;
+    --blur: blur(10px);
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --glass-bg: rgba(16, 21, 36, 0.65);
+    --glass-box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    --glass-border-radius: 30px;
+
+    --primary-rgb: 92, 119, 255;
+    --success-rgb: 40, 167, 69;
+    --danger-rgb: 220, 53, 69;
+    --info-rgb: 52, 152, 219;
+    --warning-rgb: 255, 193, 7;
+}
+
+/* === CORRECCIÓN: ESTILO DEL SCROLLBAR === */
+html::-webkit-scrollbar, body::-webkit-scrollbar, .main-sidebar .os-viewport::-webkit-scrollbar, .selector select::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+html::-webkit-scrollbar-track, body::-webkit-scrollbar-track, .main-sidebar .os-viewport::-webkit-scrollbar-track, .selector select::-webkit-scrollbar-track {
+    background: var(--glass-bg);
+    border-radius: var(--glass-border-radius);
+}
+html::-webkit-scrollbar-thumb, body::-webkit-scrollbar-thumb, .main-sidebar .os-viewport::-webkit-scrollbar-thumb, .selector select::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.11);
+    border-radius: var(--glass-border-radius);
+}
+html::-webkit-scrollbar-thumb:hover, body::-webkit-scrollbar-thumb:hover, .main-sidebar .os-viewport::-webkit-scrollbar-thumb:hover, .selector select::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.363);
+}
+
+/* === ESTILOS GLOBALES Y DE LAYOUT === */
+body, .main-footer, .main-header, .content-wrapper {
+    font-family: "Segoe UI", system-ui, sans-serif !important;
+    background-color: var(--bg-dark) !important;
+    color: var(--text-light) !important;
+    overflow-x: hidden;
+}
+
+/* === SIDEBAR === */
+body.sidebar-mini.layout-fixed .main-sidebar.sidebar-dark-primary {
+    background: var(--glass-bg) !important;
+    border-right: 1px solid var(--border-light) !important;
+    backdrop-filter: var(--blur) !important;
+    -webkit-backdrop-filter: var(--blur) !important;
+    box-shadow: var(--glass-box-shadow) !important;
+}
+.brand-link { border-bottom: 1px solid var(--border-light) !important; }
+.nav-sidebar .nav-link {
+    transition: var(--transition) !important;
+    border-radius: var(--glass-border-radius) !important;
+    margin: 0.2rem 0.5rem !important;
+    border: 1px solid transparent !important;
+}
+.nav-sidebar .nav-link:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    transform: translateY(-2px);
+}
+.nav-sidebar .nav-item > .nav-link.active {
+    background: rgba(255, 255, 255, 0.3) !important;
+    border-color: rgba(255, 255, 255, 0.6) !important;
+    box-shadow: 0 4px 20px rgba(255, 255, 255, 0.4), inset 0 0 12px rgba(255, 255, 255, 0.2) !important;
+    transform: translateY(-2px);
+}
+
+/* === TOPBAR === */
+.main-header.navbar {
+    background: rgba(15, 18, 36, 0.8) !important;
+    border-bottom: 1px solid var(--border-light) !important;
+    backdrop-filter: var(--blur) !important;
+    -webkit-backdrop-filter: var(--blur) !important;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3) !important;
+}
+
+/* === TARJETAS Y CONTENIDO PRINCIPAL === */
+.card {
+    background: var(--glass-bg) !important;
+    border: 1px solid var(--border-light) !important;
+    backdrop-filter: var(--blur) !important;
+    -webkit-backdrop-filter: var(--blur) !important;
+    box-shadow: var(--glass-box-shadow) !important;
+    border-radius: 18px !important;
+    color: var(--text-light) !important;
+    margin-bottom: 1.5rem !important;
+}
+.card-header {
+    background-color: transparent !important;
+    border-bottom: 1px solid var(--border-light) !important;
+}
+
+/* === BOTONES NEON GLASSMORPHISM === */
+.btn {
+    border-radius: 25px !important;
+    font-weight: 600 !important;
+    transition: var(--transition) !important;
+    backdrop-filter: var(--blur) !important;
+    -webkit-backdrop-filter: var(--blur) !important;
+    color: var(--text-light) !important;
+    padding: 0.5rem 1.2rem !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+    box-shadow: none !important;
+}
+.btn:hover { transform: translateY(-3px) scale(1.05); }
+.btn-primary {
+    background: rgba(var(--primary-rgb), 0.25) !important;
+    border-color: rgba(var(--primary-rgb), 0.5) !important;
+    box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.4), 0 0 15px rgba(var(--primary-rgb), 0.2) !important;
+}
+.btn-primary:hover {
+    background: rgba(var(--primary-rgb), 0.4) !important;
+    border-color: rgba(var(--primary-rgb), 0.8) !important;
+    box-shadow: 0 0 12px rgba(var(--primary-rgb), 0.8), 0 0 25px rgba(var(--primary-rgb), 0.5) !important;
+}
+.btn-success {
+    background: rgba(var(--success-rgb), 0.25) !important;
+    border-color: rgba(var(--success-rgb), 0.5) !important;
+    box-shadow: 0 0 8px rgba(var(--success-rgb), 0.4), 0 0 15px rgba(var(--success-rgb), 0.2) !important;
+}
+.btn-success:hover {
+    background: rgba(var(--success-rgb), 0.4) !important;
+    border-color: rgba(var(--success-rgb), 0.8) !important;
+    box-shadow: 0 0 12px rgba(var(--success-rgb), 0.8), 0 0 25px rgba(var(--success-rgb), 0.5) !important;
+}
+/* Botón Danger (Rojo) */
+.btn-danger {
+    background: rgba(var(--danger-rgb), 0.25) !important;
+    border-color: rgba(var(--danger-rgb), 0.5) !important;
+    box-shadow: 0 0 8px rgba(var(--danger-rgb), 0.4), 0 0 15px rgba(var(--danger-rgb), 0.2) !important;
+}
+.btn-danger:hover {
+    background: rgba(var(--danger-rgb), 0.4) !important;
+    border-color: rgba(var(--danger-rgb), 0.8) !important;
+    box-shadow: 0 0 12px rgba(var(--danger-rgb), 0.8), 0 0 25px rgba(var(--danger-rgb), 0.5) !important;
+}
+
+/* Botón Info (Celeste) */
+.btn-info {
+    background: rgba(var(--info-rgb), 0.25) !important;
+    border-color: rgba(var(--info-rgb), 0.5) !important;
+    box-shadow: 0 0 8px rgba(var(--info-rgb), 0.4), 0 0 15px rgba(var(--info-rgb), 0.2) !important;
+}
+.btn-info:hover {
+    background: rgba(var(--info-rgb), 0.4) !important;
+    border-color: rgba(var(--info-rgb), 0.8) !important;
+    box-shadow: 0 0 12px rgba(var(--info-rgb), 0.8), 0 0 25px rgba(var(--info-rgb), 0.5) !important;
+}
+
+/* Botón Warning (Amarillo) - Nota: el texto oscuro funciona mejor aquí */
+.btn-warning {
+    background: rgba(var(--warning-rgb), 0.25) !important;
+    border-color: rgba(var(--warning-rgb), 0.5) !important;
+    box-shadow: 0 0 8px rgba(var(--warning-rgb), 0.4), 0 0 15px rgba(var(--warning-rgb), 0.2) !important;
+    color: #fff !important; /* Forzamos texto blanco para que se lea mejor */
+}
+.btn-warning:hover {
+    background: rgba(var(--warning-rgb), 0.4) !important;
+    border-color: rgba(var(--warning-rgb), 0.8) !important;
+    box-shadow: 0 0 12px rgba(var(--warning-rgb), 0.8), 0 0 25px rgba(var(--warning-rgb), 0.5) !important;
+}
+
+
+/* === ESTILOS PARA FORMULARIOS DE EDICIÓN (CHANGE FORM) === */
+
+/* Estilo general para todos los campos de formulario */
+.form-control, .vTextField, .vLargeTextField, .vURLField, .vIntegerField, .vEmailField, .vFileField {
+    background: rgba(16, 21, 36, 0.8) !important;
+    border: 1px solid rgb(92, 119, 225) !important;
+    border-radius: 15px !important;
+    color: #ffffff !important;
+    padding: 0.8rem 1rem !important;
+    transition: var(--transition) !important;
+    width: 100% !important;
+}
+.form-control:focus, .vTextField:focus {
+    outline: none !important;
+    border-color: rgba(var(--primary-rgb), 0.9) !important;
+    box-shadow: 0 0 8px 3px rgba(var(--primary-rgb), 0.4) !important;
+}
+
+/* CORRECCIÓN PRECISA: Estilo para el widget de fecha y campos de búsqueda (RawId) */
+.form-row .related-widget-wrapper input, .form-row input.vDateField {
+    background: rgba(16, 21, 36, 0.8) !important;
+    border: 1px solid rgb(92, 119, 225) !important;
+    border-radius: 15px !important;
+    color: #ffffff !important;
+    padding: 0.8rem 1rem !important;
+    transition: var(--transition) !important;
+    width: 100% !important;
+}
+.form-row .related-widget-wrapper input:focus, .form-row input.vDateField:focus {
+    outline: none !important;
+    border-color: rgba(var(--primary-rgb), 0.9) !important;
+    box-shadow: 0 0 8px 3px rgba(var(--primary-rgb), 0.4) !important;
+}
+.related-widget-wrapper { display: flex; align-items: center; gap: 10px; }
+.related-widget-wrapper-link {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    padding: 0.6rem !important;
+    border-radius: 50% !important;
+    line-height: 1;
+    min-width: 40px;
+    height: 40px;
+    text-align: center;
+    background: rgba(var(--primary-rgb), 0.25) !important;
+    border: 1px solid rgba(var(--primary-rgb), 0.5) !important;
+    box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.4) !important;
+    transition: var(--transition) !important;
+}
+.related-widget-wrapper-link:hover { background: rgba(var(--primary-rgb), 0.4) !important; transform: scale(1.1); }
+.datetimeshortcuts { margin-left: 5px; }
+.datetimeshortcuts a {
+    background: rgba(var(--primary-rgb), 0.25);
+    padding: 0.5rem;
+    border-radius: 10px;
+    color: var(--text-light) !important;
+}
+
+/* Estilo para las pestañas (tabs) */
+.nav-tabs .nav-link {
+    border: 1px solid transparent !important;
+    border-radius: 15px 15px 0 0 !important;
+    color: var(--text-muted) !important;
+    background: transparent !important;
+    transition: var(--transition) !important;
+}
+.nav-tabs .nav-link:hover { border-color: var(--border-light) !important; color: var(--text-light) !important; }
+.nav-tabs .nav-link.active {
+    background: var(--glass-bg) !important;
+    border-color: var(--border-light) !important;
+    border-bottom-color: transparent !important;
+    color: var(--text-light) !important;
+    font-weight: 600;
+}
+.tab-content {
+    background: var(--glass-bg);
+    padding: 1.5rem;
+    border: 1px solid var(--border-light);
+    border-radius: 0 18px 18px 18px;
+}
+
+/* RECONSTRUCCIÓN COMPLETA: Estilo para el selector de permisos y grupos (FilteredSelectMultiple) */
+.selector { color: var(--text-muted); }
+.selector-available h2, .selector-chosen h2 {
+    color: var(--text-light);
+    font-size: 1rem;
+    text-align: center;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 0.5rem;
+}
+.selector .selector-filter {
+    background: rgba(16, 21, 36, 0.9) !important;
+    border: 1px solid rgb(92, 119, 225) !important;
+    border-radius: 15px !important;
+    color: #ffffff !important;
+    padding: 0.6rem 1rem !important;
+    margin-bottom: 10px;
+    width: 100%;
+}
+.selector select {
+    background: rgba(16, 21, 36, 0.8) !important;
+    border: 1px solid rgb(92, 119, 225) !important;
+    border-radius: 15px !important;
+    color: #ffffff !important;
+    padding: 0.8rem !important;
+    width: 100% !important;
+    height: 250px !important;
+}
+.selector select option {
+    padding: 5px 10px;
+    color: var(--text-muted);
+    background: var(--bg-dark);
+}
+.selector select option:checked {
+    background: rgba(var(--primary-rgb), 0.4);
+    color: var(--text-light);
+}
+.selector-chooser {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 10px;
+    padding: 0 1rem;
+}
+.selector-chooser a {
+    background: rgba(var(--primary-rgb), 0.25) !important;
+    color: var(--text-light) !important;
+    border-radius: 50% !important;
+    width: 40px;
+    height: 40px;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition) !important;
+    text-indent: -9999px; /* Ocultar texto de las flechas */
+    position: relative;
+}
+.selector-chooser a::before {
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+    text-indent: 0;
+    position: absolute;
+}
+.selector-chooser .selector-add::before { content: "\f061"; } /* fa-arrow-right */
+.selector-chooser .selector-remove::before { content: "\f060"; } /* fa-arrow-left */
+.selector-chooser a:hover { background: rgba(var(--primary-rgb), 0.5) !important; transform: scale(1.1); }
+.selector-chooseall, .selector-clearall {
+    color: var(--link-blue) !important;
+    text-align: center;
+    display: block;
+    margin-top: 10px;
+}
+
+/* === ESTILOS PARA MENÚS DESPLEGABLES (SELECT2) === */
+.select2-container--default .select2-selection--single {
+    background: rgba(16, 21, 36, 0.8) !important;
+    border: 1px solid rgb(92, 119, 225) !important;
+    border-radius: 15px !important;
+    height: auto !important;
+    padding: 0.8rem 1rem !important;
+}
+.select2-container--default .select2-selection--single .select2-selection__rendered { color: #ffffff !important; }
+.select2-container--default .select2-selection--single .select2-selection__arrow b { border-color: #ffffff transparent transparent transparent !important; }
+.select2-dropdown {
+    background: var(--glass-bg) !important;
+    border: 1px solid var(--border-light) !important;
+    border-radius: 15px !important;
+    backdrop-filter: var(--blur) !important;
+    -webkit-backdrop-filter: var(--blur) !important;
+    box-shadow: var(--glass-box-shadow) !important;
+}
+.select2-results__option {
+    color: var(--text-muted) !important;
+    transition: var(--transition) !important;
+    padding: 0.8rem 1rem !important;
+    background-color: transparent !important;
+}
+.select2-results__option--highlighted[aria-selected] { background-color: rgba(var(--primary-rgb), 0.2) !important; }
+.select2-results__option[aria-selected=true] {
+    background-color: rgba(var(--primary-rgb), 0.4) !important;
+    color: var(--text-light) !important;
+}
+.select2-search--dropdown .select2-search__field {
+    background: rgba(16, 21, 36, 0.9) !important;
+    border: 1px solid rgb(92, 119, 225) !important;
+    border-radius: 20px !important;
+    color: #ffffff !important;
+}
+
+/* ====================================================== */
+/* ===             ESTILOS RESPONSIVOS                === */
+/* ====================================================== */
+
+@media (max-width: 991.98px) {
+    .selector { flex-direction: column; }
+}
+
+@media (max-width: 767.98px) {
+    body { font-size: 14px !important; }
+    .content-header h1 { font-size: 1.2rem; }
+    .content { padding: 5px !important; }
+    .btn { padding: 0.4rem 0.8rem !important; font-size: 0.8rem !important; }
+    .user-panel .info { display: none !important; }
+    .form-row { display: flex; flex-direction: column; }
+    .form-row > div { width: 100% !important; }
+}

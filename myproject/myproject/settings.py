@@ -80,6 +80,7 @@ logger.critical(
 # --- 3. APLICACIONES Y MIDDLEWARE (Sin cambios) ---
 # ==============================================================================
 INSTALLED_APPS = [
+    'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -161,6 +162,138 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
+
+# settings.py
+
+JAZZMIN_SETTINGS = {
+    "site_title": "SMGP Admin",
+    "site_header": "SMGP",
+    "site_brand": "SMGP",
+    "site_logo": "favicon-96x96.png",  # Ruta a tu logo en la carpeta static
+    "login_logo": "favicon-96x96.png",
+    "welcome_sign": "Bienvenido al Admin de SMGP",
+    "copyright": "Sistema Mágico de Gestión de Pólizas",
+
+    # Cambiar a True para habilitar el selector de temas en la UI
+    "show_themes": False,
+
+    # Por defecto, Jazzmin usa un tema claro. Lo forzaremos a un modo oscuro personalizado.
+    # Usamos 'darkly' como base, pero lo sobreescribiremos todo.
+    "theme": "darkly",
+
+    # Para el modo oscuro, podemos usar un tema base y sobreescribirlo.
+    "dark_mode_theme": None,  # Lo controlaremos con nuestro CSS personalizado.
+
+    ###############
+    # UI Tweaks   #
+    ###############
+    # Clases de Bootstrap para la fuente del sitio
+    "site_brand_classes": "text-light",
+    "site_header_classes": "text-light",
+    "topmenu_classes": "navbar-dark",
+    "sidebar_classes": "sidebar-dark-primary",
+    "custom_css": "jazzmin_custom.css",
+
+    # Mostrar el panel de modelos en la página de índice del admin
+    "show_ui_builder": False,
+
+    # Renderizar el sidebar a la izquierda
+    "navigation_expanded": True,
+
+    # Ocultar los modelos de apps no especificadas en "order"
+    "hide_apps": [],
+
+    # Ocultar modelos específicos
+    "hide_models": [],
+
+    # Orden de las apps en el menú
+    # Reemplaza con tus apps
+    "order_with_respect_to": ["auth", "SMGP"],
+
+    # Iconos para apps y modelos (Font Awesome)
+    # https://fontawesome.com/v5/search
+    "icons": {
+        "auth": "fas fa-users-cog",
+        "auth.user": "fas fa-user",
+        "auth.Group": "fas fa-users",
+        # Añade aquí los iconos para tus modelos
+        "tu_app.AfiliadoIndividual": "fas fa-user-tie",
+        "tu_app.OtroModelo": "fas fa-cogs",
+    },
+
+    # Clases de texto para los botones
+    "button_classes": {
+        "primary": "btn-primary",
+        "secondary": "btn-secondary",
+        "info": "btn-info",
+        "warning": "btn-warning",
+        "danger": "btn-danger",
+        "success": "btn-success"
+    },
+
+    # Clases para los alerts
+    "alert_classes": {
+        "primary": "alert-primary",
+        "secondary": "alert-secondary",
+        "info": "alert-info",
+        "warning": "alert-warning",
+        "danger": "alert-danger",
+        "success": "alert-success",
+    },
+}
+
+JAZZMIN_UI_TWEAKS = {
+    # === TRADUCCIÓN DE TU PALETA DE COLORES ===
+    # Estos valores sobreescribirán los del tema "darkly"
+    "theme": "darkly",
+    "dark_mode_theme": None,  # Desactivamos el switcher, controlaremos todo nosotros
+    "navbar": "navbar-dark",
+    "sidebar": "sidebar-dark-primary",
+
+    # Colores principales
+    "brand_colour": "#0f1224",  # --bg-dark (para el fondo de la marca)
+    "accent": "#5c77ff",       # --primary (rgb(92, 119, 255))
+
+    # Colores del layout
+    "main_bg": "#0f1224",      # --bg-dark
+    "sidebar_bg": "rgba(16, 21, 36, 0.65)",  # --glass-bg
+    "body_bg": "#0f1224",
+    "footer_bg": "rgba(15, 18, 36, 0.8)",  # --bg-dark con un toque de glass
+
+    # Colores de texto
+    "text_colour": "#ffffff",  # --text-light
+    "link_colour": "#87CEEB",  # --link-blue
+
+    # Colores de los componentes
+    "button_primary": "#5c77ff",  # --primary
+    "button_success": "#28a745",  # --success
+    "button_danger": "#dc3545",  # --danger
+    "button_warning": "#ffc107",  # --warning
+    "button_info": "#3498DB",    # --info
+
+    # Clases y estilos
+    "navbar_classes": "border-bottom",
+    "no_navbar_border": False,
+    "sidebar_classes": "sidebar-dark-primary",
+    "sidebar_fixed": True,
+    "footer_fixed": False,
+    "actions_sticky_top": True,
+    "actions_fixed": True,
+
+    # Radios y bordes (tu CSS lo manejará mejor, pero podemos dar una base)
+    "border_radius": "30px",  # --glass-border-radius
+    "card_border_radius": "30",
+    "button_border_radius": "25",
+    "input_border_radius": "25",
+
+    # Fuentes (se aplicará mejor con CSS personalizado)
+    "font_family_sans_serif": '"Segoe UI", system-ui, sans-serif',
+    "font_family_monospace": 'monospace',
+    "font_size": "1.05rem",
+
+    # Ocultar breadcrumbs si no los quieres
+    "show_breadcrumbs": True,
+}
 
 # ==============================================================================
 # --- 5. INTERNACIONALIZACIÓN, ARCHIVOS, LOGS Y CACHÉ ---
