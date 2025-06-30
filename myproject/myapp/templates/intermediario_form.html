@@ -1,4 +1,4 @@
-{% extends "home.html" %}
+{% extends "base.html" %}
 {% load static %}
 {# {% load i18n %} #} {# Descomentado si no usas traducción explícita aquí #}
 {# {% load humanize %} #} {# Descomentado si no usas filtros de humanize aquí #}
@@ -189,20 +189,5 @@
 {% endblock content %}
 
 {% block extra_js %}
-<script>
-    $(document).ready(function() {
-        // Aplicar Select2 a los campos que tengan la clase 'select2-field'
-        // Esta clase debe ser añadida a los widgets en tu IntermediarioForm en forms.py
-        $('.select2-field').select2({
-            theme: "bootstrap-5", // Asumiendo que usas Bootstrap 5 y el tema de Select2 para ello
-            width: '100%', // O 'style' para que tome el ancho del contenedor
-            placeholder: 'Seleccione una opción',
-            allowClear: true // Permite deseleccionar
-        });
 
-        // Si tienes campos Select2 específicos que no usan la clase general, puedes inicializarlos por ID:
-        // $('#id_intermediario_relacionado').select2({ theme: "bootstrap-5", width: '100%', placeholder: 'Seleccione un padre', allowClear: true });
-        // $('#id_usuarios').select2({ theme: "bootstrap-5", width: '100%', placeholder: 'Seleccione usuarios' });
-    });
-</script>
 {% endblock extra_js %}

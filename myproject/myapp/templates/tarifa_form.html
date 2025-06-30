@@ -1,4 +1,4 @@
-{% extends "home.html" %}
+{% extends "base.html" %}
 {% load static %}
 
 {% block content %}
@@ -14,77 +14,80 @@
       </a>
     </div>
 
-    <form method="post" class="compact-form" enctype="multipart/form-data" aria-labelledby="form-instructions" novalidate>
+    <form method="post" class="compact-form" enctype="multipart/form-data" novalidate>
       {% csrf_token %}
+      {{ form.media }} {# IMPORTANTE: Para que los widgets carguen sus JS/CSS si es necesario #}
 
       {# --- BLOQUE DE ERRORES GENERALES --- #}
       {% if form.non_field_errors %}
-          <div class="alert alert-danger error-summary">
+          <div class="alert alert-danger error-summary" role="alert">
               <h4>Errores Generales:</h4>
               <ul>
                   {% for error in form.non_field_errors %}
-                      <li>{{ error }}</li>
+                      <li>{{ error|escape }}</li>
                   {% endfor %}
               </ul>
           </div>
       {% endif %}
-      {# --- FIN BLOQUE ERRORES GENERALES --- #}
 
-      {# --- CAMPOS DE Tarifa --- #}
+      {# --- Fieldset para agrupar lógicamente, sin la clase .dark-group --- #}
+      <fieldset>
+        <legend class="dark-label" style="font-size: 1.2rem; margin-bottom: 1rem;">💲 Información de la Tarifa</legend>
 
-      <fieldset class="dark-group" data-section="informacion-tarifa">
-        <legend class="dark-label">💲 Información de la Tarifa</legend>
+        {# --- ESTRUCTURA CORREGIDA: Un solo .dark-group por campo --- #}
 
-        {# Campo activo (Heredado) #}
+        {# Campo activo (Switch) #}
         <div class="dark-group {% if form.activo.errors %}error{% endif %}">
             <label class="dark-label" for="{{ form.activo.id_for_label }}">✅ Tarifa Activa</label>
             <label class="switch">
                 {{ form.activo }}
                 <span class="slider"></span>
             </label>
-            {% if form.activo.errors %}<ul class="error-messages">{% for error in form.activo.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-            {% if form.activo.help_text %}<small class="form-text text-muted">{{ form.activo.help_text }}</small>{% endif %}
+            {% if form.activo.errors %}<ul class="error-messages" role="alert">{% for error in form.activo.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.activo.help_text %}<small class="form-text text-muted">{{ form.activo.help_text|escape }}</small>{% endif %}
         </div>
 
         {# Campo ramo #}
         <div class="dark-group {% if form.ramo.errors %}error{% endif %}">
             <label class="dark-label" for="{{ form.ramo.id_for_label }}">🌿 Ramo</label>
-            {{ form.ramo }} {# Asume Select #}
-            {% if form.ramo.errors %}<ul class="error-messages">{% for error in form.ramo.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-            {% if form.ramo.help_text %}<small class="form-text text-muted">{{ form.ramo.help_text }}</small>{% endif %}
+            {{ form.ramo }}
+            {% if form.ramo.errors %}<ul class="error-messages" role="alert">{% for error in form.ramo.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.ramo.help_text %}<small class="form-text text-muted">{{ form.ramo.help_text|escape }}</small>{% endif %}
         </div>
 
         {# Campo rango_etario #}
         <div class="dark-group {% if form.rango_etario.errors %}error{% endif %}">
             <label class="dark-label" for="{{ form.rango_etario.id_for_label }}">🎂 Rango Etario</label>
-            {{ form.rango_etario }} {# Asume Select #}
-            {% if form.rango_etario.errors %}<ul class="error-messages">{% for error in form.rango_etario.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-            {% if form.rango_etario.help_text %}<small class="form-text text-muted">{{ form.rango_etario.help_text }}</small>{% endif %}
+            {{ form.rango_etario }}
+            {% if form.rango_etario.errors %}<ul class="error-messages" role="alert">{% for error in form.rango_etario.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.rango_etario.help_text %}<small class="form-text text-muted">{{ form.rango_etario.help_text|escape }}</small>{% endif %}
         </div>
 
         {# Campo fecha_aplicacion #}
         <div class="dark-group {% if form.fecha_aplicacion.errors %}error{% endif %}">
             <label class="dark-label" for="{{ form.fecha_aplicacion.id_for_label }}">📅 Fecha de Aplicación</label>
-            {{ form.fecha_aplicacion }} {# Asume DateInput type=date #}
-            {% if form.fecha_aplicacion.errors %}<ul class="error-messages">{% for error in form.fecha_aplicacion.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-            {% if form.fecha_aplicacion.help_text %}<small class="form-text text-muted">{{ form.fecha_aplicacion.help_text }}</small>{% endif %}
+            {{ form.fecha_aplicacion }}
+            {% if form.fecha_aplicacion.errors %}<ul class="error-messages" role="alert">{% for error in form.fecha_aplicacion.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.fecha_aplicacion.help_text %}<small class="form-text text-muted">{{ form.fecha_aplicacion.help_text|escape }}</small>{% endif %}
         </div>
 
         {# Campo monto_anual #}
         <div class="dark-group {% if form.monto_anual.errors %}error{% endif %}">
             <label class="dark-label" for="{{ form.monto_anual.id_for_label }}">💰 Monto Base Anual</label>
-            {{ form.monto_anual }} {# Asume Input Number #}
-            {% if form.monto_anual.errors %}<ul class="error-messages">{% for error in form.monto_anual.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-            {% if form.monto_anual.help_text %}<small class="form-text text-muted">{{ form.monto_anual.help_text }}</small>{% endif %}
+            {{ form.monto_anual }}
+            {% if form.monto_anual.errors %}<ul class="error-messages" role="alert">{% for error in form.monto_anual.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.monto_anual.help_text %}<small class="form-text text-muted">{{ form.monto_anual.help_text|escape }}</small>{% endif %}
         </div>
 
         {# Campo tipo_fraccionamiento #}
         <div class="dark-group {% if form.tipo_fraccionamiento.errors %}error{% endif %}">
             <label class="dark-label" for="{{ form.tipo_fraccionamiento.id_for_label }}">🗓️ Fraccionamiento Aplicable (Opcional)</label>
-            {{ form.tipo_fraccionamiento }} {# Asume Select #}
-            {% if form.tipo_fraccionamiento.errors %}<ul class="error-messages">{% for error in form.tipo_fraccionamiento.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-            {% if form.tipo_fraccionamiento.help_text %}<small class="form-text text-muted">{{ form.tipo_fraccionamiento.help_text }}</small>{% endif %}
+            {{ form.tipo_fraccionamiento }}
+            {% if form.tipo_fraccionamiento.errors %}<ul class="error-messages" role="alert">{% for error in form.tipo_fraccionamiento.errors %}<li>{{ error|escape }}</li>{% endfor %}</ul>{% endif %}
+            {% if form.tipo_fraccionamiento.help_text %}<small class="form-text text-muted">{{ form.tipo_fraccionamiento.help_text|escape }}</small>{% endif %}
         </div>
+
+      </fieldset>
 
       {# Renderizar campos ocultos #}
       {% for field in form.hidden_fields %}
@@ -98,11 +101,8 @@
     </form>
   </section>
 </div>
-
 {% endblock content %}
 
-<script>
-  document.addEventListener('DOMContentLoaded', function() {
-    inicializarCalculosTarifa({ decimales: 2 });
-  });
-</script>
+
+{% block extra_scripts %}
+{% endblock extra_scripts %}

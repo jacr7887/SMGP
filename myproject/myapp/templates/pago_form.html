@@ -1,6 +1,6 @@
-{% extends "base.html" %} {# Asegúrate que 'base.html' sea tu plantilla base #}
+{% extends "base.html" %} 
 {% load static %}
-{% load humanize %} {# Necesario para intcomma si lo usas #}
+{% load humanize %} 
 
 {% block title %}{% if form.instance.pk %}Editar{% else %}Registrar{% endif %} Pago{% endblock %}
 

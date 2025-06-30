@@ -108,9 +108,9 @@ class AfiliadoColectivoForm(BaseModelForm):
             'intermediario',
         ]
         widgets = {
-            'tipo_empresa': forms.Select(),
+            'tipo_empresa': forms.Select(attrs={'class': 'select2-enable'}),
             'direccion_comercial': forms.Textarea(attrs={'rows': 3}),
-            'estado': forms.Select(),
+            'estado': forms.Select(attrs={'class': 'select2-enable'}),
             'activo': forms.CheckboxInput(attrs={'class': 'switch'}),
             'rif': forms.TextInput(attrs={'placeholder': 'Formato: J-12345678-9'}),
             'email_contacto': forms.EmailInput(attrs={'placeholder': 'ejemplo@dominio.com'}),
@@ -163,66 +163,48 @@ class AfiliadoColectivoForm(BaseModelForm):
             validate_telefono_venezuela(telefono)
         return telefono
 
-# ------------------------------
-# Formulario para Usuario
-# ------------------------------
+# ===================================================================
+# ===          FORMULARIO DE CREACIÓN DE USUARIO (CORREGIDO)       ===
+# ===================================================================
 
 
 class FormularioCreacionUsuario(AwareDateInputMixinVE, UserCreationForm, BaseModelForm):
     aware_date_fields = ['fecha_nacimiento']
 
-    email = forms.EmailField(label="Correo Electrónico", required=True)
-    primer_nombre = forms.CharField(
-        max_length=100, label="Primer Nombre", required=True)
-    primer_apellido = forms.CharField(
-        max_length=100, label="Primer Apellido", required=True)
-    segundo_nombre = forms.CharField(
-        max_length=100, label="Segundo Nombre", required=False)
-    segundo_apellido = forms.CharField(
-        max_length=100, label="Segundo Apellido", required=False)
-    nivel_acceso = forms.ChoiceField(
-        choices=CommonChoices.NIVEL_ACCESO, label="Nivel de Acceso", initial=1)
-    tipo_usuario = forms.ChoiceField(
-        choices=CommonChoices.TIPO_USUARIO, label="Tipo de Usuario")
-
-# CORRECTO
-    fecha_nacimiento = forms.DateField(
-        label="Fecha de Nacimiento",
-        required=False,
-        # Usamos el widget DateInput y le decimos qué formato aceptar
-        widget=forms.DateInput(
-            format='%d/%m/%Y',  # Le dice a Django que espere este formato
-            attrs={
-                'type': 'text',  # Fuerza al navegador a no usar su datepicker nativo
-                'placeholder': 'DD/MM/YYYY',
-                'class': 'form-control date-input'  # Añadimos una clase para el datepicker de JS
-            }
-        ),
-        # Le decimos al campo qué formatos son válidos para la entrada
-        input_formats=('%d/%m/%Y',)
-    )
-    departamento = forms.ChoiceField(
-        choices=CommonChoices.DEPARTAMENTO, required=False, label="Departamento")
-    telefono = forms.CharField(max_length=15, required=False, label="Teléfono")
-    direccion = forms.CharField(widget=forms.Textarea(
-        attrs={'rows': 3}), required=False, label="Dirección")
-    intermediario = forms.ModelChoiceField(
-        queryset=Intermediario.objects.filter(
-            activo=True).order_by('nombre_completo'),
-        required=False,
-        widget=Select2Widget(attrs={
-                             'data-placeholder': 'Seleccione un intermediario...', 'class': 'form-control django-select2'}),
-        label="Intermediario Asociado"
-    )
-    activo = forms.BooleanField(
-        required=False, initial=True, label="Cuenta Activa (Soft Delete)")
+    # Los campos de contraseña ya vienen de UserCreationForm, no es necesario redefinirlos.
+    # Los demás campos se definirán en Meta.
 
     class Meta(UserCreationForm.Meta):
         model = Usuario
-        fields = ('email', 'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido',
-                  'tipo_usuario', 'fecha_nacimiento', 'departamento', 'telefono', 'direccion',
-                  'intermediario', 'nivel_acceso', 'activo')
+        fields = (
+            'email', 'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido',
+            'tipo_usuario', 'fecha_nacimiento', 'departamento', 'telefono', 'direccion',
+            'intermediario', 'nivel_acceso', 'activo'
+        )
 
+        # Definimos todos los widgets personalizados aquí.
+        widgets = {
+            # Campos que serán Select2
+            'tipo_usuario': forms.Select(attrs={'class': 'select2-enable'}),
+            'nivel_acceso': forms.Select(attrs={'class': 'select2-enable'}),
+            'departamento': forms.Select(attrs={'class': 'select2-enable'}),
+            'intermediario': Select2Widget(attrs={'data-placeholder': 'Seleccione un intermediario...', 'class': 'select2-enable'}),
+
+            # Widgets para otros campos que ya tenías
+            'fecha_nacimiento': forms.DateInput(
+                format='%d/%m/%Y',
+                attrs={
+                    'type': 'text',
+                    'placeholder': 'DD/MM/YYYY',
+                    'class': 'form-control date-input'
+                }
+            ),
+            'direccion': forms.Textarea(attrs={'rows': 3}),
+            # Asumiendo que quieres un switch
+            'activo': forms.CheckboxInput(attrs={'class': 'switch'}),
+        }
+
+    # El método save se mantiene igual
     def save(self, commit=True):
         user = super().save(commit=False)
         if commit:
@@ -230,69 +212,11 @@ class FormularioCreacionUsuario(AwareDateInputMixinVE, UserCreationForm, BaseMod
         return user
 
 
+# ===================================================================
+# ===          FORMULARIO DE EDICIÓN DE USUARIO                   ===
+# ===================================================================
 class FormularioEdicionUsuario(AwareDateInputMixinVE, BaseModelForm):
     aware_date_fields = ['fecha_nacimiento']
-
-    primer_nombre = forms.CharField(
-        max_length=100, label="Primer Nombre", required=True)
-    primer_apellido = forms.CharField(
-        max_length=100, label="Primer Apellido", required=True)
-    segundo_nombre = forms.CharField(
-        max_length=100, label="Segundo Nombre", required=False)
-    segundo_apellido = forms.CharField(
-        max_length=100, label="Segundo Apellido", required=False)
-
-    fecha_nacimiento = forms.DateField(
-        label="Fecha de Nacimiento",
-        required=False,
-        # Usamos el widget DateInput y le decimos qué formato aceptar
-        widget=forms.DateInput(
-            format='%d/%m/%Y',  # Le dice a Django que espere este formato
-            attrs={
-                'type': 'text',  # Fuerza al navegador a no usar su datepicker nativo
-                'placeholder': 'DD/MM/YYYY',
-                'class': 'form-control date-input'  # Añadimos una clase para el datepicker de JS
-            }
-        ),
-        # Le decimos al campo qué formatos son válidos para la entrada
-        input_formats=('%d/%m/%Y',)
-    )
-    telefono = forms.CharField(max_length=15, required=False, label="Teléfono")
-    direccion = forms.CharField(widget=forms.Textarea(
-        attrs={'rows': 3}), required=False, label="Dirección")
-    tipo_usuario = forms.ChoiceField(
-        choices=CommonChoices.TIPO_USUARIO, label="Tipo de Usuario")
-    nivel_acceso = forms.ChoiceField(
-        choices=CommonChoices.NIVEL_ACCESO, label="Nivel de Acceso")
-    departamento = forms.ChoiceField(
-        choices=CommonChoices.DEPARTAMENTO, required=False, label="Departamento")
-    intermediario = forms.ModelChoiceField(
-        queryset=Intermediario.objects.filter(
-            activo=True).order_by('nombre_completo'),
-        required=False,
-        widget=Select2Widget(attrs={
-                             'data-placeholder': 'Seleccione un intermediario...', 'class': 'form-control django-select2'}),
-        label="Intermediario Asociado"
-    )
-    activo = forms.BooleanField(
-        required=False, label="Cuenta Activa (Soft Delete)")
-    is_staff = forms.BooleanField(
-        required=False, label="Acceso al Panel de Admin")
-    is_superuser = forms.BooleanField(
-        required=False, label="Superusuario (Django)")
-    groups = forms.ModelMultipleChoiceField(
-        queryset=Group.objects.all().order_by('name'),
-        widget=Select2MultipleWidget(
-            attrs={'data-placeholder': 'Seleccionar grupos...', 'class': 'django-select2'}),
-        required=False, label="Grupos de Permisos"
-    )
-    user_permissions = forms.ModelMultipleChoiceField(
-        queryset=Permission.objects.select_related('content_type').all().order_by(
-            'content_type__app_label', 'content_type__model', 'name'),
-        widget=Select2MultipleWidget(
-            attrs={'data-placeholder': 'Seleccionar permisos...', 'class': 'django-select2'}),
-        required=False, label="Permisos Específicos"
-    )
 
     class Meta:
         model = Usuario
@@ -302,6 +226,30 @@ class FormularioEdicionUsuario(AwareDateInputMixinVE, BaseModelForm):
             'tipo_usuario', 'nivel_acceso', 'departamento', 'intermediario', 'activo',
             'is_staff', 'is_superuser', 'groups', 'user_permissions',
         ]
+
+        widgets = {
+            # Campos que serán Select2
+            'tipo_usuario': forms.Select(attrs={'class': 'select2-enable'}),
+            'nivel_acceso': forms.Select(attrs={'class': 'select2-enable'}),
+            'departamento': forms.Select(attrs={'class': 'select2-enable'}),
+            'intermediario': Select2Widget(attrs={'data-placeholder': 'Seleccione un intermediario...', 'class': 'select2-enable'}),
+            'groups': Select2MultipleWidget(attrs={'data-placeholder': 'Seleccionar grupos...', 'class': 'select2-enable'}),
+            'user_permissions': Select2MultipleWidget(attrs={'data-placeholder': 'Seleccionar permisos...', 'class': 'select2-enable'}),
+
+            # Widgets para otros campos que ya tenías
+            'fecha_nacimiento': forms.DateInput(
+                format='%d/%m/%Y',
+                attrs={
+                    'type': 'text',
+                    'placeholder': 'DD/MM/YYYY',
+                    'class': 'form-control date-input'
+                }
+            ),
+            'direccion': forms.Textarea(attrs={'rows': 3}),
+            'activo': forms.CheckboxInput(attrs={'class': 'switch'}),
+            'is_staff': forms.CheckboxInput(attrs={'class': 'switch'}),
+            'is_superuser': forms.CheckboxInput(attrs={'class': 'switch'}),
+        }
 
     def __init__(self, *args, **kwargs):
         self.request_user = kwargs.pop('request_user', None)
@@ -375,18 +323,15 @@ class FormularioEdicionUsuario(AwareDateInputMixinVE, BaseModelForm):
             raise forms.ValidationError("Este campo es requerido.")
         return nivel_acceso
 
-    # El mixin lo hace aware, aquí validaciones adicionales
     def clean_fecha_nacimiento(self):
         fecha_nacimiento_obj = self.cleaned_data.get('fecha_nacimiento')
-
         if fecha_nacimiento_obj:
-            # Se pasa el objeto 'date' directamente, sin llamar a .date()
             validate_fecha_nacimiento(fecha_nacimiento_obj)
-
         return fecha_nacimiento_obj
 
-
 # --- Formulario de Login - SIN CAMBIOS ---
+
+
 class LoginForm(forms.Form):
     username = forms.EmailField(label="Correo Electrónico", required=True, widget=forms.EmailInput(
         attrs={'placeholder': 'Correo Electrónico', 'class': 'login__input', 'autofocus': True}))
@@ -1511,92 +1456,73 @@ class PagoForm(AwareDateInputMixinVE, forms.ModelForm):
 # ------------------------------
 
 
-class TarifaForm(AwareDateInputMixinVE, BaseModelForm):  # Asegúrate que herede del mixin
+class TarifaForm(AwareDateInputMixinVE, BaseModelForm):
     # CONFIGURACIÓN PARA EL MIXIN
     aware_date_fields_config = [
         {'name': 'fecha_aplicacion', 'is_datetime': False,
             'format': '%d/%m/%Y', 'placeholder': PLACEHOLDER_DATE_STRICT},
     ]
 
-    # Definición de campos (como los tenías, asegurando que fecha_aplicacion sea CharField)
-    fecha_aplicacion = forms.CharField(
-        label="Fecha Aplicación",
-        widget=forms.TextInput(
-            attrs={'placeholder': PLACEHOLDER_DATE_STRICT, 'class': 'form-control'}),
-        required=True
-    )
-    ramo = forms.ChoiceField(choices=CommonChoices.RAMO, widget=forms.Select(
-        attrs={'class': 'select2-enable'}))  # Ajustado widget
-    rango_etario = forms.ChoiceField(choices=CommonChoices.RANGO_ETARIO, widget=forms.Select(
-        attrs={'class': 'select2-enable'}))  # Ajustado widget
-    monto_anual = forms.DecimalField(
-        label="Monto Anual",
-        max_digits=10,  # Coincidir con el modelo
-        decimal_places=2,
-        widget=forms.NumberInput(
-            attrs={'step': '0.01', 'class': 'form-control'}),
-        validators=[MinValueValidator(Decimal('0.01'))]  # Del modelo
-    )
-    tipo_fraccionamiento = forms.ChoiceField(
-        label="Tipo de Fraccionamiento",
-        # Asumo que usa los mismos choices que forma_pago
-        choices=CommonChoices.FORMA_PAGO,
-        widget=forms.Select(attrs={'class': 'select2-enable'}),
-        required=False  # Es blank=True, null=True en el modelo
-    )
-    activo = forms.BooleanField(
-        label="Tarifa Activa",
-        required=False,
-        initial=True,
-        widget=forms.CheckboxInput(
-            attrs={'class': 'form-check-input'})  # Para Bootstrap
-    )
+    # No definimos los campos aquí. Lo haremos todo en la clase Meta
+    # para máxima claridad y para evitar conflictos.
 
     class Meta:
         model = Tarifa
         fields = ['ramo', 'rango_etario', 'fecha_aplicacion', 'monto_anual',
                   'tipo_fraccionamiento', 'activo']
-        # codigo_tarifa es editable=False en el modelo, se genera en save.
-        # Los campos de ModeloBase se excluyen.
+
         exclude = ['codigo_tarifa', 'fecha_creacion', 'fecha_modificacion',
                    'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido']
+
+        # === ESTA ES LA CORRECCIÓN CLAVE ===
+        # Usamos forms.Select estándar de Django y le añadimos nuestra clase mágica.
+        # NO usamos Select2Widget de la librería django-select2.
         widgets = {
-            'activo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            # Los widgets para CharField de fecha y Select ya están en la definición de campos.
+            'ramo': Select2Widget,
+            'rango_etario': Select2Widget,
+            'tipo_fraccionamiento': Select2Widget,
+
+            # Widgets para otros campos
+            'fecha_aplicacion': forms.TextInput(
+                attrs={'placeholder': PLACEHOLDER_DATE_STRICT,
+                       'class': 'form-control'}
+            ),
+            'monto_anual': forms.NumberInput(
+                attrs={'step': '0.01', 'class': 'form-control'}
+            ),
+            'activo': forms.CheckboxInput(
+                # O 'class': 'switch' si prefieres ese estilo
+                attrs={'class': 'form-check-input'}
+            ),
         }
 
+    # El resto de tus métodos se mantienen exactamente igual
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Formatear fecha_aplicacion para la visualización en modo edición
         if self.instance and self.instance.pk:
             if hasattr(self, 'aware_date_fields_config'):
-                for config in self.aware_date_fields_config:  # Solo hay una aquí: fecha_aplicacion
+                for config in self.aware_date_fields_config:
                     field_name = config['name']
                     display_format = config['format']
 
                     if field_name == 'fecha_aplicacion' and field_name in self.fields and hasattr(self.instance, field_name):
                         model_value = getattr(self.instance, field_name, None)
                         if model_value:
-                            if isinstance(model_value, date):  # El modelo tiene DateField
+                            if isinstance(model_value, date):
                                 self.initial[field_name] = model_value.strftime(
                                     display_format)
-                        # Si es None y no requerido
                         elif self.fields[field_name].required is False:
                             self.initial[field_name] = ''
-        # else: # Modo Creación
-            # Puedes setear defaults aquí si es necesario
 
-    def clean_monto_anual(self):  # Tu validación existente
+    def clean_monto_anual(self):
         monto = self.cleaned_data.get('monto_anual')
         if monto is not None and monto <= Decimal('0.00'):
             raise ValidationError('El monto anual debe ser positivo.')
         return monto
 
-    def clean_tipo_fraccionamiento(self):  # Tu validación existente
+    def clean_tipo_fraccionamiento(self):
         tipo = self.cleaned_data.get('tipo_fraccionamiento')
-        # Asegúrate que CommonChoices.FORMA_PAGO sea una lista de tuplas (valor, display)
-        # Obtener solo las claves
         valid_keys = [choice[0]
                       for choice in CommonChoices.FORMA_PAGO if choice[0]]
         if tipo and tipo not in valid_keys:
@@ -1604,23 +1530,14 @@ class TarifaForm(AwareDateInputMixinVE, BaseModelForm):  # Asegúrate que herede
                 f"Seleccione una opción válida. '{tipo}' no es permitida.")
         return tipo
 
-    def clean(self):  # Tu validación existente
+    def clean(self):
         cleaned_data = super().clean()
-
-        # fecha_aplicacion_aware ya es un objeto date gracias al mixin
         fecha_aplicacion_obj = cleaned_data.get('fecha_aplicacion')
-
-        # CORRECCIÓN: Comparar con la parte de la fecha de hoy
         hoy_date_para_comparar = django_timezone.now().date()
 
         if fecha_aplicacion_obj and fecha_aplicacion_obj > hoy_date_para_comparar:
             self.add_error('fecha_aplicacion',
                            "La fecha de aplicación no puede ser futura.")
-
-        # La validación de unicidad del código_tarifa se maneja mejor en el clean del modelo Tarifa
-        # o a través de UniqueConstraint en Meta, ya que el código se genera en el save().
-        # Si intentas validarlo aquí antes del save, el código aún no se habrá generado para nuevas instancias.
-
         return cleaned_data
 
 # ------------------------------

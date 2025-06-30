@@ -1,4 +1,4 @@
-{% extends "home.html" %}
+{% extends "base.html" %}
 {% load static %}
 {% load i18n %} {# Solo si usas {% translate %} #}
 {% load humanize %} {# Solo si usas filtros de humanize #}
@@ -198,36 +198,3 @@
 </div>
 {% endblock content %}
 
-{% block extra_js %}
-{# Este bloque es crucial si django-select2 no se inicializa solo #}
-{# O si quieres pasar opciones personalizadas #}
-<script>
-    $(document).ready(function() {
-        // Intenta inicializar CUALQUIER select que django-select2 pueda haber marcado
-        // o los que tú marques con una clase específica.
-        // Si usaste 'form-control-select2' en tu widget:
-        $('.form-control-select2').each(function() {
-             if (!$(this).data('select2')) { // Evitar reinicializar si ya lo está
-                $(this).select2({
-                    theme: "bootstrap-5", // O "default", o el tema que uses
-                    width: '100%',       // O 'style', 'resolve'
-                    placeholder: $(this).data('placeholder') || "Seleccione...",
-                    allowClear: !$(this).prop('required') // Permite limpiar si no es un campo requerido
-                });
-             }
-        });
-
-        // O si quieres ser muy específico con el ID del campo intermediario:
-        // (El ID por defecto de Django es 'id_nombre_del_campo_en_el_form')
-        // if ($('#id_intermediario').length && !$('#id_intermediario').data('select2')) {
-        //     $('#id_intermediario').select2({
-        //         theme: "bootstrap-5",
-        //         width: '100%',
-        //         placeholder: "Buscar Intermediario...",
-        //         allowClear: true
-        //     });
-        //     console.log("Select2 inicializado para #id_intermediario");
-        // }
-    });
-</script>
-{% endblock extra_js %}

@@ -287,25 +287,27 @@
       </div>
     </div>
 
-     <!-- jQuery (DEBE SER EL PRIMERO) -->
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <!-- DataTables JS -->
-    <script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
-    <!-- NUEVO: Select2 JS (después de jQuery) -->
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+ 
+    <!-- 1. jQuery (con integridad) -->
+    <script
+      src="https://code.jquery.com/jquery-3.7.1.min.js"
+      integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo="
+      crossorigin="anonymous"></script>
     
-    <!-- 2. LIBRERÍAS LOCALES -->
+    <!-- 2. DataTables JS (con el hash de integridad CORRECTO) -->
+    <script 
+      src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"
+      integrity="sha384-nJy9D0UBD2LV93ED7IXSsdWfa9PumZvn70zRSR/oFw5Zq0x6gWwWdpLeGsbVATVg"
+      crossorigin="anonymous"></script>
+      
+    <!-- 3. Plotly JS (cargado localmente) -->
     <script src="{% static 'plotly.js' %}"></script>
-    
-    <!-- 3. MEDIA DE FORMULARIOS DE DJANGO (para widgets JS) -->
-    {% if form.media.js %}{{ form.media.js }}{% endif %}
 
-    <!-- 4. SCRIPTS PERSONALIZADOS -->
-    <!-- URL para notificaciones (cargada una sola vez) -->
-    <script id="mark-notification-read-url" data-url="{% url 'myapp:mark_notification_read' %}" type="application/json"></script>
-    <!-- Tu archivo de scripts principal (cargado una sola vez) -->
+    <!-- 4. Twemoji (cargado una sola vez) -->
+    <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
+
+    <!-- 5. Tu archivo de scripts generales (cargado una sola vez) -->
     <script src="{% static 'scripts.js' %}"></script>
-
     {% if form.media.js %}{{ form.media.js }}{% endif %}
     <script id="mark-notification-read-url" data-url="{% url 'myapp:mark_notification_read' %}" type="application/json"></script>
 
@@ -320,17 +322,6 @@
                     dropdownParent: $('body')
             });
         });
-
-        // --- LÓGICA GENERAL DEL DOM (antes en línea) ---
-        // Indicador de carga
-        function showLoading(){ const l=document.getElementById("loadingIndicator"); if(l)l.style.display="flex"; }
-        function hideLoading(){ const l=document.getElementById("loadingIndicator"); if(l)l.style.display="none"; }
-        document.querySelectorAll("form:not([data-no-loading])").forEach(function(a) {
-            if (!a.closest('.search-container')) {
-                a.addEventListener("submit", function(){ showLoading(); });
-            }
-        });
-
       function showLoading(){ const l=document.getElementById("loadingIndicator"); if(l)l.style.display="flex"; }
       function hideLoading(){ const l=document.getElementById("loadingIndicator"); if(l)l.style.display="none"; }
       document.addEventListener("DOMContentLoaded", function() {

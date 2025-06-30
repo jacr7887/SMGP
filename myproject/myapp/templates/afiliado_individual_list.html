@@ -1,4 +1,4 @@
-{% extends "home.html" %}
+{% extends "base.html" %}
 {% load static %}
 
 {% block extra_head %}
@@ -112,20 +112,4 @@
 
 {% block extra_scripts %}
 
-<script>
-$(document).ready(function() {
-    $('#afiliados-table').DataTable({
-        language: {
-            "url": "//cdn.datatables.net/plug-ins/2.0.8/i18n/es-ES.json"
-        },
-        "dom":
-            "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" +
-            "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" +
-            "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
-        "columnDefs": [
-            { "orderable": false, "targets": -1 }
-        ]
-    });
-});
-</script>
 {% endblock %}
