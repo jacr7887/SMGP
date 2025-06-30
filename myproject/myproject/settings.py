@@ -193,6 +193,7 @@ JAZZMIN_SETTINGS = {
     "topmenu_classes": "navbar-dark",
     "sidebar_classes": "sidebar-dark-primary",
     "custom_css": "jazzmin_custom.css",
+    "custom_js": "jazzmin_custom.js",
 
     # Mostrar el panel de modelos en la página de índice del admin
     "show_ui_builder": False,

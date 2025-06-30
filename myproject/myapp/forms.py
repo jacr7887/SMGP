@@ -464,7 +464,7 @@ class IntermediarioForm(BaseModelForm):
         exclude = ['codigo', 'fecha_creacion', 'fecha_modificacion',
                    'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido']
         widgets = {'direccion_fiscal': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}), 'nombre_completo': forms.TextInput(attrs={'class': 'form-control'}), 'rif': forms.TextInput(attrs={'class': 'form-control'}), 'email_contacto': forms.EmailInput(attrs={'class': 'form-control'}), 'telefono_contacto': forms.TextInput(attrs={'class': 'form-control'}),
-                   'porcentaje_comision': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}), 'porcentaje_override': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}), 'intermediario_relacionado': forms.Select(attrs={'class': 'form-select select2-field'}), 'usuarios': forms.SelectMultiple(attrs={'class': 'form-select select2-field'})}
+                   'porcentaje_comision': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}), 'porcentaje_override': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}), 'intermediario_relacionado': forms.Select(attrs={'class': 'select2-enable select2-field'}), 'usuarios': forms.SelectMultiple(attrs={'class': 'select2-enable select2-field'})}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -563,21 +563,21 @@ class AfiliadoIndividualForm(AwareDateInputMixinVE, BaseModelForm):
                                        required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
 
     tipo_identificacion = forms.ChoiceField(
-        label="Tipo de Identificación", choices=CommonChoices.TIPO_IDENTIFICACION, widget=forms.Select(attrs={'class': 'form-select'}))
+        label="Tipo de Identificación", choices=CommonChoices.TIPO_IDENTIFICACION, widget=forms.Select(attrs={'class': 'select2-enable'}))
     cedula = forms.CharField(label="Cédula", max_length=20, widget=forms.TextInput(
         attrs={'placeholder': 'Ej: V-12345678', 'class': 'form-control'}))
     estado_civil = forms.ChoiceField(
-        label="Estado Civil", choices=CommonChoices.ESTADO_CIVIL, widget=forms.Select(attrs={'class': 'form-select'}))
+        label="Estado Civil", choices=CommonChoices.ESTADO_CIVIL, widget=forms.Select(attrs={'class': 'select2-enable'}))
     sexo = forms.ChoiceField(label="Sexo", choices=CommonChoices.SEXO,
-                             widget=forms.Select(attrs={'class': 'form-select'}))
+                             widget=forms.Select(attrs={'class': 'select2-enable'}))
     parentesco = forms.ChoiceField(label="Parentesco", choices=CommonChoices.PARENTESCO,
-                                   widget=forms.Select(attrs={'class': 'form-select'}))
+                                   widget=forms.Select(attrs={'class': 'select2-enable'}))
     nacionalidad = forms.CharField(label="Nacionalidad", max_length=50,
                                    initial='Venezolana', widget=forms.TextInput(attrs={'class': 'form-control'}))
     zona_postal = forms.CharField(label="Zona Postal", max_length=10, required=False, widget=forms.TextInput(
         attrs={'placeholder': 'Ej: 1010', 'class': 'form-control'}))
     estado = forms.ChoiceField(label="Estado", choices=CommonChoices.ESTADOS_VE,
-                               widget=forms.Select(attrs={'class': 'form-select'}))
+                               widget=forms.Select(attrs={'class': 'select2-enable'}))
     municipio = forms.CharField(label="Municipio", max_length=100, widget=forms.TextInput(
         attrs={'class': 'form-control'}))  # Asumo requerido
     ciudad = forms.CharField(label="Ciudad", max_length=100, widget=forms.TextInput(
@@ -1212,8 +1212,8 @@ class ReclamacionForm(AwareDateInputMixinVE, BaseModelForm):
     tipo_reclamacion = forms.ChoiceField(
         label="Tipo de Reclamación",
         choices=CommonChoices.TIPO_RECLAMACION,
-        # Usar form-select para Bootstrap
-        widget=forms.Select(attrs={'class': 'form-select'})
+        # Usar select2-enable para Bootstrap
+        widget=forms.Select(attrs={'class': 'select2-enable'})
     )
     descripcion_reclamo = forms.CharField(
         label="Descripción del Reclamo",
@@ -1222,7 +1222,7 @@ class ReclamacionForm(AwareDateInputMixinVE, BaseModelForm):
     estado = forms.ChoiceField(
         label="Estado de la Reclamación",
         choices=CommonChoices.ESTADO_RECLAMACION,
-        widget=forms.Select(attrs={'class': 'form-select'})
+        widget=forms.Select(attrs={'class': 'select2-enable'})
     )
     monto_reclamado = forms.DecimalField(
         label="Monto Reclamado",
@@ -1407,7 +1407,7 @@ class PagoForm(AwareDateInputMixinVE, forms.ModelForm):
     forma_pago = forms.ChoiceField(
         label="Forma de Pago",
         choices=CommonChoices.FORMA_PAGO_RECLAMACION,
-        widget=forms.Select(attrs={'class': 'form-select'})
+        widget=forms.Select(attrs={'class': 'select2-enable'})
     )
     referencia_pago = forms.CharField(
         label="Referencia de Pago",
@@ -1526,9 +1526,9 @@ class TarifaForm(AwareDateInputMixinVE, BaseModelForm):  # Asegúrate que herede
         required=True
     )
     ramo = forms.ChoiceField(choices=CommonChoices.RAMO, widget=forms.Select(
-        attrs={'class': 'form-select'}))  # Ajustado widget
+        attrs={'class': 'select2-enable'}))  # Ajustado widget
     rango_etario = forms.ChoiceField(choices=CommonChoices.RANGO_ETARIO, widget=forms.Select(
-        attrs={'class': 'form-select'}))  # Ajustado widget
+        attrs={'class': 'select2-enable'}))  # Ajustado widget
     monto_anual = forms.DecimalField(
         label="Monto Anual",
         max_digits=10,  # Coincidir con el modelo
@@ -1541,7 +1541,7 @@ class TarifaForm(AwareDateInputMixinVE, BaseModelForm):  # Asegúrate que herede
         label="Tipo de Fraccionamiento",
         # Asumo que usa los mismos choices que forma_pago
         choices=CommonChoices.FORMA_PAGO,
-        widget=forms.Select(attrs={'class': 'form-select'}),
+        widget=forms.Select(attrs={'class': 'select2-enable'}),
         required=False  # Es blank=True, null=True en el modelo
     )
     activo = forms.BooleanField(
@@ -1660,9 +1660,9 @@ class FacturaForm(AwareDateInputMixinVE, BaseModelForm):
         attrs={'min': '0', 'class': 'form-control-plaintext bg-dark text-white p-2 rounded', 'id': 'id_dias_periodo_cobro'}), required=False)
 
     estatus_factura = forms.ChoiceField(label="Estatus de Factura", choices=CommonChoices.ESTATUS_FACTURA, widget=forms.Select(
-        attrs={'class': 'form-select select-field'}))
+        attrs={'class': 'select2-enable select-field'}))
     estatus_emision = forms.ChoiceField(label="Estatus de Emisión", choices=CommonChoices.EMISION_RECIBO, widget=forms.Select(
-        attrs={'class': 'form-select select-field'}))
+        attrs={'class': 'select2-enable select-field'}))
     aplica_igtf = forms.BooleanField(label="¿Condiciones para IGTF presentes?",
                                      required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
     observaciones = forms.CharField(label="Observaciones de la Factura", widget=forms.Textarea(
