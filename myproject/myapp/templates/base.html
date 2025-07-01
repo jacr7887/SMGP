@@ -296,7 +296,7 @@
     <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
     <script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js" integrity="sha384-nJy9D0UBD2LV93ED7IXSsdWfa9PumZvn70zRSR/oFw5Zq0x6gWwWdpLeGsbVATVg" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
+    <script src="{% static 'twemoji.min.js' %}"></script>
     
     <!-- 2. MEDIA DE FORMULARIOS DE DJANGO -->
     {% if form.media.js %}{{ form.media.js }}{% endif %}
@@ -447,18 +447,18 @@
             }
         });
 
-        // --- BLOQUE 3: LÓGICA QUE SE EJECUTA AL CARGAR TODA LA VENTANA ---
+        // --- LÓGICA DE TWEMOJI (CORREGIDA PARA RUTA LOCAL) ---
         window.addEventListener('load', () => {
             try {
                 if (typeof twemoji !== 'undefined') {
-                     twemoji.parse(document.body, {
-                        folder: 'svg',
+                    twemoji.parse(document.body, {
+                        folder: '', // <-- DEJAR VACÍO
                         ext: '.svg',
-                        base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/'
-                     });
+                        base: "{% static 'svg/' %}" 
+                    });
                 }
             } catch (e) {
-                 console.error("Error ejecutando twemoji.parse(): ", e);
+                console.error("Error ejecutando twemoji.parse(): ", e);
             }
         });
     </script>
