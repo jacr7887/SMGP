@@ -14,7 +14,6 @@
       href="https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.min.css"
       integrity="sha384-zUxWDVAcow8yNu+q4VFsyZA3qWsKKGdWPW0SVjaR12LQze4SY8Nr75US6VDhbWkf"
       crossorigin="anonymous">
-    <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
     <script src="{% static 'plotly.js' %}"></script>
 
     <link rel="icon" type="image/png" sizes="64x64" href="{% static 'favicon-64x64.png' %}">
@@ -288,231 +287,27 @@
     </div>
 
  
-    <!-- 1. jQuery (con integridad) -->
-    <script
-      src="https://code.jquery.com/jquery-3.7.1.min.js"
-      integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo="
-      crossorigin="anonymous"></script>
+
+    <!-- ====================================================== -->
+    <!-- ===   SECCIÓN DE SCRIPTS CORREGIDA Y ORDENADA      === -->
+    <!-- ====================================================== -->
+
+    <!-- 1. LIBRERÍAS EXTERNAS -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js" integrity="sha384-nJy9D0UBD2LV93ED7IXSsdWfa9PumZvn70zRSR/oFw5Zq0x6gWwWdpLeGsbVATVg" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
     
-    <!-- 2. DataTables JS (con el hash de integridad CORRECTO) -->
-    <script 
-      src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"
-      integrity="sha384-nJy9D0UBD2LV93ED7IXSsdWfa9PumZvn70zRSR/oFw5Zq0x6gWwWdpLeGsbVATVg"
-      crossorigin="anonymous"></script>
-      
-    <!-- 3. Plotly JS (cargado localmente) -->
-    <script src="{% static 'plotly.js' %}"></script>
-
-    <!-- 4. Twemoji (cargado una sola vez) -->
-    <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
-
-    <!-- 5. Tu archivo de scripts generales (cargado una sola vez) -->
-    <script src="{% static 'scripts.js' %}"></script>
+    <!-- 2. MEDIA DE FORMULARIOS DE DJANGO -->
     {% if form.media.js %}{{ form.media.js }}{% endif %}
+
+    <!-- 3. TUS SCRIPTS PERSONALIZADOS -->
     <script id="mark-notification-read-url" data-url="{% url 'myapp:mark_notification_read' %}" type="application/json"></script>
-
-    {# Scripts generales que ya tenías #}
-    <script>
-
-
-        // Busca todos los <select> con la clase 'select2-enable' y los convierte
-        $('.select2-enable').each(function() {
-            $(this).select2({
-                // Esta opción ayuda a que el dropdown se renderice correctamente
-                    dropdownParent: $('body')
-            });
-        });
-      function showLoading(){ const l=document.getElementById("loadingIndicator"); if(l)l.style.display="flex"; }
-      function hideLoading(){ const l=document.getElementById("loadingIndicator"); if(l)l.style.display="none"; }
-      document.addEventListener("DOMContentLoaded", function() {
-        document.querySelectorAll(".close_alert").forEach(function(a) { a.addEventListener("click", function() { this.closest('.alert').style.opacity = "0"; setTimeout(() => { this.closest('.alert').style.display = "none" }, 300); }); });
-        setTimeout(function() { document.querySelectorAll(".alert").forEach(function(a) { if (window.getComputedStyle(a).display !== 'none') { a.style.opacity = "0"; setTimeout(() => { a.style.display = "none" }, 300); } }); }, 5000);
-        document.querySelectorAll(".submenu_toggle").forEach(function(a) {
-            if (!a.classList.contains('export-trigger')) {
-                a.addEventListener("click", function(b) {
-                    b.preventDefault();
-                    const parentLi = this.parentElement;
-                    const alreadyOpen = parentLi.classList.contains("open");
-                    document.querySelectorAll(".nav_item.open").forEach(other_item => {
-                        if (other_item !== parentLi) other_item.classList.remove("open");
-                    });
-                    if (!alreadyOpen) {
-                        parentLi.classList.add("open");
-                    } else {
-                         parentLi.classList.remove("open");
-                    }
-                });
-            }
-        });
-        document.querySelectorAll(".user_menu_toggle, .notification_toggle").forEach(function(a) { a.addEventListener("click", function() { const parentMenu = this.parentElement; parentMenu.classList.toggle("open"); const otherMenuSelector = parentMenu.classList.contains('user_menu') ? '.notification_menu.open' : '.user_menu.open'; document.querySelector(otherMenuSelector)?.classList.remove('open'); }); });
-        document.addEventListener("click", function(a) { if (!a.target.closest(".user_menu") && !a.target.closest(".notification_menu")) { document.querySelectorAll(".user_menu.open, .notification_menu.open").forEach(function(b) { b.classList.remove("open"); }); } });
-        document.getElementById("sidebarToggle")?.addEventListener("click", function(){ document.querySelector(".layout")?.classList.toggle("sidebar_collapsed"); });
-        document.getElementById("mobileSidebarToggle")?.addEventListener("click", function(){ document.querySelector(".layout")?.classList.toggle("sidebar_mobile_open"); });
-        document.querySelectorAll("form:not([data-no-loading])").forEach(function(a) {
-            if (!a.closest('.search-container')) {
-                a.addEventListener("submit", function(){ showLoading(); });
-            }
-        });
-      });
-    </script>
-    
-    {# URL para el script de notificaciones #}
-    <script id="mark-notification-read-url" data-url="{% url 'myapp:mark_notification_read' %}" type="application/json"></script>
-    
-    {# Tu archivo de scripts generales #}
     <script src="{% static 'scripts.js' %}"></script>
 
-    {# Script para Twemoji #}
+    <!-- 4. BLOQUES DE INICIALIZACIÓN Y LÓGICA EN LÍNEA -->
     <script>
-      window.addEventListener('load', () => {
-        try {
-            if (typeof twemoji !== 'undefined') {
-                 twemoji.parse(document.body, {
-                    folder: 'svg',
-                    ext: '.svg',
-                    base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/'
-                 });
-            } else {
-                 console.error("Error: Objeto twemoji no encontrado.");
-            }
-        } catch (e) {
-             console.error("Error ejecutando twemoji.parse(): ", e);
-        }
-      });
-    </script>
-
-    {# Bloque para JavaScript específico de cada página que herede de base.html #}
-    {% block extra_js %}
-    {# Aquí es donde iría el script de notificaciones si no está en scripts.js #}
-    <script>
-    // JavaScript para la interactividad de las notificaciones
-    document.addEventListener('DOMContentLoaded', function() {
-        const notificationDropdownContainer = document.querySelector('.notification_menu'); // Contenedor del dropdown
-        const notificationBadge = document.querySelector('.notification_badge');
-        const markAllReadLink = document.getElementById('mark-all-notifications-read');
-        
-        const markNotificationReadScriptTag = document.getElementById('mark-notification-read-url');
-        const markNotificationReadUrl = markNotificationReadScriptTag ? markNotificationReadScriptTag.dataset.url : null;
-
-        if (!markNotificationReadUrl) {
-            console.warn("Notificaciones: URL para marcar como leídas no encontrada (mark-notification-read-url). La interactividad estará limitada.");
-            // No retornamos para que el resto del JS de la página pueda funcionar
-        }
-
-        function getCsrfToken() {
-            const csrfInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
-            return csrfInput ? csrfInput.value : null;
-        }
-
-        function updateNotificationBadge(newCount) {
-            if (notificationBadge) {
-                notificationBadge.textContent = newCount;
-                notificationBadge.style.display = newCount > 0 ? '' : 'none';
-            }
-        }
-
-        function handleNotificationResponse(data, notificationIdToRemove = null) {
-            if (data.status === 'success') {
-                const listContainer = notificationDropdownContainer?.querySelector('.notification_list');
-                if (notificationIdToRemove) {
-                    const notificationItem = document.getElementById(`notification-item-${notificationIdToRemove}`);
-                    if (notificationItem) {
-                        notificationItem.remove();
-                    }
-                } else { // Para "marcar todas"
-                    if(listContainer) listContainer.querySelectorAll('.notification_item.unread').forEach(item => item.remove());
-                }
-                updateNotificationBadge(data.new_count);
-
-                if (listContainer && listContainer.querySelectorAll('.notification_item').length === 0) {
-                    const emptyMessage = listContainer.querySelector('.notification_empty');
-                    if (emptyMessage) emptyMessage.style.display = 'block';
-                    // Ocultar footer si no hay notificaciones
-                    const footer = listContainer.querySelector('.notification_footer');
-                    if (footer) footer.style.display = 'none';
-                }
-                console.log('Notificación marcada:', data.message);
-
-            } else {
-                console.error('Error desde el servidor al marcar notificación:', data.message);
-                // Considera mostrar un toast o alerta más amigable
-                // alert('Error: ' + data.message); 
-            }
-        }
-        
-        if (notificationDropdownContainer) {
-            notificationDropdownContainer.addEventListener('click', function(event) {
-                const targetButton = event.target.closest('.mark-notification-as-read-btn');
-                const targetLinkContent = event.target.closest('.notification_link_content');
-
-                if (targetButton && markNotificationReadUrl) { // Clic en el botón "X"
-                    event.preventDefault();
-                    event.stopPropagation(); // Evitar que se active el enlace principal
-
-                    const notificationId = targetButton.dataset.notificationId;
-                    const csrfToken = getCsrfToken();
-
-                    if (!csrfToken) { console.error('CSRF Token no encontrado.'); return; }
-
-                    targetButton.disabled = true;
-
-                    const formData = new FormData();
-                    formData.append('notification_id', notificationId);
-
-                    fetch(markNotificationReadUrl, {
-                        method: 'POST',
-                        headers: { 'X-CSRFToken': csrfToken },
-                        body: formData
-                    })
-                    .then(response => response.json())
-                    .then(data => handleNotificationResponse(data, notificationId))
-                    .catch(error => {
-                        console.error('Error AJAX al marcar individual:', error);
-                        targetButton.disabled = false;
-                    });
-
-                } else if (targetLinkContent && markNotificationReadUrl) { // Clic en el contenido de la notificación
-                    // Opcional: Marcar como leída al hacer clic en el contenido si no tiene un botón "X" explícito
-                    // o si quieres que el clic en el contenido también la marque como leída antes de redirigir.
-                    // Por ahora, el botón "X" es el único que marca como leída individualmente.
-                    // Si la notificación tiene una URL, el navegador redirigirá.
-                    // Si quieres marcarla como leída ANTES de redirigir:
-                    const notificationId = targetLinkContent.dataset.notificationId;
-                    const urlDestino = targetLinkContent.parentElement.dataset.urlDestino; // El data-url-destino está en el div.notification_item
-
-                    // Lógica para marcar como leída ANTES de redirigir (si es necesario)
-                    // ... (similar al fetch de arriba, pero sin quitar el item inmediatamente si hay urlDestino)
-                    // Si la redirección ocurre, la página recargará y la notificación ya no aparecerá si fue marcada.
-                    // console.log("Clic en contenido de notificación ID:", notificationId, "URL:", urlDestino);
-                }
-            });
-        }
-
-        if (markAllReadLink && markNotificationReadUrl) {
-            markAllReadLink.addEventListener('click', function(event) {
-                event.preventDefault();
-                const csrfToken = getCsrfToken();
-                if (!csrfToken) { console.error('CSRF Token no encontrado.'); return; }
-
-                const formData = new FormData();
-                formData.append('mark_all', 'true');
-
-                fetch(markNotificationReadUrl, {
-                    method: 'POST',
-                    headers: { 'X-CSRFToken': csrfToken },
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => handleNotificationResponse(data))
-                .catch(error => console.error('Error AJAX marcando todas como leídas:', error));
-            });
-        }
-    });
-    </script>
-    {% endblock extra_js %}
-        <script>
-        // Definimos la traducción de DataTables como una variable global de JavaScript
-        // para que esté disponible en todas las páginas que hereden de esta.
+        // Variable global para la traducción de DataTables
         var dataTableLanguage = {
             "processing": "Procesando...",
             "lengthMenu": "Mostrar _MENU_ registros",
@@ -523,19 +318,150 @@
             "infoFiltered": "(filtrado de un total de _MAX_ registros)",
             "search": "Buscar:",
             "loadingRecords": "Cargando...",
-            "paginate": {
-                "first": "Primero",
-                "last": "Último",
-                "next": "Siguiente",
-                "previous": "Anterior"
-            },
-            "aria": {
-                "sortAscending": ": Activar para ordenar la columna de manera ascendente",
-                "sortDescending": ": Activar para ordenar la columna de manera descendente"
-            }
+            "paginate": { "first": "Primero", "last": "Último", "next": "Siguiente", "previous": "Anterior" },
+            "aria": { "sortAscending": ": Activar para ordenar la columna de manera ascendente", "sortDescending": ": Activar para ordenar la columna de manera descendente" }
         };
-    </script>
-    {% block extra_scripts %}{% endblock %}
 
-  </body>
-</html>
+        // --- BLOQUE 1: LÓGICA QUE USA JQUERY ---
+        $(document).ready(function() {
+            
+            // Inicialización de Plugins de jQuery
+            $('.data-table-spanish').DataTable({
+                "language": dataTableLanguage,
+                "responsive": true,
+                "pageLength": 10
+            });
+
+            $('.select2-enable').each(function() {
+                $(this).select2({
+                    dropdownParent: $('body')
+                });
+            });
+        });
+
+        // --- BLOQUE 2: LÓGICA NATIVA DE JAVASCRIPT (SIN JQUERY) ---
+        document.addEventListener("DOMContentLoaded", function() {
+            function showLoading(){ var l=document.getElementById("loadingIndicator"); if(l)l.style.display="flex"; }
+            function hideLoading(){ var l=document.getElementById("loadingIndicator"); if(l)l.style.display="none"; }
+            
+            document.querySelectorAll("form:not([data-no-loading])").forEach(function(a) {
+                if (!a.closest('.search-container')) { a.addEventListener("submit", showLoading); }
+            });
+
+            document.querySelectorAll(".close_alert").forEach(function(a) { a.addEventListener("click", function() { this.closest('.alert').style.opacity = "0"; setTimeout(() => { this.closest('.alert').style.display = "none" }, 300); }); });
+            setTimeout(function() { document.querySelectorAll(".alert").forEach(function(a) { if (window.getComputedStyle(a).display !== 'none') { a.style.opacity = "0"; setTimeout(() => { a.style.display = "none" }, 300); } }); }, 5000);
+            
+            document.querySelectorAll(".submenu_toggle").forEach(function(a) {
+                if (!a.classList.contains('export-trigger')) {
+                    a.addEventListener("click", function(b) {
+                        b.preventDefault();
+                        var parentLi = this.parentElement;
+                        var alreadyOpen = parentLi.classList.contains("open");
+                        document.querySelectorAll(".nav_item.open").forEach(other_item => {
+                            if (other_item !== parentLi) other_item.classList.remove("open");
+                        });
+                        parentLi.classList.toggle("open", !alreadyOpen);
+                    });
+                }
+            });
+
+            document.querySelectorAll(".user_menu_toggle, .notification_toggle").forEach(function(a) { a.addEventListener("click", function() { var parentMenu = this.parentElement; parentMenu.classList.toggle("open"); var otherMenuSelector = parentMenu.classList.contains('user_menu') ? '.notification_menu.open' : '.user_menu.open'; document.querySelector(otherMenuSelector)?.classList.remove('open'); }); });
+            document.addEventListener("click", function(a) { if (!a.target.closest(".user_menu") && !a.target.closest(".notification_menu")) { document.querySelectorAll(".user_menu.open, .notification_menu.open").forEach(function(b) { b.classList.remove("open"); }); } });
+            
+            document.getElementById("sidebarToggle")?.addEventListener("click", function(){ document.querySelector(".layout")?.classList.toggle("sidebar_collapsed"); });
+            document.getElementById("mobileSidebarToggle")?.addEventListener("click", function(){ document.querySelector(".layout")?.classList.toggle("sidebar_mobile_open"); });
+
+            // --- LÓGICA DE NOTIFICACIONES ---
+            const notificationDropdownContainer = document.querySelector('.notification_menu');
+            if (notificationDropdownContainer) {
+                const notificationBadge = document.querySelector('.notification_badge');
+                const markAllReadLink = document.getElementById('mark-all-notifications-read');
+                const markNotificationReadScriptTag = document.getElementById('mark-notification-read-url');
+                const markNotificationReadUrl = markNotificationReadScriptTag ? markNotificationReadScriptTag.dataset.url : null;
+
+                if (markNotificationReadUrl) {
+                    function getCsrfToken() {
+                        const csrfInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+                        return csrfInput ? csrfInput.value : null;
+                    }
+
+                    function updateNotificationBadge(newCount) {
+                        if (notificationBadge) {
+                            notificationBadge.textContent = newCount;
+                            notificationBadge.style.display = newCount > 0 ? '' : 'none';
+                        }
+                    }
+
+                    function handleNotificationResponse(data, notificationIdToRemove = null) {
+                        if (data.status === 'success') {
+                            const listContainer = notificationDropdownContainer?.querySelector('.notification_list');
+                            if (notificationIdToRemove) {
+                                document.getElementById(`notification-item-${notificationIdToRemove}`)?.remove();
+                            } else {
+                                listContainer?.querySelectorAll('.notification_item.unread').forEach(item => item.remove());
+                            }
+                            updateNotificationBadge(data.new_count);
+                            if (listContainer && listContainer.querySelectorAll('.notification_item').length === 0) {
+                                const emptyMessage = listContainer.querySelector('.notification_empty');
+                                if (emptyMessage) { emptyMessage.style.display = 'block'; }
+                                const footer = listContainer.querySelector('.notification_footer');
+                                if (footer) { footer.style.display = 'none'; }
+                            }
+                        } else {
+                            console.error('Error desde el servidor al marcar notificación:', data.message);
+                        }
+                    }
+                    
+                    notificationDropdownContainer.addEventListener('click', function(event) {
+                        const targetButton = event.target.closest('.mark-notification-as-read-btn');
+                        if (targetButton) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            const notificationId = targetButton.dataset.notificationId;
+                            const csrfToken = getCsrfToken();
+                            if (!csrfToken) return;
+                            targetButton.disabled = true;
+                            const formData = new FormData();
+                            formData.append('notification_id', notificationId);
+                            fetch(markNotificationReadUrl, { method: 'POST', headers: { 'X-CSRFToken': csrfToken }, body: formData })
+                                .then(response => response.json())
+                                .then(data => handleNotificationResponse(data, notificationId))
+                                .catch(error => { console.error('Error AJAX:', error); targetButton.disabled = false; });
+                        }
+                    });
+
+                    if (markAllReadLink) {
+                        markAllReadLink.addEventListener('click', function(event) {
+                            event.preventDefault();
+                            const csrfToken = getCsrfToken();
+                            if (!csrfToken) return;
+                            const formData = new FormData();
+                            formData.append('mark_all', 'true');
+                            fetch(markNotificationReadUrl, { method: 'POST', headers: { 'X-CSRFToken': csrfToken }, body: formData })
+                                .then(response => response.json())
+                                .then(data => handleNotificationResponse(data))
+                                .catch(error => console.error('Error AJAX:', error));
+                        });
+                    }
+                }
+            }
+        });
+
+        // --- BLOQUE 3: LÓGICA QUE SE EJECUTA AL CARGAR TODA LA VENTANA ---
+        window.addEventListener('load', () => {
+            try {
+                if (typeof twemoji !== 'undefined') {
+                     twemoji.parse(document.body, {
+                        folder: 'svg',
+                        ext: '.svg',
+                        base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/'
+                     });
+                }
+            } catch (e) {
+                 console.error("Error ejecutando twemoji.parse(): ", e);
+            }
+        });
+    </script>
+
+    <!-- Bloque final para scripts específicos de cada página hija (como los de gráficos) -->
+    {% block extra_scripts %}{% endblock %}
