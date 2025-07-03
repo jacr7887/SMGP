@@ -167,7 +167,7 @@
         <legend class="dark-label">🔑 Usuarios del Sistema Asignados</legend>
         <div class="dark-group {% if form.usuarios.errors %}error{% endif %}">
             {# No se necesita label explícita si el fieldset ya tiene legend #}
-            {{ form.usuarios }} {# Este campo usará Select2 Multiple si está configurado en el widget #}
+            {{ form.usuarios }}
             {% for error in form.usuarios.errors %}<ul class="error-messages" role="alert"><li>{{ error|escape }}</li></ul>{% endfor %}
             {% if form.usuarios.help_text %}<small class="form-text text-muted">{{ form.usuarios.help_text|escape }}</small>{% endif %}
         </div>

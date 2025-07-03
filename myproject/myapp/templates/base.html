@@ -125,11 +125,6 @@
             </li>
             {% endif %}
 
-            {% if perms.myapp.view_tarifa %}
-            <li class="nav_item {% if active_tab == 'tarifas' %}active{% endif %}">
-                <a href="{% url 'myapp:tarifa_list' %}" class="nav_link-sidebar"><span class="nav_icon">🏷️</span><span class="nav_text">Tarifas</span></a>
-            </li>
-            {% endif %}
 
             {% if perms.myapp.view_afiliadoindividual or perms.myapp.view_afiliadocolectivo %}
             <li class="nav_item {% if active_tab == 'afiliados_individuales' or active_tab == 'afiliados_colectivos' %}open active{% endif %}">
@@ -138,6 +133,12 @@
                 {% if perms.myapp.view_afiliadoindividual %}<li><a href="{% url 'myapp:afiliado_individual_list' %}" class="submenu_link {% if active_tab == 'afiliados_individuales' %}active{% endif %}">Individuales</a></li>{% endif %}
                 {% if perms.myapp.view_afiliadocolectivo %}<li><a href="{% url 'myapp:afiliado_colectivo_list' %}" class="submenu_link {% if active_tab == 'afiliados_colectivos' %}active{% endif %}">Colectivos</a></li>{% endif %}
               </ul>
+            </li>
+            {% endif %}
+
+            {% if perms.myapp.view_tarifa %}
+            <li class="nav_item {% if active_tab == 'tarifas' %}active{% endif %}">
+                <a href="{% url 'myapp:tarifa_list' %}" class="nav_link-sidebar"><span class="nav_icon">🏷️</span><span class="nav_text">Tarifas</span></a>
             </li>
             {% endif %}
             

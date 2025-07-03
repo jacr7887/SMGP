@@ -496,6 +496,39 @@ button { cursor: pointer; font-family: inherit; }
 .badge-danger { background-color: rgba(220, 53, 69, 0.2); border-color: rgba(220, 53, 69, 0.5); color: #f1b0b7; }
 .badge-warning { background-color: rgba(255, 193, 7, 0.2); border-color: rgba(255, 193, 7, 0.5); color: #ffe8a1; }
 .badge-info { background-color: rgba(23, 162, 184, 0.2); border-color: rgba(23, 162, 184, 0.5); color: #a6d8e0; }
+.badge-secondary {
+    /* Fondo con transparencia para el efecto glass */
+    background-color: rgba(60, 60, 60, 0.4); /* Gris oscuro con 40% de opacidad */
+    backdrop-filter: blur(10px); /* Desenfoque del fondo para el efecto glass */
+    -webkit-backdrop-filter: blur(10px); /* Prefijo para compatibilidad con Safari */
+    
+    /* Borde sutil para darle más definición al glass */
+    border: 1px solid rgba(255, 255, 255, 0.1); 
+    
+    /* Sombra sutil para profundidad */
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    
+    /* Color de texto para contraste */
+    color: #e0e0e0; /* Un gris claro para el texto */
+    
+    /* --- CAMBIOS SOLICITADOS --- */
+    padding: .6em 1em; /* Padding aumentado para más espacio alrededor del texto */
+    border-radius: 33px; /* Borde muy redondeado para un aspecto de "píldora" */
+    
+    /* Asegura que el badge tenga las propiedades base de Bootstrap */
+    font-size: .85em; /* Ligeramente más grande para que el padding tenga sentido */
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+}
+
+/* Opcional: para que se vea bien sobre fondos claros */
+body {
+    background-color: #333; /* Ejemplo: un fondo oscuro para apreciar el glassmorphism */
+    color: #f0f0f0;
+}
 .compact-form { display: grid; gap: 1rem; padding: 1rem; }
 .form-main-container { background: var(--glass-bg); border: 1px solid var(--border-light); border-radius: var(--glass-border-radius); padding: 2rem; margin: 1.5rem auto; max-width: 1600px; backdrop-filter: var(--blur); box-shadow: var(--glass-box-shadow); }
 .form-main-container fieldset, .dark-container fieldset { 
@@ -928,7 +961,29 @@ input[type="file"] { position: absolute; opacity: 0; width: 0.1px; height: 0.1px
 .select2-results__option--highlighted[aria-selected] { background-color: rgba(66, 153, 225, 0.3) !important; color: #ffffff !important; }
 .select2-results__option[aria-selected=true] { background-color: rgba(92, 119, 255, 0.1) !important; color: #bee3f8 !important; }
 .select2-results__message { color: var(--text-muted) !important; padding: 0.6rem 1.2rem !important; }
+select.select2-hidden-accessible {
+    display: none !important;
+}
+.select2-container--default .select2-selection--multiple .select2-selection__rendered {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    padding-bottom: 0 !important; /* Evita espacio extra */
+}
 
+.select2-container--default .select2-selection--multiple .select2-search--inline {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.select2-container--default .select2-selection--multiple .select2-selection__placeholder {
+    display: none !important; /* Oculta el placeholder redundante */
+}
+
+/* Aseguramos que el campo de búsqueda interno sí muestre el placeholder */
+.select2-container--default .select2-search--inline .select2-search__field {
+    margin-top: 5px !important; /* Ajuste vertical */
+}
 
 /* --- Contenedores y texto general --- */
 .dataTables_wrapper .dt-layout-row {

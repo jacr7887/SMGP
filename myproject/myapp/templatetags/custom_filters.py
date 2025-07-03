@@ -32,3 +32,18 @@ def get_factura_estado_actual(factura_obj):
         'monto_pendiente': monto_pendiente_actual,
         'esta_pagada': esta_pagada_actual,
     }
+
+
+register = template.Library()
+
+
+@register.filter(name='get_item')
+def get_item(dictionary, key):
+    """Permite acceder a un item de un diccionario usando una variable en las plantillas."""
+    return dictionary.get(key)
+
+
+@register.filter(name='split')
+def split(value, key):
+    """Permite hacer split a un string en la plantilla."""
+    return value.split(key)

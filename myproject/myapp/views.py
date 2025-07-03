@@ -117,20 +117,7 @@ from myapp.forms import (
     FacturaForm, AuditoriaSistemaForm, LicenseActivationForm
 )
 from myapp.graficas import *
-from .filters import (
-    AuditoriaSistemaFilter,
-    UsuarioFilter,
-    AfiliadoIndividualFilter,
-    AfiliadoColectivoFilter,
-    ContratoIndividualFilter,
-    ContratoColectivoFilter,
-    IntermediarioFilter,
-    FacturaFilter,
-    PagoFilter,
-    ReclamacionFilter,
-    TarifaFilter,
-    RegistroComisionFilter
-)
+
 from django import forms  # Añadido forms
 
 
@@ -183,17 +170,19 @@ class IntermediarioDataMixin:
 logger = logging.getLogger(__name__)
 
 
+def handler403(request, exception=None):
+    # Pasamos el request explícitamente al contexto para que los context processors funcionen.
+    return render(request, '403.html', {'request': request}, status=403)
+
+
+def handler404(request, exception=None):
+    return render(request, '404.html', {'request': request}, status=404)
+
+
 def handler500(request):
-    context = {
-        'debug': settings.DEBUG,
-    }
-    if settings.DEBUG:
-        # Obtener la información de la excepción actual
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        context['exception'] = exc_value  # Pasar el mensaje de la excepción
-        # También podrías querer pasar el traceback completo si lo necesitas,
-        # pero el mensaje suele ser suficiente para la plantilla.
-    return render(request, '500.html', context, status=500)
+    # No necesitamos pasar la excepción, Django lo hace si DEBUG=True.
+    # Lo crucial es pasar el objeto 'request'.
+    return render(request, '500.html', {'request': request}, status=500)
 
 
 # Constantes
@@ -1079,17 +1068,48 @@ class AuditoriaSistemaDeleteView(BaseDeleteView):
 # AfiliadoIndividual Vistas
 # ==========================
 
-# myapp/views.py
-
 
 class AfiliadoIndividualListView(LoginRequiredMixin, ListView):
+    """
+    Vista para listar todos los Afiliados Individuales.
+    Está diseñada para ser usada con DataTables del lado del cliente.
+    """
     model = AfiliadoIndividual
     template_name = 'afiliado_individual_list.html'
     context_object_name = 'object_list'
-    paginate_by = 25
 
     def get_queryset(self):
-        return AfiliadoIndividual.objects.all().order_by('pk')
+        """
+        Devuelve TODOS los afiliados activos, sin paginación del backend.
+        DataTables se encargará de la paginación, búsqueda y ordenamiento.
+        Optimizamos la consulta para incluir el intermediario.
+        """
+        # Usamos el manager 'objects' que ya filtra por activo=True por defecto
+        return AfiliadoIndividual.objects.select_related('intermediario').order_by('-fecha_creacion')
+
+    def get_context_data(self, **kwargs):
+        """
+        Prepara el contexto para la plantilla.
+        Añade un título y maneja de forma segura los errores de desencriptación.
+        """
+        context = super().get_context_data(**kwargs)
+        context['title'] = "Listado de Afiliados Individuales"
+
+        # Bucle de seguridad para manejar registros que no se pueden desencriptar
+        object_list_safe = []
+        for obj in context['object_list']:
+            try:
+                # Forzamos la desencriptación de un campo para probar si el registro es válido
+                str(obj.nombre_completo)
+                obj.decryption_error = False
+            except Exception as e:
+                logger.error(
+                    f"Error de desencriptación en AfiliadoIndividualListView para PK {obj.pk}: {e}")
+                obj.decryption_error = True
+            object_list_safe.append(obj)
+
+        context['object_list'] = object_list_safe
+        return context
 
 
 class AfiliadoIndividualDetailView(BaseDetailView):
@@ -2160,63 +2180,48 @@ class IntermediarioDeleteView(BaseDeleteView):
 # ==========================
 
 
-class ReclamacionListView(IntermediarioDataMixin, BaseListView):
+class ReclamacionListView(LoginRequiredMixin, ListView):
+    """
+    Vista para listar todas las Reclamaciones.
+    Diseñada para funcionar con DataTables del lado del cliente.
+    Hereda directamente de las clases de Django para máxima estabilidad.
+    """
     model = Reclamacion
-    model_manager_name = 'objects'
     template_name = 'reclamacion_list.html'
-    filterset_class = ReclamacionFilter
-    context_object_name = 'reclamaciones'
-    permission_required = 'myapp.view_reclamacion'
-    search_fields = [
-        'numero_reclamacion',
-        'tipo_reclamacion', 'estado', 'descripcion_reclamo', 'observaciones_internas',
-        'observaciones_cliente',
-        'contrato_individual__numero_contrato',
-        'contrato_individual__afiliado__primer_nombre', 'contrato_individual__afiliado__primer_apellido',
-        'contrato_individual__afiliado__cedula',
-        'contrato_colectivo__numero_contrato',
-        'contrato_colectivo__razon_social', 'contrato_colectivo__rif',
-        'usuario_asignado__username', 'usuario_asignado__email',
-        'usuario_asignado__primer_nombre', 'usuario_asignado__primer_apellido',
-        'diagnostico_principal'
-    ]
-    ordering_fields = [
-        'id', 'activo',
-        'numero_reclamacion',
-        'tipo_reclamacion', 'estado',
-        # 'descripcion_reclamo', # TextField
-        'monto_reclamado',
-        'fecha_reclamo', 'fecha_cierre_reclamo',
-        'contrato_individual__numero_contrato',
-        'contrato_colectivo__razon_social',
-        'usuario_asignado__username',
-        'contrato_individual__afiliado__primer_apellido',
-        'diagnostico_principal',
-        'fecha_creacion', 'fecha_modificacion'
-    ]
-    ordering = ['-fecha_reclamo', '-fecha_creacion']
+    context_object_name = 'object_list'
+
+    def get_queryset(self):
+        """
+        Devuelve TODAS las reclamaciones, optimizadas para la tabla.
+        DataTables se encargará de la paginación y el filtrado en el frontend.
+        """
+        return Reclamacion.objects.select_related(
+            'contrato_individual__afiliado',
+            'contrato_colectivo',
+            'usuario_asignado'
+        ).order_by('-fecha_reclamo')
 
     def get_context_data(self, **kwargs):
+        """
+        Prepara el contexto para la plantilla.
+        """
         context = super().get_context_data(**kwargs)
-        qs_stats = self.filterset.qs if self.filterset else self.object_list
-        stats = qs_stats.aggregate(
-            total_reclamaciones=Count('id'),
-            reclamaciones_abiertas=Count(Case(When(estado='ABIERTA', then=1))),
-            reclamaciones_cerradas=Count(Case(When(estado='CERRADA', then=1))),
-            monto_total_reclamado=Sum('monto_reclamado'),
-            monto_promedio_reclamado=Avg('monto_reclamado')
-        )
-        context['total_reclamaciones'] = stats.get('total_reclamaciones', 0)
-        context['reclamaciones_abiertas'] = stats.get(
-            'reclamaciones_abiertas', 0)
-        context['reclamaciones_cerradas'] = stats.get(
-            'reclamaciones_cerradas', 0)
-        context['monto_total_reclamado'] = stats.get(
-            'monto_total_reclamado', Decimal('0.0')) or Decimal('0.0')
-        context['monto_promedio_reclamado'] = stats.get(
-            'monto_promedio_reclamado', Decimal('0.0')) or Decimal('0.0')
-        context['active_tab'] = 'reclamaciones'
-        context['estados_reclamacion'] = CommonChoices.ESTADO_RECLAMACION
+        context['title'] = "Listado de Reclamaciones"
+
+        # Mapa de colores para los badges de estado
+        context['estado_badge_map'] = {
+            'ABIERTA': 'badge-info',
+            'EN_PROCESO': 'badge-info',
+            'EN_ANALISIS': 'badge-info',
+            'PENDIENTE_DOCS': 'badge-warning',
+            'ESCALADA': 'badge-warning',
+            'INVESTIGACION': 'badge-warning',
+            'EN_ARBITRAJE': 'badge-warning',
+            'APROBADA': 'badge-success',
+            'CERRADA': 'badge-secondary',
+            'RECHAZADA': 'badge-danger',
+            'SUSPENDIDA': 'badge-danger',
+        }
         return context
 
 
@@ -2656,94 +2661,41 @@ class PagoCreateView(BaseCreateView):
     permission_required = 'myapp.add_pago'
 
     def get_success_url(self):
+        # Esta lógica de redirección es correcta
         if hasattr(self, 'object') and self.object:
-            contrato = None
             if self.object.factura:
                 contrato = self.object.factura.get_contrato_asociado
+                if isinstance(contrato, ContratoIndividual):
+                    return reverse('myapp:contrato_individual_detail', kwargs={'pk': contrato.pk})
+                if isinstance(contrato, ContratoColectivo):
+                    return reverse('myapp:contrato_colectivo_detail', kwargs={'pk': contrato.pk})
             elif self.object.reclamacion:
-                contrato = self.object.reclamacion.contrato_individual or self.object.reclamacion.contrato_colectivo
-
-            if isinstance(contrato, ContratoIndividual):
-                return reverse('myapp:contrato_individual_detail', kwargs={'pk': contrato.pk})
-            if isinstance(contrato, ContratoColectivo):
-                return reverse('myapp:contrato_colectivo_detail', kwargs={'pk': contrato.pk})
+                return reverse('myapp:reclamacion_detail', kwargs={'pk': self.object.reclamacion.pk})
         return reverse('myapp:pago_list')
 
     def form_valid(self, form):
-        """
-        [VERSIÓN FINAL CON LLAMADA A COMISIONES RESTAURADA Y GARANTIZADA]
-        """
-        factura_a_pagar = form.cleaned_data.get('factura')
-        reclamacion_a_pagar = form.cleaned_data.get('reclamacion')
+        self.object = form.save(commit=False)
 
-        try:
-            with transaction.atomic():
-                # Guardar el pago
-                self.object = form.save()
+        factura = self.object.factura
+        reclamacion = self.object.reclamacion
 
-                # --- LÓGICA PARA PAGOS A FACTURAS ---
-                if factura_a_pagar:
-                    factura = Factura.objects.select_for_update().get(pk=factura_a_pagar.pk)
-
-                    # Actualizar factura (lógica que ya funciona)
-                    total_pagado = factura.pagos.filter(activo=True).aggregate(
-                        total=Coalesce(Sum('monto_pago'), Value(Decimal('0.00'))))['total']
-                    monto_pendiente = (
-                        factura.monto or Decimal('0.00')) - total_pagado
-                    factura.monto_pendiente = max(Decimal('0.00'), monto_pendiente.quantize(
-                        Decimal('0.01'), rounding=ROUND_HALF_UP))
-                    factura.pagada = factura.monto_pendiente <= factura.TOLERANCE
-                    if factura.pagada:
-                        factura.estatus_factura = 'PAGADA'
-                    factura.save(update_fields=[
-                                 'monto_pendiente', 'pagada', 'estatus_factura'])
-
-                    # Actualizar contrato (lógica que ya funciona)
-                    contrato = factura.get_contrato_asociado
-                    if contrato:
-                        numero_facturas_pagadas = Factura.objects.filter(
-                            contrato_individual_id=contrato.pk if isinstance(
-                                contrato, ContratoIndividual) else None,
-                            contrato_colectivo_id=contrato.pk if isinstance(
-                                contrato, ContratoColectivo) else None,
-                            pagada=True, activo=True
-                        ).count()
-                        type(contrato).objects.filter(pk=contrato.pk).update(
-                            pagos_realizados=numero_facturas_pagadas)
-
-                    # =========================================================================
-                    # === PASO CRUCIAL: LLAMADA EXPLÍCITA A LA LÓGICA DE COMISIONES ===
-                    # =========================================================================
-                    # Después de que todo se ha guardado, llamamos a tu función.
-                    # Le pasamos la instancia del pago que acabamos de crear (`self.object`).
-                    logger.info(
-                        f"Invocando lógica de comisiones para Pago PK {self.object.pk}...")
-                    calcular_y_registrar_comisiones(self.object)
-                    # =========================================================================
-                # --- LÓGICA PARA PAGOS A RECLAMACIONES ---
-                elif reclamacion_a_pagar:
-                    reclamacion = Reclamacion.objects.select_for_update().get(pk=reclamacion_a_pagar.pk)
-                    total_pagado_reclamacion = reclamacion.pagos.filter(activo=True).aggregate(
-                        total=Coalesce(Sum('monto_pago'), Value(Decimal('0.00'))))['total']
-                    monto_reclamado = reclamacion.monto_reclamado or Decimal(
-                        '0.00')
-                    TOLERANCE_RECLAMACION = Decimal('0.01')
-                    if total_pagado_reclamacion >= (monto_reclamado - TOLERANCE_RECLAMACION):
-                        if reclamacion.estado not in ['PAGADA', 'CERRADA', 'ANULADA']:
-                            reclamacion.estado = 'PAGADA'
-                            if not reclamacion.fecha_cierre_reclamo:
-                                reclamacion.fecha_cierre_reclamo = django_timezone.now().date()
-                            reclamacion.save(
-                                update_fields=['estado', 'fecha_cierre_reclamo'])
-
-            messages.success(self.request, "Pago procesado exitosamente.")
-            return redirect(self.get_success_url())
-
-        except Exception as e:
-            logger.exception(f"Error al procesar el pago: {e}")
+        if not factura and not reclamacion:
             form.add_error(
-                None, "Ocurrió un error inesperado al procesar el pago.")
+                None, "Debe asociar el pago a una Factura o a una Reclamación.")
             return self.form_invalid(form)
+
+        # --- CÁLCULO AUTOMÁTICO DEL MONTO DEL PAGO ---
+        if factura:
+            self.object.monto_pago = factura.monto_pendiente
+        elif reclamacion:
+            total_pagado = reclamacion.pagos.filter(activo=True).aggregate(
+                total=Coalesce(Sum('monto_pago'), Decimal('0.00'))
+            )['total']
+            saldo_pendiente = (
+                reclamacion.monto_reclamado or Decimal('0.00')) - total_pagado
+            self.object.monto_pago = max(Decimal('0.00'), saldo_pendiente)
+
+        return super().form_valid(form)
 
     def enviar_notificacion_creacion(self, pago):
         """
@@ -2784,7 +2736,6 @@ class PagoCreateView(BaseCreateView):
 
 class PagoUpdateView(BaseUpdateView):
     model = Pago
-    # Usamos 'all_objects' para poder editar pagos aunque estén marcados como inactivos.
     model_manager_name = 'all_objects'
     form_class = PagoForm
     template_name = 'pago_form.html'
@@ -2792,103 +2743,39 @@ class PagoUpdateView(BaseUpdateView):
     permission_required = 'myapp.change_pago'
 
     def get_success_url(self):
-        """Redirige al detalle del pago que se acaba de editar."""
         return reverse('myapp:pago_detail', kwargs={'pk': self.object.pk})
 
-    def form_valid(self, form):
-        """
-        Maneja la actualización de un pago y recalcula los saldos de la factura
-        y el contrato asociados para reflejar cualquier cambio de forma atómica.
-        """
-        logger.info(f"Iniciando actualización de Pago PK: {self.object.pk}")
-
-        try:
-            with transaction.atomic():
-                # 1. Guardar los cambios del formulario (ej. monto, fecha, estado activo).
-                #    Django no cambiará los campos deshabilitados (factura, reclamacion).
-                pago_actualizado = form.save()
-                self.object = pago_actualizado
-                logger.info(
-                    f"Pago PK {self.object.pk} actualizado. Nuevo estado activo: {self.object.activo}, Monto: {self.object.monto_pago}")
-
-                # 2. Re-evaluar los saldos de la factura/reclamación asociada.
-                factura_asociada = self.object.factura
-                if factura_asociada:
-                    factura_para_actualizar = Factura.objects.select_for_update().get(
-                        pk=factura_asociada.pk)
-
-                    # Recalcular el total pagado ACTIVO para esta factura.
-                    total_pagado = factura_para_actualizar.pagos.filter(activo=True).aggregate(
-                        total=Coalesce(Sum('monto_pago'),
-                                       Value(Decimal('0.00')))
-                    )['total']
-
-                    # Recalcular el pendiente con precisión decimal.
-                    monto_factura = Decimal(factura_para_actualizar.monto)
-                    monto_pendiente_nuevo = (
-                        monto_factura - total_pagado).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-
-                    factura_para_actualizar.monto_pendiente = max(
-                        Decimal('0.00'), monto_pendiente_nuevo)
-                    factura_para_actualizar.pagada = factura_para_actualizar.monto_pendiente <= factura_para_actualizar.TOLERANCE
-
-                    if factura_para_actualizar.pagada:
-                        factura_para_actualizar.estatus_factura = 'PAGADA'
-                    else:
-                        # Si ya no está pagada (ej. se inactivó un pago), la volvemos a poner pendiente.
-                        factura_para_actualizar.estatus_factura = 'PENDIENTE'
-
-                    factura_para_actualizar.save(
-                        update_fields=['monto_pendiente', 'pagada', 'estatus_factura'])
-                    logger.info(
-                        f"Factura PK {factura_para_actualizar.pk} re-actualizada post-edición de pago.")
-
-                    # 3. Y también actualizamos el contador del contrato.
-                    contrato = factura_para_actualizar.get_contrato_asociado
-                    if contrato:
-                        numero_facturas_pagadas = Factura.objects.filter(
-                            contrato_colectivo_id=contrato.pk if isinstance(
-                                contrato, ContratoColectivo) else None,
-                            contrato_individual_id=contrato.pk if isinstance(
-                                contrato, ContratoIndividual) else None,
-                            pagada=True,
-                            activo=True
-                        ).count()
-
-                        contrato_model = type(contrato)
-                        contrato_model.objects.filter(pk=contrato.pk).update(
-                            pagos_realizados=numero_facturas_pagadas)
-                        logger.info(
-                            f"Contador de Contrato PK {contrato.pk} re-actualizado a {numero_facturas_pagadas}.")
-
-                # Aquí iría la lógica similar para recalcular el estado de una Reclamación si se edita un pago asociado a ella.
-                # elif self.object.reclamacion:
-                #     ... (lógica para actualizar reclamación)
-
-            messages.success(
-                self.request, "Pago actualizado exitosamente. Los saldos han sido recalculados.")
-            return redirect(self.get_success_url())
-
-        except ValidationError as e:
-            logger.warning(
-                f"Error de validación al actualizar Pago {self.object.pk}: {e}")
-            form.add_error(None, e)
-            return self.form_invalid(form)
-        except Exception as e:
-            logger.exception(
-                f"Error inesperado al actualizar el pago PK {self.object.pk}: {e}")
-            messages.error(
-                self.request, "Ocurrió un error inesperado al actualizar el pago.")
-            return self.form_invalid(form)
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        if self.object:
+            # Pre-llenamos el campo de monto para que se muestre en el widget readonly
+            form.fields['monto_pago'].initial = self.object.monto_pago
+        return form
 
     def get_context_data(self, **kwargs):
-        """
-        Añade contexto adicional a la plantilla de edición.
-        """
         context = super().get_context_data(**kwargs)
-        context['form_title'] = f"Editar Pago ID: {self.object.pk}"
-        # Puedes añadir más contexto si es necesario
-        # context['algun_otro_dato'] = "valor"
+        pago = self.object
+
+        info_label = ""
+        saldo_pendiente = Decimal('0.00')
+
+        if pago.factura:
+            info_label = f"Factura {pago.factura.numero_recibo}"
+            # El saldo pendiente de la factura ya está calculado en el modelo
+            saldo_pendiente = pago.factura.monto_pendiente
+        elif pago.reclamacion:
+            info_label = f"Reclamación #{pago.reclamacion.pk}"
+            # Calculamos el saldo que había ANTES de este pago
+            total_pagado_otros = pago.reclamacion.pagos.filter(activo=True).exclude(pk=pago.pk).aggregate(
+                total=Coalesce(Sum('monto_pago'), Decimal('0.00'))
+            )['total']
+            saldo_pendiente = (pago.reclamacion.monto_reclamado or Decimal(
+                '0.00')) - total_pagado_otros
+
+        context['info_label'] = info_label
+        context['saldo_pendiente_valor'] = f"${saldo_pendiente:,.2f}"
+
+        context['form_title'] = f"Editar Pago ID: {pago.pk}"
         return context
 
     def enviar_notificacion_actualizacion(self, pago_antes, pago_despues, changed_data):
@@ -2907,6 +2794,54 @@ class PagoUpdateView(BaseUpdateView):
         if destinatarios:
             crear_notificacion(list(set(destinatarios)), mensaje, tipo='info',
                                url_path_name='myapp:pago_detail', url_kwargs={'pk': pago_despues.pk})
+
+# myapp/views.py
+
+
+@login_required
+@require_GET
+def get_item_financial_info(request):
+    """
+    API para obtener el saldo pendiente de una Factura o una Reclamación.
+    Usado en el formulario de creación de Pago.
+    """
+    factura_id = request.GET.get('factura_id')
+    reclamacion_id = request.GET.get('reclamacion_id')
+
+    if not factura_id and not reclamacion_id:
+        return JsonResponse({'error': 'Debe proporcionar un ID de factura o reclamación.'}, status=400)
+
+    try:
+        if factura_id:
+            factura = get_object_or_404(Factura, pk=int(factura_id))
+            saldo_pendiente = factura.monto_pendiente
+            monto_sugerido = saldo_pendiente
+            info_label = f"Factura {factura.numero_recibo}"
+
+        elif reclamacion_id:
+            reclamacion = get_object_or_404(
+                Reclamacion.objects.prefetch_related('pagos'), pk=int(reclamacion_id))
+            total_pagado = reclamacion.pagos.filter(activo=True).aggregate(
+                total=Coalesce(Sum('monto_pago'), Decimal('0.00'))
+            )['total']
+            saldo_pendiente = (
+                reclamacion.monto_reclamado or Decimal('0.00')) - total_pagado
+            monto_sugerido = max(Decimal('0.00'), saldo_pendiente)
+            info_label = f"Reclamación #{reclamacion.pk}"
+
+        return JsonResponse({
+            'info_label': info_label,
+            'saldo_pendiente': f"{saldo_pendiente:,.2f}",
+            'monto_sugerido': f"{monto_sugerido:.2f}",
+        })
+
+    except (ValueError, TypeError):
+        return JsonResponse({'error': 'ID inválido.'}, status=400)
+    except Http404:
+        return JsonResponse({'error': 'El objeto no fue encontrado.'}, status=404)
+    except Exception as e:
+        logger.error(f"Error en get_item_financial_info: {e}", exc_info=True)
+        return JsonResponse({'error': 'Error interno del servidor.'}, status=500)
 
 
 @method_decorator(csrf_protect, name='dispatch')
@@ -3948,80 +3883,97 @@ class FacturaDetailView(BaseDetailView):
         return context
 
 
-@method_decorator(csrf_protect, name='dispatch')
 class FacturaCreateView(BaseCreateView):
     model = Factura
     form_class = FacturaForm
     template_name = 'factura_form.html'
     permission_required = 'myapp.add_factura'
 
-    def get_initial(self):
-        """
-        Pre-llena el formulario con el contrato si viene de la página de detalle.
-        """
-        initial = super().get_initial()
-        contrato_id = self.kwargs.get('contrato_id')
-        tipo_contrato = self.kwargs.get('tipo_contrato')
-
-        if tipo_contrato == 'colectivo':
-            initial['contrato_colectivo'] = contrato_id
-        elif tipo_contrato == 'individual':
-            initial['contrato_individual'] = contrato_id
-
-        return initial
+    def get_success_url(self):
+        contrato = getattr(self.object, 'get_contrato_asociado', None)
+        if contrato:
+            if isinstance(contrato, ContratoIndividual):
+                return reverse('myapp:contrato_individual_detail', kwargs={'pk': contrato.pk})
+            if isinstance(contrato, ContratoColectivo):
+                return reverse('myapp:contrato_colectivo_detail', kwargs={'pk': contrato.pk})
+        return reverse('myapp:factura_list')
 
     def form_valid(self, form):
-        """
-        Asegura que el contrato se asigne correctamente a la factura.
-        """
-        context = self.get_context_data()
-        factura = form.save(commit=False)
+        self.object = form.save(commit=False)
+        contrato = self.object.get_contrato_asociado
 
-        # Asignar el contrato desde los kwargs de la URL
-        contrato_id = self.kwargs.get('contrato_id')
-        tipo_contrato = self.kwargs.get('tipo_contrato')
+        if not contrato:
+            form.add_error(None, "Debe asociar un contrato a la factura.")
+            return self.form_invalid(form)
 
-        if tipo_contrato == 'colectivo':
-            factura.contrato_colectivo_id = contrato_id
-        elif tipo_contrato == 'individual':
-            factura.contrato_individual_id = contrato_id
+        # --- ASIGNACIÓN DE TODOS LOS VALORES ANTES DE GUARDAR ---
+        self.object.estatus_factura = 'GENERADA'
+        self.object.estatus_emision = 'SIN_EMITIR'
 
-        # La lógica de `monto_pendiente` se maneja en el .save() del modelo
-        factura.save()
-        self.object = factura
+        monto_calculado = getattr(
+            contrato, 'monto_cuota_estimada', Decimal('0.00'))
+        self.object.monto = monto_calculado if monto_calculado is not None else Decimal(
+            '0.00')
 
-        messages.success(self.request, "Factura creada exitosamente.")
-        # Redirigir al detalle del contrato desde donde se creó
-        if tipo_contrato == 'colectivo':
-            return redirect(reverse('myapp:contrato_colectivo_detail', kwargs={'pk': contrato_id}))
-        elif tipo_contrato == 'individual':
-            return redirect(reverse('myapp:contrato_individual_detail', kwargs={'pk': contrato_id}))
+        if self.object.vigencia_recibo_desde and self.object.vigencia_recibo_hasta:
+            if self.object.vigencia_recibo_hasta >= self.object.vigencia_recibo_desde:
+                delta = self.object.vigencia_recibo_hasta - self.object.vigencia_recibo_desde
+                self.object.dias_periodo_cobro = delta.days + 1
 
-        return redirect(reverse('myapp:factura_list'))
+        # --- CORRECCIÓN CLAVE: ASIGNAR MONTO PENDIENTE AQUÍ ---
+        # Asignamos el monto pendiente DESPUÉS de haber calculado el monto de la factura.
+        self.object.monto_pendiente = self.object.monto
+
+        # Los valores por defecto del modelo se encargarán del resto (estatus, pagada=False, etc.)
+        return super().form_valid(form)
 
 
-@method_decorator(csrf_protect, name='dispatch')
 class FacturaUpdateView(BaseUpdateView):
     model = Factura
     model_manager_name = 'all_objects'
     form_class = FacturaForm
     template_name = 'factura_form.html'
-    context_object_name = 'object'
     permission_required = 'myapp.change_factura'
-    success_url = reverse_lazy('myapp:factura_list')
 
-    # get_queryset heredado de BaseUpdateView
+    def get_success_url(self):
+        return reverse('myapp:factura_detail', kwargs={'pk': self.object.pk})
+
+    def get_form(self, form_class=None):
+        """
+        Sobrescribimos get_form para pre-llenar los campos de solo lectura.
+        """
+        form = super().get_form(form_class)
+
+        # --- CORRECCIÓN CLAVE: PRE-LLENAR CAMPOS DE SOLO LECTURA ---
+        if self.object:
+            # Llenamos los campos del formulario con los valores actuales del objeto
+            # Esto asegura que el widget readonly tenga un valor para mostrar.
+            form.fields['monto'].initial = self.object.monto
+            form.fields['dias_periodo_cobro'].initial = self.object.dias_periodo_cobro
+
+        return form
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         factura = self.object
-        context['tiene_pagos'] = factura.pagos.exists()
-        context['cantidad_pagos'] = factura.pagos.count()
-        # Título específico
+        contrato = factura.get_contrato_asociado
+
+        if contrato:
+            context['monto_total_contrato_valor'] = f"${contrato.monto_total:,.2f}" if contrato.monto_total is not None else "N/A"
+            context['saldo_contrato_display_valor'] = f"${contrato.saldo_pendiente_contrato:,.2f}" if contrato.saldo_pendiente_contrato is not None else "N/A"
+
         context['form_title'] = f'Editar Factura: {factura.numero_recibo}'
         return context
 
-    # form_valid heredado
+    def form_valid(self, form):
+        self.object = form.save(commit=False)
+
+        if self.object.vigencia_recibo_desde and self.object.vigencia_recibo_hasta:
+            if self.object.vigencia_recibo_hasta >= self.object.vigencia_recibo_desde:
+                delta = self.object.vigencia_recibo_hasta - self.object.vigencia_recibo_desde
+                self.object.dias_periodo_cobro = delta.days + 1
+
+        return super().form_valid(form)
 
     def enviar_notificacion_actualizacion(self, fac_antes, fac_despues, changed_data):
         if not changed_data:
@@ -4059,72 +4011,6 @@ class FacturaUpdateView(BaseUpdateView):
         if destinatarios:
             crear_notificacion(list(set(destinatarios)), mensaje, tipo=tipo_notif,
                                url_path_name='myapp:factura_detail', url_kwargs={'pk': fac_despues.pk})
-
-
-def get_contrato_monto_cuota_api_view(request):
-    tipo_contrato = request.GET.get('tipo_contrato')
-    contrato_id_str = request.GET.get('contrato_id')
-
-    if not tipo_contrato or not contrato_id_str:
-        return JsonResponse({'error': 'Parámetros incompletos.'}, status=400)
-
-    try:
-        contrato_id = int(contrato_id_str)
-    except ValueError:
-        return JsonResponse({'error': 'ID de contrato inválido.'}, status=400)
-
-    contrato_obj = None
-    monto_factura_sugerido_str = None
-    saldo_contrato_str = None
-
-    try:
-        if tipo_contrato == 'individual':
-            contrato_obj = get_object_or_404(
-                ContratoIndividual.objects.select_related('tarifa_aplicada'),
-                pk=contrato_id,
-                activo=True
-            )
-        elif tipo_contrato == 'colectivo':
-            contrato_obj = get_object_or_404(
-                ContratoColectivo.objects.select_related('tarifa_aplicada'),
-                pk=contrato_id,
-                activo=True
-            )
-        else:
-            return JsonResponse({'error': 'Tipo de contrato no válido.'}, status=400)
-
-        if contrato_obj:
-            if hasattr(contrato_obj, 'monto_cuota_estimada'):
-                monto_cuota_decimal = contrato_obj.monto_cuota_estimada
-                if monto_cuota_decimal is not None:
-                    monto_factura_sugerido_str = str(monto_cuota_decimal)
-
-            if hasattr(contrato_obj, 'saldo_pendiente_contrato'):
-                saldo_contrato_decimal = contrato_obj.saldo_pendiente_contrato
-                if saldo_contrato_decimal is not None:
-                    saldo_contrato_str = str(saldo_contrato_decimal)
-                elif hasattr(contrato_obj, 'monto_total') and contrato_obj.monto_total is not None:
-                    saldo_contrato_str = str(contrato_obj.monto_total)
-                else:
-                    saldo_contrato_str = '0.00'
-            elif hasattr(contrato_obj, 'monto_total'):
-                saldo_contrato_str = str(
-                    contrato_obj.monto_total) if contrato_obj.monto_total is not None else '0.00'
-
-            if monto_factura_sugerido_str is None and hasattr(contrato_obj, 'monto_total') and contrato_obj.monto_total is not None and contrato_obj.forma_pago == 'CONTADO':
-                monto_factura_sugerido_str = str(contrato_obj.monto_total)
-
-    except (ContratoIndividual.DoesNotExist, ContratoColectivo.DoesNotExist):
-        return JsonResponse({'error': f'Contrato {tipo_contrato} con ID {contrato_id} no encontrado o no activo.'}, status=404)
-    except Exception as e:
-        logger.error(
-            f"Error en API get_contrato_monto_cuota_api_view para {tipo_contrato} ID {contrato_id}: {e}", exc_info=True)
-        return JsonResponse({'error': 'Error interno del servidor al procesar la solicitud.'}, status=500)
-
-    return JsonResponse({
-        'monto_factura_sugerido': monto_factura_sugerido_str,
-        'saldo_total_contrato_pendiente': saldo_contrato_str
-    })
 
 
 @method_decorator(csrf_protect, name='dispatch')
@@ -6195,6 +6081,25 @@ class IntermediarioDashboardView(LoginRequiredMixin, TemplateView):
                           font_color='#fff', xaxis={'title': ''}, yaxis={'title': 'Cantidad'})
         return plot(fig, output_type='div', include_plotlyjs=False, config={'displayModeBar': False})
 
+    def generar_grafico_distribucion_estatus_contratos(qs_contratos_ind, qs_contratos_col, titulo="Distribución de Estatus de Contratos"):
+        data_estados = list(qs_contratos_ind.values(
+            'estatus')) + list(qs_contratos_col.values('estatus'))
+        if not data_estados:
+            return generar_figura_sin_datos_plotly("No hay contratos para analizar.")
+
+        estatus_map = dict(CommonChoices.ESTADOS_VIGENCIA)
+        df = pd.DataFrame(data_estados)
+        df['estatus_display'] = df['estatus'].apply(
+            lambda x: estatus_map.get(x, x))
+        conteo_estados = df['estatus_display'].value_counts().reset_index()
+        conteo_estados.columns = ['Estado', 'Cantidad']
+
+        fig = px.pie(conteo_estados, names='Estado',
+                     values='Cantidad', title=titulo, hole=.4)
+        # Asumiendo que BASE_LAYOUT_DASHBOARD está en graficas.py
+        fig.update_layout(**BASE_LAYOUT_DASHBOARD)
+        return plot(fig, output_type='div', include_plotlyjs=False, config=GRAPH_CONFIG)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.request.user
@@ -6261,9 +6166,17 @@ class IntermediarioDashboardView(LoginRequiredMixin, TemplateView):
         })
 
         # --- Generación de Gráficos ---
-        context['plotly_primas_por_ramo'] = self._generar_grafico_primas_ramo()
+        context['plotly_primas_por_ramo'] = graficas.generar_grafico_primas_por_ramo(
+            qs_contratos_ind=self.qs_contratos_ind,
+            qs_contratos_col=self.qs_contratos_col,
+            titulo="Tus Primas por Ramo")
         context['plotly_estados_contratos'] = self._generar_grafico_estados_contrato()
         context['plotly_estados_reclamaciones'] = self._generar_grafico_estados_reclamacion()
+        context['plotly_estados_contratos'] = graficas.generar_grafico_distribucion_estatus_contratos(
+            self.qs_contratos_ind,
+            self.qs_contratos_col,
+            titulo="Estatus de Tus Contratos"
+        )
 
         return context
 
@@ -6289,3 +6202,53 @@ def serve_media_file(request, file_path):
         return FileResponse(open(full_path, 'rb'))
     else:
         raise Http404("Archivo no encontrado.")
+
+
+@login_required
+@require_GET
+def get_financial_data_for_item(request):
+    """
+    API unificada para obtener datos financieros de un item (Factura o Reclamación).
+    - Para Factura: Devuelve el saldo pendiente.
+    - Para Reclamación: Devuelve el saldo pendiente por pagar.
+    """
+    factura_id = request.GET.get('factura_id')
+    reclamacion_id = request.GET.get('reclamacion_id')
+
+    if not factura_id and not reclamacion_id:
+        return JsonResponse({'error': 'Debe proporcionar un ID de factura o reclamación.'}, status=400)
+
+    try:
+        if factura_id:
+            factura = get_object_or_404(Factura, pk=int(factura_id))
+            saldo_pendiente = factura.monto_pendiente or Decimal('0.00')
+            monto_sugerido = saldo_pendiente
+            return JsonResponse({
+                'saldo_pendiente': f"{saldo_pendiente:,.2f}",
+                'monto_sugerido': f"{monto_sugerido:.2f}",
+                'moneda': 'USD'  # O la moneda que uses
+            })
+
+        elif reclamacion_id:
+            reclamacion = get_object_or_404(
+                Reclamacion.objects.prefetch_related('pagos'), pk=int(reclamacion_id))
+            total_pagado = reclamacion.pagos.filter(activo=True).aggregate(
+                total=Coalesce(Sum('monto_pago'), Decimal('0.00'))
+            )['total']
+            saldo_pendiente = (
+                reclamacion.monto_reclamado or Decimal('0.00')) - total_pagado
+            monto_sugerido = max(Decimal('0.00'), saldo_pendiente)
+            return JsonResponse({
+                'saldo_pendiente': f"{saldo_pendiente:,.2f}",
+                'monto_sugerido': f"{monto_sugerido:.2f}",
+                'moneda': 'USD'
+            })
+
+    except (ValueError, TypeError):
+        return JsonResponse({'error': 'ID inválido.'}, status=400)
+    except Http404:
+        return JsonResponse({'error': 'El objeto no fue encontrado.'}, status=404)
+    except Exception as e:
+        logger.error(
+            f"Error en get_financial_data_for_item: {e}", exc_info=True)
+        return JsonResponse({'error': 'Error interno del servidor.'}, status=500)

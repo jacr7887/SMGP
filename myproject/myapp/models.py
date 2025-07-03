@@ -2294,15 +2294,16 @@ class Intermediario(ModeloBase):
         help_text="Porcentaje de comisión asignado. Entre 0.00 y 50.00 (o 100.00)."
     )
     porcentaje_override = models.DecimalField(
-        max_digits=5, decimal_places=2, default=Decimal('0.00'),
-        validators=[MinValueValidator(Decimal('0.00')), MaxValueValidator(
-            Decimal('20.00'))],  # Límite para override
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        validators=[MinValueValidator(
+            Decimal('0.00')), MaxValueValidator(Decimal('20.00'))],
         verbose_name="Porcentaje de Override",
         help_text="Porcentaje adicional que este intermediario gana sobre las ventas de sus intermediarios subordinados (si aplica).",
-        blank=True,  # Puede ser opcional
-        null=False  # Default 0.00 es mejor que Null para cálculos
+        blank=True,
     )
-    # Asegúrate que settings.AUTH_USER_MODEL esté importado o usa settings.AUTH_USER_MODEL
+
     usuarios = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         related_name='intermediarios_gestionados',
@@ -2482,9 +2483,10 @@ class Factura(ModeloBase):
     monto = models.DecimalField(
         max_digits=15,
         decimal_places=2,
-        # Permitir monto 0.00 si es necesario
         validators=[MinValueValidator(Decimal('0.00'))],
         default=Decimal('0.00'),
+        null=True,  # Permite valores nulos en la base de datos
+        blank=True,  # Permite que el campo esté vacío en los formularios
         help_text="Monto base (subtotal) de la factura."
     )
     monto_pendiente = models.DecimalField(
@@ -2576,15 +2578,31 @@ class Factura(ModeloBase):
 
     def save(self, *args, **kwargs):
         is_new = self._state.adding
-        if is_new:
-            self.monto_pendiente = self.monto
-            if self.monto is not None and self.monto <= self.TOLERANCE:
-                self.pagada = True
 
+        # --- LÓGICA CORREGIDA ---
+        if is_new:
+            # Al crear, el monto pendiente es igual al monto total de la factura.
+            self.monto_pendiente = self.monto if self.monto is not None else Decimal(
+                '0.00')
+
+            # Generamos códigos únicos solo en la creación
             if not self.numero_recibo:
                 self.numero_recibo = self._generar_numero_recibo_factura()
             if not self.relacion_ingreso:
                 self.relacion_ingreso = self._generar_relacion_ingreso_factura()
+
+        # La lógica para marcar como 'pagada' debe basarse en el monto_pendiente.
+        # La señal post-pago se encargará de actualizar monto_pendiente, y esta lógica se aplicará.
+        if self.monto_pendiente is not None and self.monto_pendiente <= self.TOLERANCE:
+            self.pagada = True
+            # Si se paga completamente, el estado debe reflejarlo.
+            if self.estatus_factura != 'ANULADA':
+                self.estatus_factura = 'PAGADA'
+        else:
+            self.pagada = False
+            # Si deja de estar pagada (ej. se anula un pago), volvemos a un estado pendiente.
+            if self.estatus_factura == 'PAGADA':
+                self.estatus_factura = 'PENDIENTE'
 
         super().save(*args, **kwargs)
 

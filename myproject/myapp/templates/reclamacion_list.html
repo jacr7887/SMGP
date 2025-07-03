@@ -69,9 +69,10 @@
                 <td>
                   {# --- LÓGICA DE BADGES COMPLETA Y CORRECTA --- #}
                   <span class="badge 
-                    {% if reclamacion.estado == 'APROBADA' or reclamacion.estado == 'PAGADA' or reclamacion.estado == 'CERRADA' %}badge-success
+                    {% if reclamacion.estado == 'APROBADA' or reclamacion.estado == 'PAGADA' %}badge-success
                     {% elif reclamacion.estado == 'RECHAZADA' or reclamacion.estado == 'ANULADA' %}badge-danger
                     {% elif reclamacion.estado == 'ABIERTA' or reclamacion.estado == 'PENDIENTE_DOCS' %}badge-warning
+                    {% elif reclamacion.estado ==  'CERRADA' %}badge-secondary
                     {% else %}badge-info{% endif %}">
                     {{ reclamacion.get_estado_display|default:"-" }}
                   </span>

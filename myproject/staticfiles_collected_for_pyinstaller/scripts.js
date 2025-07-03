@@ -901,6 +901,113 @@ function initContratoMontoCalculator() {
     
     console.log("Calculadora de monto para contratos (con Select2 y data-attributes) inicializada.");
 }
+
+
+
+
+// ==================================================
+// === INICIALIZACIÓN DE FORMULARIOS DE FACTURAS  ===
+// ==================================================
+function initFinancialFormGuides() {
+    // --- Guía para el Formulario de FACTURA ---
+    const facturaForm = document.querySelector('form#facturaForm'); // Asume que tu form tiene id="facturaForm"
+    if (facturaForm) {
+        const contratoIndSelect = facturaForm.querySelector('#id_contrato_individual');
+        const contratoColSelect = facturaForm.querySelector('#id_contrato_colectivo');
+        const montoInput = facturaForm.querySelector('#id_monto');
+        const infoContainer = document.createElement('div');
+        infoContainer.id = 'factura-financial-guide';
+        infoContainer.className = 'form-guide-info mt-2';
+        montoInput?.parentNode.insertBefore(infoContainer, montoInput.nextSibling);
+
+        const fetchFacturaData = async (contratoId, tipoContrato) => {
+            if (!contratoId) {
+                infoContainer.innerHTML = '';
+                return;
+            }
+            const url = `/api/get-contrato-info/?contrato_id=${contratoId}&tipo_contrato=${tipoContrato}`; // Usa la URL correcta
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    infoContainer.innerHTML = `<div class="alert alert-danger">Error al obtener datos.</div>`;
+                    return;
+                }
+                const data = await response.json();
+                infoContainer.innerHTML = `
+                    <div class="alert alert-info">
+                        <strong>Guía de Montos:</strong><br>
+                        Saldo Pendiente del Contrato: <strong>$${data.saldo_contrato_pendiente}</strong><br>
+                        Monto Sugerido para esta Cuota: <strong>$${data.monto_cuota_sugerido}</strong>
+                    </div>`;
+                // Opcional: auto-rellenar el monto
+                if (montoInput && !montoInput.value) {
+                    montoInput.value = data.monto_cuota_sugerido;
+                }
+            } catch (error) {
+                console.error("Error fetching factura data:", error);
+                infoContainer.innerHTML = `<div class="alert alert-warning">No se pudo cargar la guía de montos.</div>`;
+            }
+        };
+
+        contratoIndSelect?.addEventListener('change', (e) => fetchFacturaData(e.target.value, 'individual'));
+        contratoColSelect?.addEventListener('change', (e) => fetchFacturaData(e.target.value, 'colectivo'));
+    }
+
+    // --- Guía para el Formulario de PAGO ---
+    const pagoForm = document.querySelector('form#pagoForm'); // Asume que tu form tiene id="pagoForm"
+    if (pagoForm) {
+        const facturaSelect = pagoForm.querySelector('#id_factura');
+        const reclamacionSelect = pagoForm.querySelector('#id_reclamacion');
+        const montoPagoInput = pagoForm.querySelector('#id_monto_pago');
+        const infoContainer = document.createElement('div');
+        infoContainer.id = 'pago-financial-guide';
+        infoContainer.className = 'form-guide-info mt-2';
+        montoPagoInput?.parentNode.insertBefore(infoContainer, montoPagoInput.nextSibling);
+
+        const fetchPagoData = async (itemId, itemType) => {
+            if (!itemId) {
+                infoContainer.innerHTML = '';
+                return;
+            }
+            const url = `/api/get-item-info/?${itemType}_id=${itemId}`; // Usa la URL correcta
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    infoContainer.innerHTML = `<div class="alert alert-danger">Error al obtener datos.</div>`;
+                    return;
+                }
+                const data = await response.json();
+                infoContainer.innerHTML = `
+                    <div class="alert alert-info">
+                        <strong>Guía de Pago para ${sanitizeHTML(data.info_label)}:</strong><br>
+                        Saldo Pendiente: <strong>$${data.saldo_pendiente}</strong><br>
+                        Monto Sugerido: <strong>$${data.monto_sugerido}</strong>
+                    </div>`;
+                // Opcional: auto-rellenar el monto
+                if (montoPagoInput && !montoPagoInput.value) {
+                    montoPagoInput.value = data.monto_sugerido;
+                }
+            } catch (error) {
+                console.error("Error fetching pago data:", error);
+                infoContainer.innerHTML = `<div class="alert alert-warning">No se pudo cargar la guía de pago.</div>`;
+            }
+        };
+
+        facturaSelect?.addEventListener('change', (e) => {
+            if (e.target.value) {
+                reclamacionSelect.value = ''; // Limpia el otro campo
+                fetchPagoData(e.target.value, 'factura');
+            }
+        });
+        reclamacionSelect?.addEventListener('change', (e) => {
+            if (e.target.value) {
+                facturaSelect.value = ''; // Limpia el otro campo
+                fetchPagoData(e.target.value, 'reclamacion');
+            }
+        });
+    }
+}
+
 // ==================================================
 // === INICIALIZACIÓN DE INTERACCIONES DE TABLA (NO DATATABLES) ===
 // ==================================================
@@ -958,7 +1065,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try { if (document.getElementById('id_contrato_individual') || document.getElementById('id_contrato_colectivo')) {initFacturaFormCalculations();}} catch (e) {console.error("Error en initFacturaFormCalculations:", e);}
     try { initFilePopups(); } catch (e) { console.error("Error en initFilePopups:", e); }
     try { initContratoMontoCalculator(); } catch (e) { console.error("Error en initContratoMontoCalculator:", e); }
-
+    try { initFinancialFormGuides(); } catch (e) { console.error("Error en initFinancialFormGuides:", e); }
 });
 
 

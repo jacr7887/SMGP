@@ -484,65 +484,42 @@ def calcular_y_registrar_comisiones(pago_instance):
 
     logger.info(f"[COMISIONES] Finalizado para Pago PK: {pago_instance.pk}\n")
 
-# @receiver(post_save, sender=Pago, dispatch_uid="pago_post_save_main_handler")
 
-
+@receiver(post_save, sender=Pago, dispatch_uid="pago_post_save_orchestrator")
 @prevent_recursion
-def pago_post_save_handler(sender, instance, created, **kwargs):
+def pago_post_save_orchestrator(sender, instance, created, **kwargs):
     """
-    Handler principal que se ejecuta después de guardar un Pago.
-    Orquesta todas las acciones necesarias:
-    1. Actualiza la Factura o Reclamación asociada.
-    2. Calcula y registra las comisiones.
-    3. Envía notificaciones.
+    Orquestador principal que se ejecuta después de guardar un Pago.
+    Maneja la actualización de saldos y el cálculo de comisiones.
     """
     logger.info(
-        f"--- SEÑAL POST_SAVE PARA PAGO PK: {instance.pk} (Creado: {created}, Activo: {instance.activo}) ---")
+        f"--- SEÑAL POST_SAVE PARA PAGO PK: {instance.pk} (Creado: {created}) ---")
 
-    if not instance.activo:
-        logger.info(
-            "--> Pago está INACTIVO. Reajustando saldos y anulando comisiones pendientes.")
-        # Lógica para cuando un pago se inactiva
-        if instance.factura_id:
-            actualizar_factura_post_pago(instance.factura_id)
-        if instance.reclamacion_id:
-            actualizar_reclamacion_post_pago(instance.reclamacion_id)
+    # Si el pago está asociado a una factura, se realizan acciones.
+    if instance.factura:
+        # 1. Recalcular saldos de la factura y estado del contrato.
+        #    Esta función se encarga de toda la lógica de actualización de la factura.
+        actualizar_factura_post_pago(instance.factura.id)
 
-        # Anular comisiones pendientes asociadas a este pago
-        comisiones_a_anular = RegistroComision.objects.filter(
-            pago_cliente=instance, estatus_pago_comision='PENDIENTE')
-        updated_count = comisiones_a_anular.update(
-            estatus_pago_comision='ANULADA', fecha_pago_a_intermediario=None)
-        if updated_count > 0:
+        # 2. Calcular y registrar comisiones si el pago está activo.
+        if instance.activo:
             logger.info(
-                f"--> {updated_count} comisiones pendientes ANULADAS para Pago {instance.pk}.")
-        return  # Termina la ejecución si el pago no está activo
+                f"--> Pago activo, procediendo a calcular comisiones para Pago PK: {instance.pk}")
+            calcular_y_registrar_comisiones(instance)
+        else:
+            # Si el pago se marca como inactivo, anulamos las comisiones pendientes.
+            logger.info(
+                f"--> Pago inactivo, anulando comisiones pendientes para Pago PK: {instance.pk}")
+            RegistroComision.objects.filter(
+                pago_cliente=instance, estatus_pago_comision='PENDIENTE'
+            ).update(estatus_pago_comision='ANULADA', fecha_pago_a_intermediario=None)
 
-    # --- El pago está ACTIVO ---
-
-    # Actualizar Factura o Reclamación
-    if instance.factura_id:
-        logger.info(
-            f"--> Pago asociado a Factura {instance.factura_id}. Actualizando factura y calculando comisiones.")
-        actualizar_factura_post_pago(instance.factura_id)
-        # Las comisiones solo se calculan para facturas
-        calcular_y_registrar_comisiones(instance)
-    elif instance.reclamacion_id:
-        logger.info(
-            f"--> Pago asociado a Reclamación {instance.reclamacion_id}. Actualizando reclamación.")
-        actualizar_reclamacion_post_pago(instance.reclamacion_id)
-
-    # Enviar notificación solo si es un pago nuevo y activo
-    if created:
-        logger.info(f"--> Es un pago nuevo. Enviando notificación.")
-        try:
-            enviar_notificacion_creacion_pago(instance)
-        except Exception as e:
-            logger.error(
-                f"Error al intentar enviar notificación para Pago {instance.pk}: {e}", exc_info=True)
+    # Si el pago está asociado a una reclamación, solo actualizamos su estado.
+    elif instance.reclamacion:
+        actualizar_reclamacion_post_pago(instance.reclamacion.id)
 
 
-@receiver(post_delete, sender=Pago, dispatch_uid="pago_post_delete_main_handler")
+@receiver(post_delete, sender=Pago, dispatch_uid="pago_post_delete_handler")
 @prevent_recursion
 def pago_post_delete_handler(sender, instance, **kwargs):
     """
@@ -554,12 +531,13 @@ def pago_post_delete_handler(sender, instance, **kwargs):
     comisiones_afectadas = RegistroComision.objects.filter(
         pago_cliente=instance)
     updated_count = comisiones_afectadas.update(
-        estatus_pago_comision='ANULADA', fecha_pago_a_intermediario=None)
+        estatus_pago_comision='ANULADA', fecha_pago_a_intermediario=None
+    )
     if updated_count > 0:
         logger.info(
             f"--> {updated_count} comisiones ANULADAS para Pago eliminado {instance.pk}.")
 
-    # Reajustar saldos
+    # Reajustar saldos de la factura o reclamación
     if instance.factura_id:
         actualizar_factura_post_pago(instance.factura_id)
     elif instance.reclamacion_id:

@@ -151,8 +151,6 @@ urlpatterns = [
 
     path('facturas/crear/<str:tipo_contrato>/<int:contrato_id>/',
          views.FacturaCreateView.as_view(), name='factura_create_from_contrato'),
-    path('ajax/get-contrato-monto-cuota/', views.get_contrato_monto_cuota_api_view,
-         name='get_contrato_monto_cuota_api'),
 
     path('comisiones/', views.RegistroComisionListView.as_view(),
          name='registro_comision_list'),
@@ -207,7 +205,10 @@ urlpatterns = [
          TemplateView.as_view(template_name='license_invalid.html'), name='license_invalid'),
     path('api/calcular-monto-contrato/', CalcularMontoContratoAPI.as_view(),
          name='api_calcular_monto_contrato'),
-
+    path('api/get-financial-data/', views.get_financial_data_for_item,
+         name='get_financial_data_for_item'),
+    path('api/get-item-info/', views.get_item_financial_info,
+         name='api_get_item_info'),
 
     path('error/', views.error_page, name='error_page'),
 
@@ -217,6 +218,8 @@ urlpatterns = [
 
 
 ]
+handler403 = 'myapp.views.handler403'
+handler404 = 'myapp.views.handler404'
 handler500 = 'myapp.views.handler500'
 # # Configuración de archivos estáticos en modo de desarrollo
 # if settings.DEBUG:

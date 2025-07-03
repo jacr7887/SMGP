@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load l10n %} {# Necesario para el filtro 'localize' #}
 
 {% block title %}{% if form.instance.pk %}Editar Factura{% else %}Nueva Factura{% endif %}{% endblock %}
 
@@ -7,7 +8,7 @@
 <div class="dark-container" role="main" aria-labelledby="main-heading">
   <section>
     <h1 id="main-heading" class="main-title">
-      {% if form.instance.pk %}✏️ Editar Factura{% else %}➕ Nueva Factura{% endif %}
+      {% if form.instance.pk %}✏️ Editar Factura: {{ object.numero_recibo }}{% else %}➕ Nueva Factura{% endif %}
     </h1>
 
     <div class="header-actions">
@@ -16,124 +17,40 @@
       </a>
     </div>
 
-    <form method="post" class="compact-form" 
-          id="facturaForm" {# ID para el formulario, usado por JS #}
-          data-is-editing="{% if form.instance.pk %}true{% else %}false{% endif %}" {# Atributo para JS #}
-          enctype="multipart/form-data" aria-labelledby="main-heading" novalidate>
+    <form method="post" class="compact-form" enctype="multipart/form-data" novalidate>
       {% csrf_token %}
-
+      
       {% if form.non_field_errors %}
-          <div class="alert alert-danger error-summary" role="alert">
-              <h4>⚠️ Errores Generales:</h4>
-              <ul>
-                  {% for error in form.non_field_errors %}
-                      <li>{{ error|escape }}</li>
-                  {% endfor %}
-              </ul>
-          </div>
+          <div class="alert alert-danger">{{ form.non_field_errors }}</div>
       {% endif %}
 
       <fieldset>
-        <legend class="dark-label">🔗 Contrato y Estatus</legend>
+        <legend class="dark-label">🔗 Asociación y Estatus</legend>
         <div class="dark-grid">
-
-            <div class="dark-group {% if form.activo.errors %}error{% endif %}">
-                <label class="dark-label" for="{{ form.activo.id_for_label }}">💡 {{ form.activo.label }}</label>
-                <label class="switch">
-                    {{ form.activo }}
-                    <span class="slider"></span>
-                </label>
-                {% if form.activo.errors %}<ul class="error-messages">{% for error in form.activo.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-                {% if form.activo.help_text %}<small class="form-text text-muted">{{ form.activo.help_text }}</small>{% endif %}
-            </div>
-
             <div class="dark-group {% if form.contrato_individual.errors %}error{% endif %}">
-                <label class="dark-label" for="{{ form.contrato_individual.id_for_label }}">📄 {{ form.contrato_individual.label }}</label>
+                <label for="{{ form.contrato_individual.id_for_label }}">📄 {{ form.contrato_individual.label }}</label>
                 {{ form.contrato_individual }}
-                {% if form.contrato_individual.errors %}<ul class="error-messages">{% for error in form.contrato_individual.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-                {% if form.contrato_individual.help_text %}<small class="form-text text-muted">{{ form.contrato_individual.help_text }}</small>{% endif %}
+                {{ form.contrato_individual.errors }}
             </div>
-
             <div class="dark-group {% if form.contrato_colectivo.errors %}error{% endif %}">
-                <label class="dark-label" for="{{ form.contrato_colectivo.id_for_label }}">📑 {{ form.contrato_colectivo.label }}</label>
+                <label for="{{ form.contrato_colectivo.id_for_label }}">📑 {{ form.contrato_colectivo.label }}</label>
                 {{ form.contrato_colectivo }}
-                {% if form.contrato_colectivo.errors %}<ul class="error-messages">{% for error in form.contrato_colectivo.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-                {% if form.contrato_colectivo.help_text %}<small class="form-text text-muted">{{ form.contrato_colectivo.help_text }}</small>{% endif %}
+                {{ form.contrato_colectivo.errors }}
             </div>
-
             <div class="dark-group {% if form.intermediario.errors %}error{% endif %}">
-                <label class="dark-label" for="{{ form.intermediario.id_for_label }}">🤝 {{ form.intermediario.label }}</label>
+                <label for="{{ form.intermediario.id_for_label }}">🤝 {{ form.intermediario.label }}</label>
                 {{ form.intermediario }}
-                {% if form.intermediario.errors %}<ul class="error-messages">{% for error in form.intermediario.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-                {% if form.intermediario.help_text %}<small class="form-text text-muted">{{ form.intermediario.help_text }}</small>{% endif %}
+                {{ form.intermediario.errors }}
             </div>
-
             <div class="dark-group {% if form.estatus_factura.errors %}error{% endif %}">
-                <label class="dark-label" for="{{ form.estatus_factura.id_for_label }}">📊 {{ form.estatus_factura.label }}</label>
+                <label for="{{ form.estatus_factura.id_for_label }}">📊 {{ form.estatus_factura.label }}</label>
                 {{ form.estatus_factura }}
-                {% if form.estatus_factura.errors %}<ul class="error-messages">{% for error in form.estatus_factura.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-                {% if form.estatus_factura.help_text %}<small class="form-text text-muted">{{ form.estatus_factura.help_text }}</small>{% endif %}
+                {{ form.estatus_factura.errors }}
             </div>
-
             <div class="dark-group {% if form.estatus_emision.errors %}error{% endif %}">
-                <label class="dark-label" for="{{ form.estatus_emision.id_for_label }}">📦 {{ form.estatus_emision.label }}</label>
+                <label for="{{ form.estatus_emision.id_for_label }}">📦 {{ form.estatus_emision.label }}</label>
                 {{ form.estatus_emision }}
-                {% if form.estatus_emision.errors %}<ul class="error-messages">{% for error in form.estatus_emision.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-                {% if form.estatus_emision.help_text %}<small class="form-text text-muted">{{ form.estatus_emision.help_text }}</small>{% endif %}
-            </div>
-
-             <div class="dark-group {% if form.aplica_igtf.errors %}error{% endif %}">
-                 <label class="dark-label" for="{{ form.aplica_igtf.id_for_label }}">💲 {{ form.aplica_igtf.label }}</label>
-                 <label class="switch">
-                     {{ form.aplica_igtf }}
-                     <span class="slider"></span>
-                 </label>
-                 {% if form.aplica_igtf.errors %}<ul class="error-messages">{% for error in form.aplica_igtf.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-                 {% if form.aplica_igtf.help_text %}<small class="form-text text-muted">{{ form.aplica_igtf.help_text }}</small>{% endif %}
-             </div>
-
-            <div class="dark-group">
-                <label class="dark-label">Pagada (Info)</label> {# Etiqueta más clara #}
-                <span class="form-control-plaintext dark-input-plaintext">
-                    {% if form.instance.pk and form.instance.pagada %}Sí{% else %}No{% endif %}
-                </span>
-            </div>
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend class="dark-label">🧾 Detalles del Recibo</legend>
-        <div class="dark-grid">
-            <div class="dark-group {% if form.monto.errors %}error{% endif %}">
-                <label class="dark-label" for="{{ form.monto.id_for_label }}">💰 {{ form.monto.label }}</label>
-                {{ form.monto }} {# Input readonly con id="id_monto" #}
-                {% if form.monto.errors %}<ul class="error-messages">{% for error in form.monto.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-                {% if form.monto.help_text %}<small class="form-text text-muted">{{ form.monto.help_text }}</small>{% endif %}
-            </div>
-
-            <div class="dark-group">
-                <label class="dark-label">Saldo Pendiente del Contrato</label> {# Etiqueta actualizada #}
-                <span id="id_saldo_contrato_display" class="form-control-plaintext dark-input-plaintext"> {# ID actualizado #}
-                    {% if form.instance.pk %}
-                        {% with contrato_actual=form.instance.contrato_individual|default:form.instance.contrato_colectivo %}
-                            {% if contrato_actual and contrato_actual.saldo_pendiente_contrato is not None %}
-                                {{ contrato_actual.saldo_pendiente_contrato|stringformat:".2f" }}
-                            {% else %}
-                                0.00
-                            {% endif %}
-                        {% endwith %}
-                    {% else %}
-                        {# Para creación, JS lo llenará. Si hay un monto inicial por __init__, mostrarlo. #}
-                        {% if form.initial.monto %}{{ form.initial.monto|stringformat:".2f" }}{% else %}0.00{% endif %}
-                    {% endif %}
-                </span>
-            </div>
-
-            <div class="dark-group {% if form.dias_periodo_cobro.errors %}error{% endif %}">
-                <label class="dark-label" for="{{ form.dias_periodo_cobro.id_for_label }}">⏳ {{ form.dias_periodo_cobro.label }}</label>
-                {{ form.dias_periodo_cobro }} {# Input readonly con id="id_dias_periodo_cobro" #}
-                {% if form.dias_periodo_cobro.errors %}<ul class="error-messages">{% for error in form.dias_periodo_cobro.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-                {% if form.dias_periodo_cobro.help_text %}<small class="form-text text-muted">{{ form.dias_periodo_cobro.help_text }}</small>{% endif %}
+                {{ form.estatus_emision.errors }}
             </div>
         </div>
       </fieldset>
@@ -142,38 +59,74 @@
         <legend class="dark-label">🗓️ Vigencia del Recibo</legend>
         <div class="dark-grid">
             <div class="dark-group {% if form.vigencia_recibo_desde.errors %}error{% endif %}">
-                <label class="dark-label" for="{{ form.vigencia_recibo_desde.id_for_label }}">🗓️ {{ form.vigencia_recibo_desde.label }}</label>
+                <label for="{{ form.vigencia_recibo_desde.id_for_label }}">🗓️ {{ form.vigencia_recibo_desde.label }}</label>
                 {{ form.vigencia_recibo_desde }}
-                {% if form.vigencia_recibo_desde.errors %}<ul class="error-messages">{% for error in form.vigencia_recibo_desde.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-                {% if form.vigencia_recibo_desde.help_text %}<small class="form-text text-muted">{{ form.vigencia_recibo_desde.help_text }}</small>{% endif %}
+                {{ form.vigencia_recibo_desde.errors }}
             </div>
-
             <div class="dark-group {% if form.vigencia_recibo_hasta.errors %}error{% endif %}">
-                <label class="dark-label" for="{{ form.vigencia_recibo_hasta.id_for_label }}">🗓️ {{ form.vigencia_recibo_hasta.label }}</label>
+                <label for="{{ form.vigencia_recibo_hasta.id_for_label }}">🗓️ {{ form.vigencia_recibo_hasta.label }}</label>
                 {{ form.vigencia_recibo_hasta }}
-                {% if form.vigencia_recibo_hasta.errors %}<ul class="error-messages">{% for error in form.vigencia_recibo_hasta.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-                {% if form.vigencia_recibo_hasta.help_text %}<small class="form-text text-muted">{{ form.vigencia_recibo_hasta.help_text }}</small>{% endif %}
+                {{ form.vigencia_recibo_hasta.errors }}
             </div>
         </div>
       </fieldset>
 
       <fieldset>
-          <legend class="dark-label">📝 Observaciones</legend>
-          <div class="dark-group {% if form.observaciones.errors %}error{% endif %}" style="grid-column: 1 / -1;">
-              <label class="dark-label" for="{{ form.observaciones.id_for_label }}">📝 {{ form.observaciones.label }}</label>
-              {{ form.observaciones }}
-              {% if form.observaciones.errors %}<ul class="error-messages">{% for error in form.observaciones.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-              {% if form.observaciones.help_text %}<small class="form-text text-muted">{{ form.observaciones.help_text }}</small>{% endif %}
+        <legend class="dark-label">🧾 Detalles Financieros</legend>
+        <div class="dark-grid">
+            
+            {# --- INICIO DE LA CORRECCIÓN FINAL EN LA PLANTILLA --- #}
+            
+            {% if form.instance.pk %}
+                {# MODO EDICIÓN: Mostramos los valores como texto plano, no como campos de formulario #}
+                <div class="dark-group">
+                    <label>💰 Monto de la Factura</label>
+                    <span class="form-control-plaintext dark-input-plaintext">${{ object.monto|default:"0.00"|localize }}</span>
+                </div>
+                <div class="dark-group">
+                    <label>⏳ Días del Período</label>
+                    <span class="form-control-plaintext dark-input-plaintext">{{ object.dias_periodo_cobro|default:"N/A" }}</span>
+                </div>
+                <div class="dark-group">
+                    <label>📈 Monto Total del Contrato</label>
+                    <span class="form-control-plaintext dark-input-plaintext">{{ monto_total_contrato_valor }}</span>
+                </div>
+                <div class="dark-group">
+                    <label>🏦 Saldo Pendiente del Contrato</label>
+                    <span class="form-control-plaintext dark-input-plaintext">{{ saldo_contrato_display_valor }}</span>
+                </div>
+            {% else %}
+                {# MODO CREACIÓN: Mostramos un mensaje informativo #}
+                <div class="alert alert-info" style="grid-column: 1 / -1;">
+                    ℹ️ El monto y los días del período se calcularán automáticamente al guardar. Seleccione un contrato para continuar.
+                </div>
+            {% endif %}
+
+            {# --- FIN DE LA CORRECCIÓN FINAL EN LA PLANTILLA --- #}
+        </div>
+      </fieldset>
+
+      <fieldset>
+          <legend class="dark-label">📝 Detalles Adicionales</legend>
+          <div class="dark-grid">
+              <div class="dark-group {% if form.aplica_igtf.errors %}error{% endif %}">
+                 <label class="dark-label" for="{{ form.aplica_igtf.id_for_label }}">💲 {{ form.aplica_igtf.label }}</label>
+                 <label class="switch">{{ form.aplica_igtf }}<span class="slider"></span></label>
+              </div>
+              <div class="dark-group {% if form.activo.errors %}error{% endif %}">
+                  <label class="dark-label" for="{{ form.activo.id_for_label }}">💡 {{ form.activo.label }}</label>
+                  <label class="switch">{{ form.activo }}<span class="slider"></span></label>
+              </div>
+              <div class="dark-group {% if form.observaciones.errors %}error{% endif %}" style="grid-column: 1 / -1;">
+                  <label for="{{ form.observaciones.id_for_label }}">📝 {{ form.observaciones.label }}</label>
+                  {{ form.observaciones }}
+                  {{ form.observaciones.errors }}
+              </div>
           </div>
       </fieldset>
 
-      {% for field in form.hidden_fields %}
-          {{ field }}
-      {% endfor %}
-
       <div class="form-actions">
         <button type="submit" class="btn btn-success">{% if form.instance.pk %}💾 Actualizar Factura{% else %}➕ Crear Factura{% endif %}</button>
-        <a href="{% url 'myapp:factura_list' %}" class="btn btn-danger" style="margin-left: 15px;">🚫 Cancelar</a>
       </div>
     </form>
   </section>
@@ -182,14 +135,5 @@
 
 {% block extra_scripts %}
     {{ block.super }}
-
-    {% if form.media %}
-        {{ form.media.css }}
-        {{ form.media.js }} {# Esto debería cargar los JS de Select2Widget #}
-    {% endif %}
-
-    <script>
-        window.URL_GET_CONTRATO_MONTO_CUOTA = "{% url 'myapp:get_contrato_monto_cuota_api' %}";
-    </script>
-
+    {% if form.media %}{{ form.media }}{% endif %}
 {% endblock extra_scripts %}

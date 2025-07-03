@@ -1,99 +1,99 @@
-{% extends "base.html" %}
-{% load static %}
+  {% extends "base.html" %}
+  {% load static %}
 
-{% block extra_head %}
-{# Solo cargamos el CSS base de DataTables. Los estilos vienen de tu styles.css #}
-{% endblock %}
+  {% block extra_head %}
+  {# Solo cargamos el CSS base de DataTables. Los estilos vienen de tu styles.css #}
+  {% endblock %}
 
-{% block title %}Listado de Afiliados Colectivos{% endblock %}
+  {% block title %}Listado de Afiliados Colectivos{% endblock %}
 
-{% block content %}
-<div class="container" role="main" aria-labelledby="main-heading">
-  <section>
-    <h1 id="main-heading">🏢 Listado de Afiliados Colectivos</h1>
+  {% block content %}
+  <div class="container" role="main" aria-labelledby="main-heading">
+    <section>
+      <h1 id="main-heading">🏢 Listado de Afiliados Colectivos</h1>
 
-    <div class="header-actions">
-      {% if perms.myapp.add_afiliadocolectivo %}
-      <a href="{% url 'myapp:afiliado_colectivo_create' %}" class="nav_link">
-        ➕ Nuevo Colectivo
-      </a>
-      {% endif %}
-    </div>
+      <div class="header-actions">
+        {% if perms.myapp.add_afiliadocolectivo %}
+        <a href="{% url 'myapp:afiliado_colectivo_create' %}" class="nav_link">
+          ➕ Nuevo Colectivo
+        </a>
+        {% endif %}
+      </div>
 
-    <div class="table-container">
-      <table id="colectivos-table" class="data-table" style="width:100%">
-        <thead>
-          <tr>
-            {# --- CABECERAS COMPLETAS PARA AFILIADO COLECTIVO --- #}
-            <th>Razón Social</th>
-            <th>RIF</th>
-            <th>Tipo Empresa</th>
-            <th>Email Contacto</th>
-            <th>Teléfono</th>
-            <th>Estado</th>
-            <th>Ciudad</th>
-            <th>Intermediario</th>
-            <th>Activo</th>
-            <th>F. Creación</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for afiliado in object_list %}
-            {% if afiliado.decryption_error %}
-              <tr class="table-danger">
-                <td colspan="11">⚠️ Error al leer datos para el colectivo con ID: {{ afiliado.pk }}. Por favor, revise este registro en el admin.</td>
-              </tr>
-            {% else %}
-              <tr>
-                {# --- CELDAS COMPLETAS PARA AFILIADO COLECTIVO --- #}
-                <td>{{ afiliado.razon_social|default:"N/A"|escape }}</td>
-                <td>{{ afiliado.rif|default:"N/A"|escape }}</td>
-                <td>{{ afiliado.get_tipo_empresa_display|escape }}</td>
-                <td>{{ afiliado.email_contacto|default:"N/A"|escape }}</td>
-                <td>{{ afiliado.telefono_contacto|default:"N/A"|escape }}</td>
-                <td>{{ afiliado.get_estado_display|escape }}</td>
-                <td>{{ afiliado.ciudad|default:"N/A"|escape }}</td>
-                <td>{{ afiliado.intermediario.nombre_completo|escape|default:"-" }}</td>
-                <td>
-                  {% if afiliado.activo %}
-                    <span class="badge badge-success">Activo</span>
-                  {% else %}
-                    <span class="badge badge-danger">Inactivo</span>
-                  {% endif %}
-                </td>
-                <td>{{ afiliado.fecha_creacion|date:"d/m/Y" }}</td>
-                <td class="actions">
-                  <div class="action-group">
-                    <a href="{% url 'myapp:afiliado_colectivo_detail' afiliado.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
-                    <a href="{% url 'myapp:afiliado_colectivo_update' afiliado.pk %}" class="action-icon" title="Editar">✏️</a>
-                    <a href="{% url 'myapp:afiliado_colectivo_delete' afiliado.pk %}" class="action-icon delete-link" title="Eliminar">❌</a>
-                  </div>
-                </td>
-              </tr>
-            {% endif %}
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
-</div>
-{% endblock content %}
+      <div class="table-container">
+        <table id="colectivos-table" class="data-table" style="width:100%">
+          <thead>
+            <tr>
+              {# --- CABECERAS COMPLETAS PARA AFILIADO COLECTIVO --- #}
+              <th>Razón Social</th>
+              <th>RIF</th>
+              <th>Tipo Empresa</th>
+              <th>Email Contacto</th>
+              <th>Teléfono</th>
+              <th>Estado</th>
+              <th>Ciudad</th>
+              <th>Intermediario</th>
+              <th>Activo</th>
+              <th>F. Creación</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for afiliado in object_list %}
+              {% if afiliado.decryption_error %}
+                <tr class="table-danger">
+                  <td colspan="11">⚠️ Error al leer datos para el colectivo con ID: {{ afiliado.pk }}. Por favor, revise este registro en el admin.</td>
+                </tr>
+              {% else %}
+                <tr>
+                  {# --- CELDAS COMPLETAS PARA AFILIADO COLECTIVO --- #}
+                  <td>{{ afiliado.razon_social|default:"N/A"|escape }}</td>
+                  <td>{{ afiliado.rif|default:"N/A"|escape }}</td>
+                  <td>{{ afiliado.get_tipo_empresa_display|escape }}</td>
+                  <td>{{ afiliado.email_contacto|default:"N/A"|escape }}</td>
+                  <td>{{ afiliado.telefono_contacto|default:"N/A"|escape }}</td>
+                  <td>{{ afiliado.get_estado_display|escape }}</td>
+                  <td>{{ afiliado.ciudad|default:"N/A"|escape }}</td>
+                  <td>{{ afiliado.intermediario.nombre_completo|escape|default:"-" }}</td>
+                  <td>
+                    {% if afiliado.activo %}
+                      <span class="badge badge-success">Activo</span>
+                    {% else %}
+                      <span class="badge badge-danger">Inactivo</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ afiliado.fecha_creacion|date:"d/m/Y" }}</td>
+                  <td class="actions">
+                    <div class="action-group">
+                      <a href="{% url 'myapp:afiliado_colectivo_detail' afiliado.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
+                      <a href="{% url 'myapp:afiliado_colectivo_update' afiliado.pk %}" class="action-icon" title="Editar">✏️</a>
+                      <a href="{% url 'myapp:afiliado_colectivo_delete' afiliado.pk %}" class="action-icon delete-link" title="Eliminar">❌</a>
+                    </div>
+                  </td>
+                </tr>
+              {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+  {% endblock content %}
 
-{% block extra_scripts %}
+  {% block extra_scripts %}
 
-<script>
-$(document).ready(function() {
-    $('#colectivos-table').DataTable({
-        language: { "url": "//cdn.datatables.net/plug-ins/2.0.8/i18n/es-ES.json" },
-        "dom":
-            "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" +
-            "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" +
-            "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
-        "columnDefs": [
-            { "orderable": false, "targets": -1 } // Deshabilita ordenar en la última columna (Acciones)
-        ]
-    });
-});
-</script>
-{% endblock %}
+  <script>
+  $(document).ready(function() {
+      $('#colectivos-table').DataTable({
+          language: { "url": "//cdn.datatables.net/plug-ins/2.0.8/i18n/es-ES.json" },
+          "dom":
+              "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" +
+              "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" +
+              "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
+          "columnDefs": [
+              { "orderable": false, "targets": -1 } // Deshabilita ordenar en la última columna (Acciones)
+          ]
+      });
+  });
+  </script>
+  {% endblock %}
