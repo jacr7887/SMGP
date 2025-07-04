@@ -1,18 +1,12 @@
-{% extends "home.html" %}
+{% extends "base.html" %}
 {% load static %}
-{% load humanize %}
 
-{% block extra_head %}
-{# CSS de DataTables y estilos personalizados (idénticos a las otras plantillas) #}
-
-{% endblock %}
-
-{% block title %}{{ title }}{% endblock %}
+{% block title %}Listado de Contratos Colectivos{% endblock %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 id="main-heading">📄 Listado de Contratos Colectivos</h1>
+    <h1 id="main-heading">🏢 Listado de Contratos Colectivos</h1>
 
     <div class="header-actions">
       {% if perms.myapp.add_contratocolectivo %}
@@ -23,49 +17,77 @@
     </div>
 
     <div class="table-container">
-      <table id="contratos-colectivos-table" class="data-table" style="width:100%">
+      <table id="contratos-colectivos-table" class="data-table" style="width:100%" data-custom-init="true">
         <thead>
           <tr>
             <th>N° Contrato</th>
             <th>Razón Social</th>
-            <th>RIF</th>
-            <th>Ramo</th>
-            <th>Inicio Vig.</th>
-            <th>Fin Vig.</th>
-            <th>Prima Total</th>
             <th>Estatus</th>
-            <th>Empleados</th>
+            <th>Ramo</th>
+            <th>Forma de Pago</th>
+            <th>Monto Total</th>
+            <th># Empleados</th>
+            <th>Fecha Emisión</th>
             <th>Intermediario</th>
-            <th>Acciones</th>
+            <th>N° Póliza</th>
+            <th>Certificado</th>
+            <th>Tarifa Aplicada</th>
+            <th>Activo</th>
+            <th class="no-sort">Acciones</th>
           </tr>
         </thead>
         <tbody>
           {% for contrato in object_list %}
-            {% if contrato.decryption_error %}
-              <tr class="table-danger">
-                <td colspan="11">⚠️ Error al leer datos para el contrato con ID: {{ contrato.pk }}.</td>
-              </tr>
-            {% else %}
-              <tr>
-                <td><a href="{% url 'myapp:contrato_colectivo_detail' contrato.pk %}" title="Ver detalle">{{ contrato.numero_contrato|default:"-" }}</a></td>
-                <td>{{ contrato.razon_social|default:"-" }}</td>
-                <td>{{ contrato.rif|default:"-" }}</td>
-                <td>{{ contrato.get_ramo_display }}</td>
-                <td>{{ contrato.fecha_inicio_vigencia|date:"d/m/Y"|default:"-" }}</td>
-                <td>{{ contrato.fecha_fin_vigencia|date:"d/m/Y"|default:"-" }}</td>
-                <td class="text-end">${{ contrato.monto_total|floatformat:2|intcomma|default:"0.00" }}</td>
-                <td><span class="badge {% if contrato.estatus == 'VIGENTE' %}badge-success{% elif contrato.estatus == 'VENCIDO' %}badge-danger{% else %}badge-warning{% endif %}">{{ contrato.get_estatus_display }}</span></td>
-                <td class="text-end">{{ contrato.cantidad_empleados|default:"-" }}</td>
-                <td>{{ contrato.intermediario.nombre_completo|default:"-" }}</td>
-                <td class="actions">
-                  <div class="action-group">
-                    <a href="{% url 'myapp:contrato_colectivo_detail' contrato.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
-                    <a href="{% url 'myapp:contrato_colectivo_update' contrato.pk %}" class="action-icon" title="Editar">✏️</a>
-                    <a href="{% url 'myapp:contrato_colectivo_delete' contrato.pk %}" class="action-icon delete-link" title="Eliminar">❌</a>
-                  </div>
-                </td>
-              </tr>
-            {% endif %}
+            <tr>
+              <td><a href="{% url 'myapp:contrato_colectivo_detail' contrato.pk %}">{{ contrato.numero_contrato|default:"N/A" }}</a></td>
+              <td>{{ contrato.razon_social|default:"N/A"|escape }}</td>
+              <td>
+                {% if contrato.estatus == 'VIGENTE' %}<span class="badge badge-success">{{ contrato.get_estatus_display }}</span>
+                {% elif contrato.estatus == 'VENCIDO' %}<span class="badge badge-warning">{{ contrato.get_estatus_display }}</span>
+                {% elif contrato.estatus == 'ANULADO' %}<span class="badge badge-danger">{{ contrato.get_estatus_display }}</span>
+                {% elif contrato.estatus == 'NO_VIGENTE_AUN' %}<span class="badge badge-info">{{ contrato.get_estatus_display }}</span>
+                {% else %}<span class="badge badge-secondary">{{ contrato.get_estatus_display }}</span>{% endif %}
+              </td>
+              <td>
+                {% if contrato.ramo == 'HCM' %}<span class="badge badge-primary">{{ contrato.get_ramo_display|truncatechars:20 }}</span>
+                {% elif contrato.ramo == 'VIDA' %}<span class="badge badge-success">{{ contrato.get_ramo_display }}</span>
+                {% elif contrato.ramo == 'VEHICULOS' %}<span class="badge badge-dark">{{ contrato.get_ramo_display }}</span>
+                {% elif contrato.ramo == 'HOGAR' %}<span class="badge badge-teal">{{ contrato.get_ramo_display }}</span>
+                {% elif contrato.ramo == 'ACCIDENTES_PERSONALES' %}<span class="badge badge-warning">{{ contrato.get_ramo_display|truncatechars:20 }}</span>
+                {% elif contrato.ramo == 'PYME' %}<span class="badge badge-action">{{ contrato.get_ramo_display }}</span>
+                {% else %}<span class="badge badge-system">{{ contrato.get_ramo_display }}</span>{% endif %}
+              </td>
+              <td>
+                {% if contrato.forma_pago == 'ANUAL' %}<span class="badge badge-teal">{{ contrato.get_forma_pago_display }}</span>
+                {% elif contrato.forma_pago == 'SEMESTRAL' %}<span class="badge badge-special">{{ contrato.get_forma_pago_display }}</span>
+                {% elif contrato.forma_pago == 'TRIMESTRAL' %}<span class="badge badge-action">{{ contrato.get_forma_pago_display }}</span>
+                {% elif contrato.forma_pago == 'MENSUAL' %}<span class="badge badge-secondary">{{ contrato.get_forma_pago_display }}</span>
+                {% elif contrato.forma_pago == 'CONTADO' %}<span class="badge badge-primary">{{ contrato.get_forma_pago_display }}</span>
+                {% else %}<span class="badge badge-info">{{ contrato.get_forma_pago_display }}</span>{% endif %}
+              </td>
+              <td>${{ contrato.monto_total|floatformat:2|default:"0.00" }}</td>
+              <td>{{ contrato.cantidad_empleados|default:"N/A" }}</td>
+              <td>{{ contrato.fecha_emision|date:"d/m/Y" }}</td>
+              <td>{{ contrato.intermediario.nombre_completo|default:"N/A"|escape }}</td>
+              <td>{{ contrato.numero_poliza|default:"N/A" }}</td>
+              <td>{{ contrato.certificado|default:"N/A" }}</td>
+              <td>{{ contrato.tarifa_aplicada.codigo_tarifa|default:"N/A" }}</td>
+              <td>
+                {% if contrato.activo %}<span class="badge badge-success">Activo</span>
+                {% else %}<span class="badge badge-danger">Inactivo</span>{% endif %}
+              </td>
+              <td class="actions">
+                <div class="action-group">
+                  <a href="{% url 'myapp:contrato_colectivo_detail' contrato.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
+                  {% if perms.myapp.change_contratocolectivo %}
+                  <a href="{% url 'myapp:contrato_colectivo_update' contrato.pk %}" class="action-icon" title="Editar">✏️</a>
+                  {% endif %}
+                  {% if perms.myapp.delete_contratocolectivo %}
+                  <a href="{% url 'myapp:contrato_colectivo_delete' contrato.pk %}" class="action-icon delete-link" title="Eliminar" data-confirm="¿Está seguro?">❌</a>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
           {% endfor %}
         </tbody>
       </table>
@@ -75,18 +97,13 @@
 {% endblock content %}
 
 {% block extra_scripts %}
-
 <script>
 $(document).ready(function() {
     $('#contratos-colectivos-table').DataTable({
-        language: { "url": "//cdn.datatables.net/plug-ins/2.0.8/i18n/es-ES.json" },
-        "dom":
-            "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" +
-            "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" +
-            "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
-        "columnDefs": [
-            { "orderable": false, "targets": -1 } // Deshabilita ordenar en la última columna (Acciones)
-        ]
+        language: { "url": "{% get_static_prefix %}es-ES.json" },
+        "dom": "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>><'dt-layout-row'<'dt-layout-cell dt-full-width'tr>><'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
+        "columnDefs": [{ "orderable": false, "targets": -1 }],
+        "order": [[ 7, "desc" ]]
     });
 });
 </script>

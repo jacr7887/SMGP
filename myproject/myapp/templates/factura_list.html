@@ -1,16 +1,12 @@
-{% extends "home.html" %}
-{% load static %}
-{% load humanize %}
+{% extends "base.html" %}
+{% load static humanize %}
 
-{% block extra_head %}
-{% endblock %}
-
-{% block title %}{{ title }}{% endblock %}
+{% block title %}Listado de Facturas{% endblock %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 id="main-heading">🧾 {{ title }}</h1>
+    <h1 id="main-heading">🧾 Listado de Facturas</h1>
 
     <div class="header-actions">
       {% if perms.myapp.add_factura %}
@@ -21,76 +17,77 @@
     </div>
 
     <div class="table-container">
-      <table id="facturas-table" class="data-table" style="width:100%">
+      <table id="facturas-table" class="data-table" style="width:100%" data-custom-init="true">
         <thead>
           <tr>
             <th>N° Recibo</th>
-            <th>Contrato Asociado</th>
-            <th>Monto</th>
-            <th>Pendiente</th>
+            <th>Contrato</th>
             <th>Estatus</th>
             <th>Pagada</th>
+            <th>Monto</th>
+            <th>Monto Pendiente</th>
+            <th>Intermediario</th>
             <th>Vigencia Desde</th>
             <th>Vigencia Hasta</th>
-            <th>Intermediario</th>
-            <th>Activo</th>
-            <th>Acciones</th>
+            <th>Días Periodo</th>
+            <th>Estatus Emisión</th>
+            <th>Aplica IGTF</th>
+            <th>Observaciones</th>
+            <th>Fecha Creación</th>
+            <th class="no-sort">Acciones</th>
           </tr>
         </thead>
         <tbody>
           {% for factura in object_list %}
-              <tr>
-                <td><a href="{% url 'myapp:factura_detail' factura.pk %}" title="Ver detalle">{{ factura.numero_recibo|default:"-" }}</a></td>
-                <td>
-                    {% if factura.contrato_individual %}
-                        <a href="{% url 'myapp:contrato_individual_detail' factura.contrato_individual.pk %}">
-                            CI: {{ factura.contrato_individual.numero_contrato }}
-                        </a>
-                    {% elif factura.contrato_colectivo %}
-                        <a href="{% url 'myapp:contrato_colectivo_detail' factura.contrato_colectivo.pk %}">
-                            CC: {{ factura.contrato_colectivo.numero_contrato }}
-                        </a>
-                    {% else %}
-                        -
-                    {% endif %}
-                </td>
-                <td class="text-end">${{ factura.monto|floatformat:2|intcomma|default:"0.00" }}</td>
-                <td class="text-end">${{ factura.monto_pendiente|floatformat:2|intcomma|default:"0.00" }}</td>
-                <td>
-                  {# --- ¡AQUÍ ESTÁ LA CORRECCIÓN DE BADGES! --- #}
-                  <span class="badge 
-                      {% if factura.estatus_factura == 'PAGADA' %}badge-success
-                      {% elif factura.estatus_factura == 'VENCIDA' or factura.estatus_factura == 'ANULADA' %}badge-danger
-                      {% elif factura.estatus_factura == 'PENDIENTE' %}badge-warning
-                      {% else %}badge-info{% endif %}">
-                      {{ factura.get_estatus_factura_display }}
-                  </span>
-                </td>
-                <td class="text-center">
-                    {% if factura.pagada %}
-                        <span class="badge badge-success">Sí</span>
-                    {% else %}
-                        <span class="badge badge-danger">No</span>
-                    {% endif %}
-                </td>
-                <td>{{ factura.vigencia_recibo_desde|date:"d/m/Y"|default:"-" }}</td>
-                <td>{{ factura.vigencia_recibo_hasta|date:"d/m/Y"|default:"-" }}</td>
-                <td>{{ factura.intermediario.nombre_completo|default:"-" }}</td>
-                <td class="text-center">
-                  {% if factura.activo %}
-                    <span class="badge badge-success">Sí</span>
+            <tr>
+              <td><a href="{% url 'myapp:factura_detail' factura.pk %}">{{ factura.numero_recibo|default:"N/A" }}</a></td>
+              <td>
+                {% with contrato=factura.get_contrato_asociado %}
+                  {% if contrato %}
+                    <a href="{{ contrato.get_absolute_url }}">{{ contrato }}</a>
                   {% else %}
-                    <span class="badge badge-danger">No</span>
+                    -
                   {% endif %}
-                </td>
-                <td class="actions">
-                  <div class="action-group">
-                    <a href="{% url 'myapp:factura_detail' factura.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
-                    <a href="{% url 'myapp:factura_update' factura.pk %}" class="action-icon" title="Editar">✏️</a>
-                    <a href="{% url 'myapp:factura_delete' factura.pk %}" class="action-icon delete-link" title="Eliminar">❌</a>
-                  </div>
-                </td>
-              </tr>
+                {% endwith %}
+              </td>
+              <td>
+                {% if factura.estatus_factura == 'PAGADA' %}<span class="badge badge-success">{{ factura.get_estatus_factura_display }}</span>
+                {% elif factura.estatus_factura == 'VENCIDA' %}<span class="badge badge-danger">{{ factura.get_estatus_factura_display }}</span>
+                {% elif factura.estatus_factura == 'PENDIENTE' %}<span class="badge badge-warning">{{ factura.get_estatus_factura_display }}</span>
+                {% else %}<span class="badge badge-secondary">{{ factura.get_estatus_factura_display }}</span>{% endif %}
+              </td>
+              <td>
+                {% if factura.pagada %}<span class="badge badge-success">Sí</span>
+                {% else %}<span class="badge badge-warning">No</span>{% endif %}
+              </td>
+              <td>${{ factura.monto|floatformat:2|intcomma }}</td>
+              <td>${{ factura.monto_pendiente|floatformat:2|intcomma }}</td>
+              <td>{{ factura.intermediario.nombre_completo|default:"-" }}</td>
+              <td>{{ factura.vigencia_recibo_desde|date:"d/m/Y" }}</td>
+              <td>{{ factura.vigencia_recibo_hasta|date:"d/m/Y" }}</td>
+              <td>{{ factura.dias_periodo_cobro|default:"-" }}</td>
+              <td>
+                {% if factura.estatus_emision == 'EMITIDO' %}<span class="badge badge-info">{{ factura.get_estatus_emision_display }}</span>
+                {% else %}<span class="badge badge-secondary">{{ factura.get_estatus_emision_display }}</span>{% endif %}
+              </td>
+              <td>
+                {% if factura.aplica_igtf %}<span class="badge badge-special">Sí</span>
+                {% else %}<span class="badge badge-secondary">No</span>{% endif %}
+              </td>
+              <td>{{ factura.observaciones|truncatechars:30|default:"-" }}</td>
+              <td>{{ factura.fecha_creacion|date:"d/m/Y H:i" }}</td>
+              <td class="actions">
+                <div class="action-group">
+                  <a href="{% url 'myapp:factura_detail' factura.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
+                  {% if perms.myapp.change_factura %}
+                  <a href="{% url 'myapp:factura_update' factura.pk %}" class="action-icon" title="Editar">✏️</a>
+                  {% endif %}
+                  {% if perms.myapp.delete_factura %}
+                  <a href="{% url 'myapp:factura_delete' factura.pk %}" class="action-icon delete-link" title="Eliminar" data-confirm="¿Está seguro?">❌</a>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
           {% endfor %}
         </tbody>
       </table>
@@ -103,14 +100,10 @@
 <script>
 $(document).ready(function() {
     $('#facturas-table').DataTable({
-        language: { "url": "//cdn.datatables.net/plug-ins/2.0.8/i18n/es-ES.json" },
-        "dom":
-            "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" +
-            "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" +
-            "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
-        "columnDefs": [
-            { "orderable": false, "targets": -1 }
-        ]
+        language: { "url": "{% get_static_prefix %}es-ES.json" },
+        "dom": "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>><'dt-layout-row'<'dt-layout-cell dt-full-width'tr>><'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
+        "columnDefs": [{ "orderable": false, "targets": -1 }],
+        "order": [[ 13, "desc" ]]
     });
 });
 </script>

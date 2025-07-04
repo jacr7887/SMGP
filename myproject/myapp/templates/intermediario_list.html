@@ -1,17 +1,12 @@
-{% extends "home.html" %}
+{% extends "base.html" %}
 {% load static %}
-{% load humanize %}
 
-{% block extra_head %}
-{# Solo cargamos el CSS base de DataTables. Los estilos ya están en styles.css #}
-{% endblock %}
-
-{% block title %}{{ title }}{% endblock %}
+{% block title %}Listado de Intermediarios{% endblock %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 id="main-heading">🤝 {{ title }}</h1>
+    <h1 id="main-heading">🤝 Listado de Intermediarios</h1>
 
     <div class="header-actions">
       {% if perms.myapp.add_intermediario %}
@@ -22,61 +17,54 @@
     </div>
 
     <div class="table-container">
-      <table id="intermediarios-table" class="data-table" style="width:100%">
+      <table id="intermediarios-table" class="data-table" style="width:100%" data-custom-init="true">
         <thead>
           <tr>
-            {# --- CABECERAS COMPLETAS PARA INTERMEDIARIO --- #}
             <th>Código</th>
             <th>Nombre Completo</th>
+            <th>Activo</th>
             <th>RIF</th>
-            <th>Email</th>
             <th>Teléfono</th>
+            <th>Email</th>
             <th>Dirección Fiscal</th>
             <th>Intermediario Padre</th>
-            <th>Comisión (%)</th>
-            <th>Override (%)</th>
-            <th>Activo</th>
-            <th>F. Creación</th>
-            <th>F. Modificación</th>
-            <th>Acciones</th>
+            <th>% Comisión</th>
+            <th>% Override</th>
+            <th>Fecha Creación</th>
+            <th>Última Modificación</th>
+            <th class="no-sort">Acciones</th>
           </tr>
         </thead>
         <tbody>
           {% for intermediario in object_list %}
-            {% if intermediario.decryption_error %}
-              <tr class="table-danger">
-                <td colspan="13">⚠️ Error al leer datos para el intermediario con ID: {{ intermediario.pk }}.</td>
-              </tr>
-            {% else %}
-              <tr>
-                {# --- CELDAS COMPLETAS PARA INTERMEDIARIO --- #}
-                <td>{{ intermediario.codigo|default:"-" }}</td>
-                <td>{{ intermediario.nombre_completo|default:"-" }}</td>
-                <td>{{ intermediario.rif|default:"N/A" }}</td>
-                <td>{{ intermediario.email_contacto|default:"N/A" }}</td>
-                <td>{{ intermediario.telefono_contacto|default:"N/A" }}</td>
-                <td title="{{ intermediario.direccion_fiscal|escape|default:'' }}">{{ intermediario.direccion_fiscal|truncatechars:30|default:"N/A" }}</td>
-                <td>{{ intermediario.intermediario_relacionado.nombre_completo|default:"-" }}</td>
-                <td class="text-end">{{ intermediario.porcentaje_comision|floatformat:2 }}%</td>
-                <td class="text-end">{{ intermediario.porcentaje_override|floatformat:2 }}%</td>
-                <td class="text-center">
-                  {% if intermediario.activo %}
-                    <span class="badge badge-success">Sí</span>
-                  {% else %}
-                    <span class="badge badge-danger">No</span>
+            <tr>
+              <td><a href="{% url 'myapp:intermediario_detail' intermediario.pk %}">{{ intermediario.codigo|default:"N/A" }}</a></td>
+              <td>{{ intermediario.nombre_completo|default:"N/A"|escape }}</td>
+              <td>
+                {% if intermediario.activo %}<span class="badge badge-success">Activo</span>
+                {% else %}<span class="badge badge-danger">Inactivo</span>{% endif %}
+              </td>
+              <td>{{ intermediario.rif|default:"N/A"|escape }}</td>
+              <td>{{ intermediario.telefono_contacto|default:"N/A"|escape }}</td>
+              <td>{{ intermediario.email_contacto|default:"N/A"|escape }}</td>
+              <td>{{ intermediario.direccion_fiscal|truncatechars:30|default:"N/A"|escape }}</td>
+              <td>{{ intermediario.intermediario_relacionado.nombre_completo|default:"-"|escape }}</td>
+              <td>{{ intermediario.porcentaje_comision|default:"0.00" }}%</td>
+              <td>{{ intermediario.porcentaje_override|default:"0.00" }}%</td>
+              <td>{{ intermediario.fecha_creacion|date:"d/m/Y H:i" }}</td>
+              <td>{{ intermediario.fecha_modificacion|date:"d/m/Y H:i" }}</td>
+              <td class="actions">
+                <div class="action-group">
+                  <a href="{% url 'myapp:intermediario_detail' intermediario.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
+                  {% if perms.myapp.change_intermediario %}
+                  <a href="{% url 'myapp:intermediario_update' intermediario.pk %}" class="action-icon" title="Editar">✏️</a>
                   {% endif %}
-                </td>
-                <td>{{ intermediario.fecha_creacion|date:"d/m/Y H:i" }}</td>
-                <td>{{ intermediario.fecha_modificacion|date:"d/m/Y H:i" }}</td>
-                <td class="actions">
-                  <div class="action-group">
-                    <a href="{% url 'myapp:intermediario_detail' intermediario.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
-                    <a href="{% url 'myapp:intermediario_update' intermediario.pk %}" class="action-icon" title="Editar">✏️</a>
-                    <a href="{% url 'myapp:intermediario_delete' intermediario.pk %}" class="action-icon delete-link" title="Eliminar">❌</a>
-                  </div>
-                </td>
-              </tr>
-            {% endif %}
+                  {% if perms.myapp.delete_intermediario %}
+                  <a href="{% url 'myapp:intermediario_delete' intermediario.pk %}" class="action-icon delete-link" title="Eliminar" data-confirm="¿Está seguro?">❌</a>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
           {% endfor %}
         </tbody>
       </table>
@@ -86,18 +74,13 @@
 {% endblock content %}
 
 {% block extra_scripts %}
-
 <script>
 $(document).ready(function() {
     $('#intermediarios-table').DataTable({
-        language: { "url": "//cdn.datatables.net/plug-ins/2.0.8/i18n/es-ES.json" },
-        "dom":
-            "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" +
-            "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" +
-            "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
-        "columnDefs": [
-            { "orderable": false, "targets": -1 } // Deshabilita ordenar en la última columna (Acciones)
-        ]
+        language: { "url": "{% get_static_prefix %}es-ES.json" },
+        "dom": "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>><'dt-layout-row'<'dt-layout-cell dt-full-width'tr>><'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
+        "columnDefs": [{ "orderable": false, "targets": -1 }],
+        "order": [[ 1, "asc" ]]
     });
 });
 </script>

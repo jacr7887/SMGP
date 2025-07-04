@@ -1,17 +1,12 @@
-{% extends "home.html" %}
-{% load static %}
-{% load humanize %}
+{% extends "base.html" %}
+{% load static humanize %}
 
-{% block extra_head %}
-{# Solo cargamos el CSS base de DataTables. Los estilos ya están en styles.css #}
-{% endblock %}
-
-{% block title %}{{ title }}{% endblock %}
+{% block title %}Listado de Tarifas{% endblock %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 id="main-heading">🏷️ {{ title }}</h1>
+    <h1 id="main-heading">🏷️ Listado de Tarifas</h1>
 
     <div class="header-actions">
       {% if perms.myapp.add_tarifa %}
@@ -22,47 +17,57 @@
     </div>
 
     <div class="table-container">
-      <table id="tarifas-table" class="data-table" style="width:100%">
+      <table id="tarifas-table" class="data-table" style="width:100%" data-custom-init="true">
         <thead>
           <tr>
-            {# --- CABECERAS COMPLETAS PARA TARIFA --- #}
             <th>Código</th>
             <th>Ramo</th>
             <th>Rango Etario</th>
             <th>Monto Anual</th>
             <th>Fecha Aplicación</th>
-            <th>Fraccionamiento</th>
+            <th>Tipo Fraccionamiento</th>
             <th>Activo</th>
-            <th>F. Creación</th>
-            <th>Acciones</th>
+            <th class="no-sort">Acciones</th>
           </tr>
         </thead>
         <tbody>
           {% for tarifa in object_list %}
-              <tr>
-                {# --- CELDAS COMPLETAS PARA TARIFA --- #}
-                <td>{{ tarifa.codigo_tarifa|default:"-" }}</td>
-                <td>{{ tarifa.get_ramo_display }}</td>
-                <td>{{ tarifa.get_rango_etario_display }}</td>
-                <td class="text-end">${{ tarifa.monto_anual|floatformat:2|intcomma|default:"0.00" }}</td>
-                <td>{{ tarifa.fecha_aplicacion|date:"d/m/Y" }}</td>
-                <td>{{ tarifa.get_tipo_fraccionamiento_display|default:"N/A" }}</td>
-                <td class="text-center">
-                  {% if tarifa.activo %}
-                    <span class="badge badge-success">Sí</span>
-                  {% else %}
-                    <span class="badge badge-danger">No</span>
+            <tr>
+              <td><a href="{% url 'myapp:tarifa_detail' tarifa.pk %}">{{ tarifa.codigo_tarifa|default:"N/A" }}</a></td>
+              <td>
+                {% if tarifa.ramo == 'HCM' %}<span class="badge badge-primary">{{ tarifa.get_ramo_display|truncatechars:20 }}</span>
+                {% elif tarifa.ramo == 'VIDA' %}<span class="badge badge-success">{{ tarifa.get_ramo_display }}</span>
+                {% elif tarifa.ramo == 'VEHICULOS' %}<span class="badge badge-dark">{{ tarifa.get_ramo_display }}</span>
+                {% elif tarifa.ramo == 'HOGAR' %}<span class="badge badge-teal">{{ tarifa.get_ramo_display }}</span>
+                {% elif tarifa.ramo == 'ACCIDENTES_PERSONALES' %}<span class="badge badge-warning">{{ tarifa.get_ramo_display|truncatechars:20 }}</span>
+                {% else %}<span class="badge badge-system">{{ tarifa.get_ramo_display }}</span>{% endif %}
+              </td>
+              <td><span class="badge badge-info">{{ tarifa.get_rango_etario_display }}</span></td>
+              <td>${{ tarifa.monto_anual|floatformat:2|intcomma }}</td>
+              <td>{{ tarifa.fecha_aplicacion|date:"d/m/Y" }}</td>
+              <td>
+                {% if tarifa.tipo_fraccionamiento %}
+                  <span class="badge badge-secondary">{{ tarifa.get_tipo_fraccionamiento_display }}</span>
+                {% else %}
+                  <span class="badge badge-special">Base Anual</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if tarifa.activo %}<span class="badge badge-success">Activa</span>
+                {% else %}<span class="badge badge-danger">Inactiva</span>{% endif %}
+              </td>
+              <td class="actions">
+                <div class="action-group">
+                  <a href="{% url 'myapp:tarifa_detail' tarifa.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
+                  {% if perms.myapp.change_tarifa %}
+                  <a href="{% url 'myapp:tarifa_update' tarifa.pk %}" class="action-icon" title="Editar">✏️</a>
                   {% endif %}
-                </td>
-                <td>{{ tarifa.fecha_creacion|date:"d/m/Y H:i" }}</td>
-                <td class="actions">
-                  <div class="action-group">
-                    <a href="{% url 'myapp:tarifa_detail' tarifa.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
-                    <a href="{% url 'myapp:tarifa_update' tarifa.pk %}" class="action-icon" title="Editar">✏️</a>
-                    <a href="{% url 'myapp:tarifa_delete' tarifa.pk %}" class="action-icon delete-link" title="Eliminar">❌</a>
-                  </div>
-                </td>
-              </tr>
+                  {% if perms.myapp.delete_tarifa %}
+                  <a href="{% url 'myapp:tarifa_delete' tarifa.pk %}" class="action-icon delete-link" title="Eliminar" data-confirm="¿Está seguro?">❌</a>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
           {% endfor %}
         </tbody>
       </table>
@@ -72,39 +77,13 @@
 {% endblock content %}
 
 {% block extra_scripts %}
-
 <script>
 $(document).ready(function() {
     $('#tarifas-table').DataTable({
-        // Traducción local para evitar errores de carga
-        language: {
-            "processing": "Procesando...",
-            "lengthMenu": "Mostrar _MENU_ registros",
-            "zeroRecords": "No se encontraron resultados",
-            "emptyTable": "Ningún dato disponible en esta tabla",
-            "info": "Mostrando registros del _START_ al _END_ de un total de _TOTAL_ registros",
-            "infoEmpty": "Mostrando registros del 0 al 0 de un total de 0 registros",
-            "infoFiltered": "(filtrado de un total de _MAX_ registros)",
-            "search": "Buscar:",
-            "loadingRecords": "Cargando...",
-            "paginate": {
-                "first": "Primero",
-                "last": "Último",
-                "next": "Siguiente",
-                "previous": "Anterior"
-            },
-            "aria": {
-                "sortAscending": ": Activar para ordenar la columna de manera ascendente",
-                "sortDescending": ": Activar para ordenar la columna de manera descendente"
-            }
-        },
-        "dom":
-            "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" +
-            "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" +
-            "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
-        "columnDefs": [
-            { "orderable": false, "targets": -1 } // Deshabilita ordenar en la última columna (Acciones)
-        ]
+        language: { "url": "{% get_static_prefix %}es-ES.json" },
+        "dom": "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>><'dt-layout-row'<'dt-layout-cell dt-full-width'tr>><'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
+        "columnDefs": [{ "orderable": false, "targets": -1 }],
+        "order": [[ 4, "desc" ]]
     });
 });
 </script>

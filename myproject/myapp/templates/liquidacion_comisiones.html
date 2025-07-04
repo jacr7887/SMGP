@@ -1,10 +1,12 @@
 {% extends "base.html" %}
 {% load static humanize %}
+{% load custom_filters %}
+
+{% block title %}Liquidación de Comisiones{% endblock %}
 
 {% block extra_head %}
-{# Los estilos para el modal y la tabla ya están en tu styles.css principal #}
+{{ block.super }}
 <style>
-    /* Estilos específicos para el modal que podrían no estar en tu CSS principal */
     .modal-custom { display: none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(15, 18, 36, 0.9); backdrop-filter: blur(5px); }
     .modal-custom-content { background-color: #1e293b; margin: 5% auto; padding: 25px; border: 1px solid var(--border-light); width: 90%; max-width: 1200px; border-radius: var(--glass-border-radius); color: #fff; position: relative; box-shadow: var(--glass-box-shadow); }
     .modal-custom-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-light); padding-bottom: 15px; margin-bottom: 20px; }
@@ -17,41 +19,43 @@
 {% endblock extra_head %}
 
 {% block content %}
-<div class="dark-container page-list-view" role="main">
+<div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 class="main-title">{{ page_heading|default:"💸 Liquidación de Comisiones Pendientes" }}</h1>
+    <h1 id="main-heading">💸 Liquidación de Comisiones Pendientes</h1>
+
     <div class="header-actions">
         <a href="{% url 'myapp:registro_comision_list' %}" class="nav_link">Ver Todos los Registros</a>
         <a href="{% url 'myapp:historial_liquidaciones_list' %}" class="nav_link">Ver Historial</a>
     </div>
 
-    <div class="table-container glass-card">
-        <table id="liquidacion-table" class="data-table">
-          <thead>
-            <tr>
-              <th>Código</th>
-              <th>Nombre Completo</th>
-              <th class="text-end">Directas Pend.</th>
-              <th class="text-end">Override Pend.</th>
-              <th class="text-end">Total General Pend.</th>
-              <th class="actions-header">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for item in liquidacion_data %}
-            <tr>
-              <td><a href="{% url 'myapp:intermediario_detail' item.pk %}">{{ item.codigo }}</a></td>
-              <td>{{ item.nombre_completo|truncatechars:30 }}</td>
-              <td class="text-end">${{ item.total_directa_pendiente_db|floatformat:2|intcomma }}</td>
-              <td class="text-end">${{ item.total_override_pendiente_db|floatformat:2|intcomma }}</td>
-              <td class="text-end"><strong>${{ item.total_general_pendiente_db|floatformat:2|intcomma }}</strong></td>
-              <td class="actions">
-                <button type="button" class="nav_link btn-sm open-modal-button" data-modal-id="detalleComisionesModal-{{ item.pk }}">💲 Liquidar / Detalle</button>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+    <div class="table-container">
+      {# Esta es la "señal" para que el script de base.html ignore esta tabla. #}
+      <table id="liquidacion-table" class="data-table" style="width:100%" data-custom-init="true">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Nombre Completo</th>
+            <th class="text-end">Directas Pend.</th>
+            <th class="text-end">Override Pend.</th>
+            <th class="text-end">Total General Pend.</th>
+            <th class="no-sort actions-header">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in liquidacion_data %}
+          <tr>
+            <td><a href="{% url 'myapp:intermediario_detail' item.pk %}">{{ item.codigo }}</a></td>
+            <td>{{ item.nombre_completo|truncatechars:30 }}</td>
+            <td class="text-end">${{ item.total_directa_pendiente_db|floatformat:2|intcomma }}</td>
+            <td class="text-end">${{ item.total_override_pendiente_db|floatformat:2|intcomma }}</td>
+            <td class="text-end"><strong>${{ item.total_general_pendiente_db|floatformat:2|intcomma }}</strong></td>
+            <td class="actions">
+              <button type="button" class="nav_link btn-sm open-modal-button" data-modal-id="detalleComisionesModal-{{ item.pk }}">💲 Liquidar / Detalle</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
 
     {% if not liquidacion_data %}
@@ -68,7 +72,7 @@
   <div class="modal-custom-content">
     <div class="modal-custom-header">
       <h5 class="modal-custom-title">Liquidar Comisiones: {{ item.nombre_completo }}</h5>
-      <button type="button" class="modal-custom-close close-modal-button" data-modal-id="detalleComisionesModal-{{ item.pk }}">×</button>
+      <button type="button" class="modal-custom-close close-modal-button">×</button>
     </div>
     
     <form method="post" action="{% url 'myapp:marcar_comisiones_pagadas' %}" enctype="multipart/form-data">
@@ -81,14 +85,14 @@
           <table class="data-table table-sm">
             <thead>
               <tr>
-                <th><input type="checkbox" class="select_all_comisiones_modal" data-modal-id="detalleComisionesModal-{{ item.pk }}"></th>
+                <th><input type="checkbox" class="select_all_comisiones_modal"></th>
                 <th>ID</th><th>Tipo</th><th>Origen</th><th>Vendedor</th><th>F. Cálculo</th><th class="text-end">Monto</th>
               </tr>
             </thead>
             <tbody>
               {% for comision in item.comisiones_pendientes_para_modal %}
               <tr>
-                <td><input type="checkbox" name="comisiones_a_pagar_ids" value="{{ comision.id }}" class="comision_checkbox_modal_{{ item.pk }}"></td>
+                <td><input type="checkbox" name="comisiones_a_pagar_ids" value="{{ comision.id }}" class="comision_checkbox_modal"></td>
                 <td>{{ comision.id }}</td>
                 <td>{{ comision.get_tipo_comision_display }}</td>
                 <td>{% if comision.factura_origen %}<a href="{% url 'myapp:factura_detail' comision.factura_origen.pk %}" target="_blank">F-{{ comision.factura_origen.numero_recibo|default_if_none:comision.factura_origen_id }}</a>{% else %}N/A{% endif %}</td>
@@ -117,7 +121,7 @@
         </div>
         <div class="footer-actions-group">
           <button type="submit" class="btn btn-success">✔️ Liquidar Seleccionadas</button>
-          <button type="button" class="btn btn-danger close-modal-button" data-modal-id="detalleComisionesModal-{{ item.pk }}">🚫 Cancelar</button>
+          <button type="button" class="btn btn-danger close-modal-button">🚫 Cancelar</button>
         </div>
       </div>
     </form>
@@ -128,49 +132,48 @@
 
 {% block extra_scripts %}
 <script>
-$(document).ready(function() {
-    $('#liquidacion-table').DataTable({
-        language: dataTableLanguage,
-        "dom": "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" + "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" + "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
-        "order": [[ 4, "desc" ]],
-        "columnDefs": [ { "orderable": false, "targets": -1 } ]
-    });
-
-    // --- Lógica para Modales y Checkboxes (de tu plantilla original) ---
-    function updateFileName(input) {
-        const fileId = input.id;
-        const intermediarioId = fileId.split('-').pop();
-        const fileNameDisplay = document.getElementById(`file-name-${intermediarioId}`);
-        if (input.files && input.files.length > 0) {
-            fileNameDisplay.textContent = input.files[0].name;
-        } else {
-            fileNameDisplay.textContent = '';
-        }
+function updateFileName(input) {
+    const fileId = input.id;
+    const intermediarioId = fileId.split('-').pop();
+    const fileNameDisplay = document.getElementById(`file-name-${intermediarioId}`);
+    if (input.files && input.files.length > 0) {
+        fileNameDisplay.textContent = input.files[0].name;
+    } else {
+        fileNameDisplay.textContent = '';
     }
+}
 
-    document.querySelectorAll('.open-modal-button').forEach(button => {
-        button.addEventListener('click', () => {
-            const modalId = button.dataset.modalId;
-            const modal = document.getElementById(modalId);
-            if (modal) modal.style.display = 'block';
-        });
+$(document).ready(function() {
+    // Este script ahora es el ÚNICO que inicializará #liquidacion-table.
+    // Ya no necesitamos 'destroy: true'.
+    $('#liquidacion-table').DataTable({
+        language: {
+            "url": "{% get_static_prefix %}es-ES.json" 
+        },
+        "dom":
+            "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" +
+            "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" +
+            "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
+        "order": [[ 4, "desc" ]],
+        "columnDefs": [
+            { "orderable": false, "targets": -1 } 
+        ]
     });
 
-    document.querySelectorAll('.close-modal-button').forEach(button => {
-        button.addEventListener('click', () => {
-            const modal = button.closest('.modal-custom');
-            if (modal) modal.style.display = 'none';
-        });
+    // --- MANEJADORES DE EVENTOS DELEGADOS Y ROBUSTOS ---
+    // Adjuntamos el listener al div estático '.table-container' que envuelve la tabla.
+    $('.table-container').on('click', '.open-modal-button', function() {
+        const modalId = $(this).data('modal-id');
+        $('#' + modalId).fadeIn();
     });
 
-    document.querySelectorAll('.select_all_comisiones_modal').forEach(selectAllCheckbox => {
-        selectAllCheckbox.addEventListener('change', function() {
-            const modal = this.closest('.modal-custom');
-            if (modal) {
-                const checkboxes = modal.querySelectorAll('input[name="comisiones_a_pagar_ids"]');
-                checkboxes.forEach(checkbox => checkbox.checked = this.checked);
-            }
-        });
+    $(document).on('click', '.close-modal-button', function() {
+        $(this).closest('.modal-custom').fadeOut();
+    });
+
+    $(document).on('change', '.select_all_comisiones_modal', function() {
+        const isChecked = $(this).prop('checked');
+        $(this).closest('.modal-custom').find('.comision_checkbox_modal').prop('checked', isChecked);
     });
 });
 </script>

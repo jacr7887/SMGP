@@ -3,7 +3,7 @@
 
 {% block title %}Reporte General - SMGP{% endblock title %}
 
-{% block extra_css %}
+{% block extra_head %} {# Cambiado de extra_css a extra_head para consistencia #}
 {{ block.super }}
 <style>
     /* Estilos generales y de grid */
@@ -96,7 +96,7 @@
     .table-container-dashboard .data-table .text-center { text-align: center !important; }
     .table-container-dashboard .data-table th:not(:last-child), .table-container-dashboard .data-table td:not(:last-child) { border-right: 1px solid rgba(255, 255, 255, 0.08); }
 </style>
-{% endblock extra_css %}
+{% endblock extra_head %}
 
 {% block content %}
 <div class="dark-container page-report-general" role="main" aria-labelledby="report-title">
@@ -106,7 +106,6 @@
     <section class="mb-5">
         <h2 class="h4 mb-3 text-muted section-title"><i class="fas fa-th-large me-2"></i>Indicadores Clave (KPIs)</h2>
         <div class="kpi-grid-container">
-
             <!-- Fila 1: KPIs Financieros y de Riesgo -->
             <div class="kpi-card kpi-bg-blue animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-coins"></i></div><div class="kpi-text-content"><div class="kpi-label">Ganancia Bruta (Pool)</div><div class="kpi-value">$ {{ kpi_monto_total_contratos|floatformat:0|intcomma }}</div></div></div><div class="kpi-footer"><span>Total de primas de contratos</span></div></div>
             <div class="kpi-card kpi-bg-warm-red animated fadeInUp"><div class="kpi-content-wrapper"><div class="kpi-icon"><i class="fas fa-handshake"></i></div><div class="kpi-text-content"><div class="kpi-label">Total Comisiones</div><div class="kpi-value">- $ {{ kpi_total_comisiones_generadas|floatformat:0|intcomma }}</div></div></div><div class="kpi-footer"><span>Descontado del pool de ganancias</span></div></div>
@@ -142,7 +141,24 @@
          <div class="tables-grid-container">
             <div class="table-container-dashboard animated fadeInUp full-width-table"><h5 class="card-title"><i class="fas fa-balance-scale me-1"></i>Análisis de Rentabilidad por Ramo</h5>{% if table_resumen_por_ramo %}<div class="table-responsive"><table class="data-table"><thead><tr><th class="text-left">Ramo</th><th class="text-right">Total Primas ($)</th><th class="text-right">Total Siniestros ($)</th><th class="text-right">Ratio Siniestralidad (%)</th></tr></thead><tbody>{% for item in table_resumen_por_ramo %}<tr><td class="text-left">{{ item.ramo_nombre }}</td><td class="text-right">{{ item.total_primas|floatformat:2|intcomma }}</td><td class="text-right">{{ item.total_siniestros|floatformat:2|intcomma }}</td><td class="text-right">{{ item.ratio_siniestralidad|floatformat:2 }}%</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="no-results p-3">No hay datos de ramos para analizar.</p>{% endif %}</div>
             <div class="table-container-dashboard animated fadeInUp"><h5 class="card-title"><i class="fas fa-clipboard-list me-1"></i>Top 10 Tipos de Reclamación</h5>{% if table_top_tipos_reclamacion %}<div class="table-responsive"><table class="data-table"><thead><tr><th class="text-left">Tipo</th><th class="text-right">Cantidad</th></tr></thead><tbody>{% for item_val in table_top_tipos_reclamacion %}<tr><td class="text-left">{{ item_val.tipo }}</td><td class="text-right">{{ item_val.cantidad|intcomma }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="no-results p-3">No hay datos de tipos de reclamación.</p>{% endif %}</div>
-            <div class="table-container-dashboard animated fadeInUp"><h5 class="card-title">Resumen Global de Comisiones</h5>{% if datos_tabla_comisiones %}<div class="table-responsive mt-2"><table class="data-table"><tbody><tr><td class="text-left">Total Registradas:</td><td class="text-right"><strong>$ {{ datos_tabla_comisiones.total_registrado_comisiones|floatformat:2|intcomma }}</strong></td></tr><tr><td class="text-left">Total Pagadas:</td><td class="text-right" style="color:#28a745;"><strong>$ {{ datos_tabla_comisiones.total_pagado_comisiones|floatformat:2|intcomma }}</strong></td></tr><tr><td class="text-left">Total Pendientes:</td><td class="text-right" style="color:#ffc107;"><strong>$ {{ datos_tabla_comisiones.total_pendiente_comisiones|floatformat:2|intcomma }}</strong></td></tr><tr><td class="text-left">Total Anuladas:</td><td class="text-right text-muted"><strong>$ {{ datos_tabla_comisiones.total_anulado_comisiones|floatformat:2|intcomma }}</strong></td></tr></tbody></table></div>{% else %}<p class="no-results p-3">No hay datos de comisiones.</p>{% endif %}</div>
+            
+            {# --- CORRECCIÓN APLICADA AQUÍ --- #}
+            <div class="table-container-dashboard animated fadeInUp"><h5 class="card-title">Resumen Global de Comisiones</h5>{% if datos_tabla_comisiones %}<div class="table-responsive mt-2"><table class="data-table">
+                {# Se añade un thead con dos columnas vacías para que coincida con el tbody #}
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td class="text-left">Total Registradas:</td><td class="text-right"><strong>$ {{ datos_tabla_comisiones.total_registrado_comisiones|floatformat:2|intcomma }}</strong></td></tr>
+                    <tr><td class="text-left">Total Pagadas:</td><td class="text-right" style="color:#28a745;"><strong>$ {{ datos_tabla_comisiones.total_pagado_comisiones|floatformat:2|intcomma }}</strong></td></tr>
+                    <tr><td class="text-left">Total Pendientes:</td><td class="text-right" style="color:#ffc107;"><strong>$ {{ datos_tabla_comisiones.total_pendiente_comisiones|floatformat:2|intcomma }}</strong></td></tr>
+                    <tr><td class="text-left">Total Anuladas:</td><td class="text-right text-muted"><strong>$ {{ datos_tabla_comisiones.total_anulado_comisiones|floatformat:2|intcomma }}</strong></td></tr>
+                </tbody>
+            </table></div>{% else %}<p class="no-results p-3">No hay datos de comisiones.</p>{% endif %}</div>
+            
             <div class="table-container-dashboard animated fadeInUp"><h5 class="card-title"><i class="fas fa-hourglass-end me-1"></i>Top 10 Facturas Vencidas Antiguas</h5>{% if table_facturas_antiguas %}<div class="table-responsive"><table class="data-table"><thead><tr><th class="text-left">Recibo</th><th class="text-left">Cliente/Empresa</th><th class="text-right">Vence</th><th class="text-right">Días Venc.</th><th class="text-right">Pend. ($)</th></tr></thead><tbody>{% for f in table_facturas_antiguas %}<tr><td class="text-left wrap-text"><a href="{% url 'myapp:factura_detail' f.pk %}" class="link-styled">{{ f.numero_recibo }}</a></td><td class="text-left wrap-text">{% with contrato=f.contrato_individual|default:f.contrato_colectivo %}{% if contrato.afiliado %}{{ contrato.afiliado.get_full_name|truncatechars:25 }}{% elif contrato.razon_social %}{{ contrato.razon_social|truncatechars:25 }}{% else %}(No Asignado){% endif %}{% endwith %}</td><td class="text-right">{{ f.vigencia_recibo_hasta|date:"d/m/y" }}</td><td class="text-right">{{ f.dias_vencida.days|default:"?"|intcomma }}</td><td class="text-right">{{ f.monto_pendiente|floatformat:2|intcomma }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="no-results p-3">No hay facturas vencidas pendientes.</p>{% endif %}</div>
             <div class="table-container-dashboard animated fadeInUp"><h5 class="card-title"><i class="fas fa-medal me-1"></i>Top 10 Intermediarios</h5>{% if table_top_intermediarios %}<div class="table-responsive"><table class="data-table"><thead><tr><th class="text-left">Intermediario</th><th class="text-center"># Contratos</th><th class="text-right">Monto ($)</th></tr></thead><tbody>{% for interm in table_top_intermediarios %}<tr><td class="text-left wrap-text"><a href="{% url 'myapp:intermediario_detail' interm.pk %}" class="link-styled">{{ interm.nombre_completo|truncatechars:35 }}</a></td><td class="text-center">{{ interm.num_contratos|intcomma }}</td><td class="text-right">{{ interm.monto_contratos|floatformat:2|intcomma }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="no-results p-3">No hay datos de intermediarios.</p>{% endif %}</div>
          </div>
@@ -150,7 +166,7 @@
 </div>
 {% endblock content %}
 
-{% block extra_js %}
+{% block extra_scripts %} {# Cambiado de extra_js a extra_scripts para consistencia #}
 {{ block.super }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -170,4 +186,4 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
-{% endblock extra_js %}
+{% endblock extra_scripts %}

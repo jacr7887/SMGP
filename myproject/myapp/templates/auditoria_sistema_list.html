@@ -1,61 +1,56 @@
-{% extends "home.html" %}
+{% extends "base.html" %}
 {% load static %}
-{% load humanize %}
 
-{% block extra_head %}
-{# Solo cargamos el CSS base de DataTables. Los estilos ya están en styles.css #}
-{% endblock %}
-
-{% block title %}{{ title }}{% endblock %}
+{% block title %}Auditoría del Sistema{% endblock %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 id="main-heading">🛡️ {{ title }}</h1>
-
-    {# No hay botón de "Crear Nuevo" para la auditoría #}
+    <h1 id="main-heading">🗃️ Auditoría del Sistema</h1>
 
     <div class="table-container">
-      <table id="auditoria-table" class="data-table" style="width:100%">
+      <table id="auditoria-table" class="data-table" style="width:100%" data-custom-init="true">
         <thead>
           <tr>
-            {# --- CABECERAS COMPLETAS PARA AUDITORIA --- #}
             <th>Fecha y Hora</th>
             <th>Usuario</th>
-            <th>Tipo de Acción</th>
+            <th>Tipo Acción</th>
+            <th>Resultado</th>
             <th>Tabla Afectada</th>
             <th>ID Registro</th>
-            <th>Resultado</th>
-            <th>Dirección IP</th>
-            <th>Detalle</th>
-            <th>Acciones</th>
+            <th>IP</th>
+            <th>Agente de Usuario</th>
+            <th class="no-sort">Detalle</th>
           </tr>
         </thead>
         <tbody>
           {% for log in object_list %}
-              <tr>
-                {# --- CELDAS COMPLETAS PARA AUDITORIA --- #}
-                <td>{{ log.tiempo_inicio|date:"d/m/Y H:i:s" }}</td>
-                <td>{{ log.usuario.get_full_name|default:log.usuario.username|default:"Sistema" }}</td>
-                <td>{{ log.get_tipo_accion_display }}</td>
-                <td>{{ log.tabla_afectada|default:"N/A" }}</td>
-                <td>{{ log.registro_id_afectado|default:"N/A" }}</td>
-                <td>
-                  <span class="badge 
-                      {% if log.resultado_accion == 'EXITO' %}badge-success
-                      {% elif 'FALLIDO' in log.resultado_accion or 'ERROR' in log.resultado_accion %}badge-danger
-                      {% else %}badge-info{% endif %}">
-                      {{ log.get_resultado_accion_display }}
-                  </span>
-                </td>
-                <td>{{ log.direccion_ip|default:"N/A" }}</td>
-                <td title="{{ log.detalle_accion|escape }}">{{ log.detalle_accion|truncatechars:50 }}</td>
-                <td class="actions">
-                  <div class="action-group">
-                    <a href="{% url 'myapp:auditoria_sistema_detail' log.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
-                  </div>
-                </td>
-              </tr>
+            <tr>
+              <td>{{ log.tiempo_inicio|date:"d/m/Y H:i:s" }}</td>
+              <td>{{ log.usuario.get_full_name|default:log.usuario.username|default:"Sistema" }}</td>
+              <td>
+                {% if log.tipo_accion == 'CREACION' %}<span class="badge badge-success">{{ log.get_tipo_accion_display }}</span>
+                {% elif log.tipo_accion == 'MODIFICACION' %}<span class="badge badge-info">{{ log.get_tipo_accion_display }}</span>
+                {% elif log.tipo_accion == 'ELIMINACION' %}<span class="badge badge-danger">{{ log.get_tipo_accion_display }}</span>
+                {% elif log.tipo_accion == 'LOGIN' %}<span class="badge badge-primary">{{ log.get_tipo_accion_display }}</span>
+                {% elif log.tipo_accion == 'ERROR' %}<span class="badge badge-dark">{{ log.get_tipo_accion_display }}</span>
+                {% else %}<span class="badge badge-secondary">{{ log.get_tipo_accion_display }}</span>{% endif %}
+              </td>
+              <td>
+                {% if log.resultado_accion == 'EXITO' %}<span class="badge badge-success">{{ log.get_resultado_accion_display }}</span>
+                {% elif log.resultado_accion == 'ERROR' %}<span class="badge badge-danger">{{ log.get_resultado_accion_display }}</span>
+                {% else %}<span class="badge badge-secondary">{{ log.get_resultado_accion_display }}</span>{% endif %}
+              </td>
+              <td>{{ log.tabla_afectada|default:"-" }}</td>
+              <td>{{ log.registro_id_afectado|default:"-" }}</td>
+              <td>{{ log.direccion_ip|default:"-" }}</td>
+              <td>{{ log.agente_usuario|truncatechars:40|default:"-" }}</td>
+              <td class="actions">
+                <div class="action-group">
+                  <a href="{% url 'myapp:auditoria_sistema_detail' log.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
+                </div>
+              </td>
+            </tr>
           {% endfor %}
         </tbody>
       </table>
@@ -65,23 +60,13 @@
 {% endblock content %}
 
 {% block extra_scripts %}
-
 <script>
 $(document).ready(function() {
     $('#auditoria-table').DataTable({
-        // Usamos la variable global definida en home.html
-        language: dataTableLanguage,
-        
-        // Ordenar por defecto por la primera columna (Fecha) en orden descendente
-        "order": [[ 0, "desc" ]],
-
-        "dom":
-            "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" +
-            "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" +
-            "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
-        "columnDefs": [
-            { "orderable": false, "targets": -1 } // Deshabilita ordenar en la última columna (Acciones)
-        ]
+        language: { "url": "{% get_static_prefix %}es-ES.json" },
+        "dom": "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>><'dt-layout-row'<'dt-layout-cell dt-full-width'tr>><'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
+        "columnDefs": [{ "orderable": false, "targets": -1 }],
+        "order": [[ 0, "desc" ]]
     });
 });
 </script>

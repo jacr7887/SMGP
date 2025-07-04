@@ -1,17 +1,12 @@
-{% extends "home.html" %}
-{% load static %}
-{% load humanize %}
+{% extends "base.html" %}
+{% load static humanize %}
 
-{% block extra_head %}
-{# Solo cargamos el CSS base de DataTables. Los estilos ya están en styles.css #}
-{% endblock %}
-
-{% block title %}{{ title }}{% endblock %}
+{% block title %}Listado de Pagos{% endblock %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 id="main-heading">💰 {{ title }}</h1>
+    <h1 id="main-heading">💰 Listado de Pagos</h1>
 
     <div class="header-actions">
       {% if perms.myapp.add_pago %}
@@ -22,80 +17,67 @@
     </div>
 
     <div class="table-container">
-      <table id="pagos-table" class="data-table" style="width:100%">
+      <table id="pagos-table" class="data-table" style="width:100%" data-custom-init="true">
         <thead>
           <tr>
-            <th>ID Pago</th>
+            <th>Referencia</th>
             <th>Asociado a</th>
             <th>Monto</th>
             <th>Forma de Pago</th>
             <th>Fecha de Pago</th>
-            <th>Referencia</th>
+            <th>Fecha Notificación</th>
+            <th>Sujeto a IGTF</th>
             <th>Soporte</th>
-            <th>IGTF</th>
             <th>Activo</th>
-            <th>F. Creación</th>
-            <th>Acciones</th>
+            <th class="no-sort">Acciones</th>
           </tr>
         </thead>
         <tbody>
           {% for pago in object_list %}
-            {% if pago.decryption_error %}
-              <tr class="table-danger">
-                <td colspan="11">⚠️ Error al leer datos para el pago con ID: {{ pago.pk }}.</td>
-              </tr>
-            {% else %}
-              <tr>
-                <td>{{ pago.pk }}</td>
-                <td>
-                    {% if pago.factura %}
-                        <a href="{% url 'myapp:factura_detail' pago.factura.pk %}">
-                            Factura: {{ pago.factura.numero_recibo|default:"N/A" }}
-                        </a>
-                    {% elif pago.reclamacion %}
-                        <a href="{% url 'myapp:reclamacion_detail' pago.reclamacion.pk %}">
-                            Reclamación: {{ pago.reclamacion.numero_reclamacion|default:"N/A" }}
-                        </a>
-                    {% else %}
-                        -
-                    {% endif %}
-                </td>
-                <td class="text-end">${{ pago.monto_pago|floatformat:2|intcomma|default:"0.00" }}</td>
-                <td>{{ pago.get_forma_pago_display }}</td>
-                <td>{{ pago.fecha_pago|date:"d/m/Y"|default:"-" }}</td>
-                <td>{{ pago.referencia_pago|default:"-" }}</td>
-                <td>
-                  {% if pago.documentos_soporte_pago %}
-                    <a href="{{ pago.documentos_soporte_pago.url }}" class="file-popup-trigger" target="_blank">📎 Ver</a>
-                  {% else %}
-                    -
+            <tr>
+              <td><a href="{% url 'myapp:pago_detail' pago.pk %}">{{ pago.referencia_pago|default:pago.pk }}</a></td>
+              <td>
+                {% if pago.factura %}<a href="{% url 'myapp:factura_detail' pago.factura.pk %}">Factura: {{ pago.factura.numero_recibo }}</a>
+                {% elif pago.reclamacion %}<a href="{% url 'myapp:reclamacion_detail' pago.reclamacion.pk %}">Reclamación: {{ pago.reclamacion.numero_reclamacion }}</a>
+                {% else %}-{% endif %}
+              </td>
+              <td>${{ pago.monto_pago|floatformat:2|intcomma }}</td>
+              <td>
+                {% if pago.forma_pago == 'TRANSFERENCIA' %}<span class="badge badge-primary">{{ pago.get_forma_pago_display }}</span>
+                {% elif pago.forma_pago == 'PAGO_MOVIL' %}<span class="badge badge-info">{{ pago.get_forma_pago_display }}</span>
+                {% elif pago.forma_pago == 'TARJETA_CREDITO' %}<span class="badge badge-relationship">{{ pago.get_forma_pago_display }}</span>
+                {% elif pago.forma_pago == 'EFECTIVO' %}<span class="badge badge-success">{{ pago.get_forma_pago_display }}</span>
+                {% else %}<span class="badge badge-secondary">{{ pago.get_forma_pago_display }}</span>{% endif %}
+              </td>
+              <td>{{ pago.fecha_pago|date:"d/m/Y" }}</td>
+              <td>{{ pago.fecha_notificacion_pago|date:"d/m/Y"|default:"-" }}</td>
+              <td>
+                {% if pago.aplica_igtf_pago %}<span class="badge badge-special">Sí</span>
+                {% else %}<span class="badge badge-secondary">No</span>{% endif %}
+              </td>
+              <td>
+                {% if pago.documentos_soporte_pago %}
+                  <a href="{{ pago.documentos_soporte_pago.url }}" class="action-icon file-popup-trigger" title="Ver Comprobante">📎</a>
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+              <td>
+                {% if pago.activo %}<span class="badge badge-success">Activo</span>
+                {% else %}<span class="badge badge-danger">Inactivo</span>{% endif %}
+              </td>
+              <td class="actions">
+                <div class="action-group">
+                  <a href="{% url 'myapp:pago_detail' pago.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
+                  {% if perms.myapp.change_pago %}
+                  <a href="{% url 'myapp:pago_update' pago.pk %}" class="action-icon" title="Editar">✏️</a>
                   {% endif %}
-                </td>
-                <td class="text-center">
-                  {# --- ¡AQUÍ ESTÁ LA CORRECCIÓN! --- #}
-                  {% if pago.aplica_igtf_pago %}
-                    <span class="badge badge-info">Sí</span>
-                  {% else %}
-                    <span class="badge badge-danger">No</span>
+                  {% if perms.myapp.delete_pago %}
+                  <a href="{% url 'myapp:pago_delete' pago.pk %}" class="action-icon delete-link" title="Eliminar" data-confirm="¿Está seguro?">❌</a>
                   {% endif %}
-                </td>
-                <td class="text-center">
-                  {% if pago.activo %}
-                    <span class="badge badge-success">Sí</span>
-                  {% else %}
-                    <span class="badge badge-danger">No</span>
-                  {% endif %}
-                </td>
-                <td>{{ pago.fecha_creacion|date:"d/m/Y H:i" }}</td>
-                <td class="actions">
-                  <div class="action-group">
-                    <a href="{% url 'myapp:pago_detail' pago.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
-                    <a href="{% url 'myapp:pago_update' pago.pk %}" class="action-icon" title="Editar">✏️</a>
-                    <a href="{% url 'myapp:pago_delete' pago.pk %}" class="action-icon delete-link" title="Eliminar">❌</a>
-                  </div>
-                </td>
-              </tr>
-            {% endif %}
+                </div>
+              </td>
+            </tr>
           {% endfor %}
         </tbody>
       </table>
@@ -105,18 +87,13 @@
 {% endblock content %}
 
 {% block extra_scripts %}
-
 <script>
 $(document).ready(function() {
     $('#pagos-table').DataTable({
-        language: { "url": "//cdn.datatables.net/plug-ins/2.0.8/i18n/es-ES.json" },
-        "dom":
-            "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" +
-            "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" +
-            "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
-        "columnDefs": [
-            { "orderable": false, "targets": -1 }
-        ]
+        language: { "url": "{% get_static_prefix %}es-ES.json" },
+        "dom": "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>><'dt-layout-row'<'dt-layout-cell dt-full-width'tr>><'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
+        "columnDefs": [{ "orderable": false, "targets": -1 }],
+        "order": [[ 4, "desc" ]]
     });
 });
 </script>

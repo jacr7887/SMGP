@@ -1,79 +1,69 @@
 {% extends "base.html" %}
 {% load static humanize %}
 
-{% block extra_head %}
-{% endblock %}
-
 {% block title %}{{ page_title|default:"Historial de Liquidaciones" }}{% endblock %}
 
 {% block content %}
-<div class="dark-container page-list-view" role="main">
+<div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 class="main-title">{{ page_title|default:"📜 Historial de Liquidaciones" }}</h1>
+    <h1 id="main-heading" class="main-title">📜 {{ page_title|default:"Historial de Liquidaciones" }}</h1>
+
     <div class="header-actions">
         <a href="{% url 'myapp:liquidacion_comisiones' %}" class="nav_link">Ir a Liquidaciones Pendientes</a>
     </div>
 
     <div class="table-container glass-card">
-        <table id="historial-table" class="data-table">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Intermediario</th>
-                    <th class="text-end">Monto</th>
-                    <th>Tipo</th>
-                    <th>Fecha Pago</th>
-                    <th>Liquidado Por</th>
-                    <th>Factura Origen</th>
-                    <th>Comprobante</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for liquidacion in liquidaciones %}
-                <tr>
-                    <td>{{ liquidacion.pk }}</td>
-                    <td>
-                        {% if liquidacion.intermediario %}
-                            <a href="{% url 'myapp:intermediario_detail' liquidacion.intermediario.pk %}">{{ liquidacion.intermediario.nombre_completo|truncatechars:25 }}</a>
-                        {% else %} N/A {% endif %}
-                    </td>
-                    <td class="text-end">${{ liquidacion.monto_comision|floatformat:2|intcomma }}</td>
-                    <td>{{ liquidacion.get_tipo_comision_display }}</td>
-                    <td>{{ liquidacion.fecha_pago_a_intermediario|date:"d/m/Y" }}</td>
-                    <td>{{ liquidacion.usuario_que_liquido.get_full_name|default:"-" }}</td>
-                    <td>
-                        {% if liquidacion.factura_origen %}
-                            <a href="{% url 'myapp:factura_detail' liquidacion.factura_origen.pk %}">{{ liquidacion.factura_origen.numero_recibo|truncatechars:15 }}</a>
-                        {% else %} N/A {% endif %}
-                    </td>
-                    <td class="text-center">
-                        {% if liquidacion.comprobante_pago %}
-                            <a href="{{ liquidacion.comprobante_pago.url }}" class="file-popup-trigger action-icon" target="_blank">📎 Ver</a>
-                        {% else %}-{% endif %}
-                    </td>
-                    <td class="actions">
-                        <a href="{% url 'myapp:registro_comision_detail' liquidacion.pk %}" class="action-icon" title="Ver Detalle">👁️</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+      {# La tabla ya tiene la clase 'data-table' y un ID único, lo cual es perfecto. #}
+      <table id="historial-table" class="data-table" style="width:100%">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Intermediario</th>
+                <th class="text-end">Monto</th>
+                <th>Tipo</th>
+                <th>Fecha Pago</th>
+                <th>Liquidado Por</th>
+                <th>Factura Origen</th>
+                <th class="no-sort">Comprobante</th> {# <-- Añadida clase no-sort #}
+                <th class="no-sort">Acciones</th>    {# <-- Añadida clase no-sort #}
+            </tr>
+        </thead>
+        <tbody>
+            {% for liquidacion in liquidaciones %}
+            <tr>
+                <td>{{ liquidacion.pk }}</td>
+                <td>
+                    {% if liquidacion.intermediario %}
+                        <a href="{% url 'myapp:intermediario_detail' liquidacion.intermediario.pk %}">{{ liquidacion.intermediario.nombre_completo|truncatechars:25 }}</a>
+                    {% else %} N/A {% endif %}
+                </td>
+                <td class="text-end">${{ liquidacion.monto_comision|floatformat:2|intcomma }}</td>
+                <td>{{ liquidacion.get_tipo_comision_display }}</td>
+                <td>{{ liquidacion.fecha_pago_a_intermediario|date:"d/m/Y" }}</td>
+                <td>{{ liquidacion.usuario_que_liquido.get_full_name|default:"-" }}</td>
+                <td>
+                    {% if liquidacion.factura_origen %}
+                        <a href="{% url 'myapp:factura_detail' liquidacion.factura_origen.pk %}">{{ liquidacion.factura_origen.numero_recibo|truncatechars:15 }}</a>
+                    {% else %} N/A {% endif %}
+                </td>
+                <td class="text-center">
+                    {% if liquidacion.comprobante_pago %}
+                        <a href="{{ liquidacion.comprobante_pago.url }}" class="action-icon file-popup-trigger" target="_blank" title="Ver Comprobante">📎</a>
+                    {% else %}-{% endif %}
+                </td>
+                <td class="actions">
+                    <a href="{% url 'myapp:registro_comision_detail' liquidacion.pk %}" class="action-icon" title="Ver Detalle">👁️</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+      </table>
     </div>
   </section>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
-$(document).ready(function() {
-    $('#historial-table').DataTable({
-        language: dataTableLanguage,
-        "dom": "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>>" + "<'dt-layout-row'<'dt-layout-cell dt-full-width'tr>>" + "<'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
-        "order": [[ 4, "desc" ]], // Ordenar por Fecha de Pago descendente
-        "columnDefs": [ { "orderable": false, "targets": -1 } ]
-    });
-    // ... (tu JS para el file-popup-trigger se mantiene igual) ...
-});
-</script>
+    {{ block.super }}
+    {# No se necesita ningún script aquí. Todo es manejado por base.html #}
 {% endblock %}

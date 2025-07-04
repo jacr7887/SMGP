@@ -5407,83 +5407,19 @@ class DynamicHomeView(LoginRequiredMixin, TemplateView):
 
 
 class FacturaPdfView(LoginRequiredMixin, PermissionRequiredMixin, View):
-    """
-    Genera un PDF para una Factura específica.
-    Asume que la plantilla se llama 'factura_pdf.html' y está en un directorio de plantillas raíz.
-    """
     permission_required = 'myapp.view_factura'
-    template_name = 'factura_pdf.html'  # <--- Nombre directo del template
+    template_name = 'factura_pdf.html'
 
     def link_callback(self, uri, rel):
-        """
-        Convierte URIs de HTML a rutas absolutas del sistema para xhtml2pdf.
-        Busca en STATICFILES_DIRS, STATIC_ROOT y MEDIA_ROOT.
-        """
-        # Intenta resolver usando el buscador de estáticos de Django (más robusto)
         result = finders.find(uri)
         if result:
             if not isinstance(result, (list, tuple)):
                 result = [result]
-            # Tomar la primera ruta válida que sea un archivo
             for path_candidate in result:
                 path = os.path.realpath(path_candidate)
                 if os.path.isfile(path):
-                    logger.debug(
-                        f"link_callback: URI '{uri}' resuelta a '{path}' vía finders.")
                     return path
-            logger.warning(
-                f"link_callback: Recurso encontrado por finders para URI '{uri}' pero ninguna ruta es un archivo válido: {result}")
-
-        # Fallback: intentar construir ruta desde STATIC_URL/ROOT
-        if settings.STATIC_URL and uri.startswith(settings.STATIC_URL):
-            # Probar en STATIC_ROOT
-            path = os.path.join(settings.STATIC_ROOT,
-                                uri.replace(settings.STATIC_URL, "", 1))
-            if os.path.isfile(path):
-                logger.debug(
-                    f"link_callback: URI '{uri}' resuelta a '{path}' vía STATIC_ROOT.")
-                return path
-            # Probar en STATICFILES_DIRS
-            for static_dir in settings.STATICFILES_DIRS:
-                path_in_dir = os.path.join(
-                    static_dir, uri.replace(settings.STATIC_URL, "", 1))
-                if os.path.isfile(path_in_dir):
-                    logger.debug(
-                        f"link_callback: URI '{uri}' resuelta a '{path_in_dir}' vía STATICFILES_DIRS.")
-                    return path_in_dir
-
-        # Fallback para MEDIA_URL/ROOT
-        if settings.MEDIA_URL and uri.startswith(settings.MEDIA_URL):
-            path = os.path.join(settings.MEDIA_ROOT,
-                                uri.replace(settings.MEDIA_URL, "", 1))
-            if os.path.isfile(path):
-                logger.debug(
-                    f"link_callback: URI '{uri}' resuelta a '{path}' vía MEDIA_ROOT.")
-                return path
-
-        logger.warning(
-            f"link_callback: URI no resuelta a ruta de archivo: '{uri}'")
-        return uri  # Devolver URI original si no se resuelve
-
-    def _get_client_ip(self, request):
-        ip = request.META.get('HTTP_X_FORWARDED_FOR')
-        return ip.split(',')[0].strip() if ip else request.META.get('REMOTE_ADDR', '')
-
-    def _create_audit_log(self, request, resultado, pk, detalle):
-        try:
-            AuditoriaSistema.objects.create(
-                usuario=request.user if request.user.is_authenticated else None,
-                tipo_accion='GENERACION_PDF',
-                tabla_afectada=Factura._meta.db_table,
-                registro_id_afectado=pk,
-                detalle_accion=f"Factura PDF {pk}: {detalle}",
-                direccion_ip=self._get_client_ip(request),
-                agente_usuario=request.META.get('HTTP_USER_AGENT', '')[:500],
-                resultado_accion=resultado
-            )
-        except Exception as audit_e:
-            logger.error(
-                f"Error auditoría PDF factura {pk}: {audit_e}", exc_info=True)
+        return uri
 
     def get(self, request, pk, *args, **kwargs):
         try:
@@ -5496,21 +5432,21 @@ class FacturaPdfView(LoginRequiredMixin, PermissionRequiredMixin, View):
                 pk=pk
             )
 
-            # ... (toda tu lógica para preparar el context está bien) ...
             monto_prima = factura.monto or Decimal('0.00')
-            total_a_pagar = monto_prima
             context = {
                 'factura': factura,
-                'contrato_asociado': factura.contrato_individual or factura.contrato_colectivo,
+                'contrato_asociado': factura.get_contrato_asociado,
                 'monto_prima': monto_prima,
-                'total_a_pagar': total_a_pagar,
+                'total_a_pagar': monto_prima,
                 'cliente_nombre': "(No identificado)",
                 'cliente_doc': "N/A",
                 'intermediario_factura': factura.intermediario
             }
+
             if factura.contrato_individual and factura.contrato_individual.afiliado:
                 afiliado = factura.contrato_individual.afiliado
-                context['cliente_nombre'] = afiliado.get_full_name()
+                # --- CORRECCIÓN: Acceder como propiedad, sin paréntesis ---
+                context['cliente_nombre'] = afiliado.nombre_completo
                 context['cliente_doc'] = f"C.I.: {afiliado.cedula}"
             elif factura.contrato_colectivo:
                 colectivo = factura.contrato_colectivo
@@ -5519,63 +5455,33 @@ class FacturaPdfView(LoginRequiredMixin, PermissionRequiredMixin, View):
 
             template = get_template(self.template_name)
             html = template.render(context)
-
             result = BytesIO()
-            pdf_status = pisa.pisaDocument(
-                BytesIO(html.encode('UTF-8')),
-                result,
-                encoding='UTF-8',
-                link_callback=self.link_callback
-            )
+            pdf_status = pisa.pisaDocument(BytesIO(html.encode(
+                'UTF-8')), result, encoding='UTF-8', link_callback=self.link_callback)
+
             if pdf_status.err:
-                # Logueamos el error detallado para nosotros
-                error_detail = f"xhtml2pdf error code {pdf_status.err}: Problema generando PDF para pago {pk}."
-                logger.error(error_detail)
-                self._create_audit_log(
-                    request, 'ERROR', pk, "Fallo en pisaDocument")
-                # Mostramos un mensaje genérico y seguro al usuario
-                return HttpResponse("Error al generar el PDF. Por favor, contacte a soporte.", status=500)
+                logger.error(
+                    f"xhtml2pdf error code {pdf_status.err} para factura {pk}.")
+                return HttpResponse("Error al generar el PDF.", status=500)
 
             response = HttpResponse(
                 result.getvalue(), content_type='application/pdf')
             filename = f"factura_{factura.numero_recibo or factura.pk}.pdf"
             response['Content-Disposition'] = f'inline; filename="{filename}"'
-            self._create_audit_log(request, 'EXITO', pk,
-                                   "PDF generado/visualizado")
             return response
 
-        except Http404:
-            logger.warning(
-                f"Intento de acceso a PDF de Factura inexistente: PK={pk}")
-            raise
-        except PermissionDenied as e:
-            logger.warning(
-                f"Acceso denegado a PDF Factura PK={pk} por usuario {request.user.email}: {e}")
-            messages.error(
-                request, "No tiene permiso para ver este documento.")
-            return redirect('myapp:home')
         except Exception as e:
             logger.error(
                 f"Error inesperado en FacturaPdfView (pk={pk}): {e}", exc_info=True)
-            self._create_audit_log(request, 'ERROR', pk,
-                                   f"Error inesperado: {e}")
-            return HttpResponseServerError("Ocurrió un error inesperado al intentar generar el documento PDF.")
+            return HttpResponseServerError("Ocurrió un error inesperado al generar el PDF.")
 
 
 class PagoPdfView(LoginRequiredMixin, PermissionRequiredMixin, View):
-    """
-    Genera un PDF para un Recibo de Pago específico.
-    Asume que la plantilla se llama 'pago_pdf.html' y está en un directorio de plantillas raíz.
-    """
-    permission_required = 'myapp.view_pago'  # Permiso para ver pagos
-    template_name = 'pago_pdf.html'     # Nombre directo del template
-    TASA_IGTF_PAGO = Decimal('0.03')    # Tasa IGTF (podría venir de settings)
+    permission_required = 'myapp.view_pago'
+    template_name = 'pago_pdf.html'
+    TASA_IGTF_PAGO = Decimal('0.03')
 
     def link_callback(self, uri, rel):
-        """
-        Convierte URIs de HTML a rutas absolutas del sistema para xhtml2pdf.
-        (Misma lógica que en FacturaPdfView)
-        """
         result = finders.find(uri)
         if result:
             if not isinstance(result, (list, tuple)):
@@ -5583,62 +5489,11 @@ class PagoPdfView(LoginRequiredMixin, PermissionRequiredMixin, View):
             for path_candidate in result:
                 path = os.path.realpath(path_candidate)
                 if os.path.isfile(path):
-                    logger.debug(
-                        f"link_callback: URI '{uri}' resuelta a '{path}' vía finders.")
                     return path
-            logger.warning(
-                f"link_callback: Recurso encontrado por finders para URI '{uri}' pero ninguna ruta es un archivo válido: {result}")
-
-        if settings.STATIC_URL and uri.startswith(settings.STATIC_URL):
-            path = os.path.join(settings.STATIC_ROOT,
-                                uri.replace(settings.STATIC_URL, "", 1))
-            if os.path.isfile(path):
-                logger.debug(
-                    f"link_callback: URI '{uri}' resuelta a '{path}' vía STATIC_ROOT.")
-                return path
-            for static_dir in settings.STATICFILES_DIRS:
-                path_in_dir = os.path.join(
-                    static_dir, uri.replace(settings.STATIC_URL, "", 1))
-                if os.path.isfile(path_in_dir):
-                    logger.debug(
-                        f"link_callback: URI '{uri}' resuelta a '{path_in_dir}' vía STATICFILES_DIRS.")
-                    return path_in_dir
-
-        if settings.MEDIA_URL and uri.startswith(settings.MEDIA_URL):
-            path = os.path.join(settings.MEDIA_ROOT,
-                                uri.replace(settings.MEDIA_URL, "", 1))
-            if os.path.isfile(path):
-                logger.debug(
-                    f"link_callback: URI '{uri}' resuelta a '{path}' vía MEDIA_ROOT.")
-                return path
-
-        logger.warning(
-            f"link_callback: URI no resuelta a ruta de archivo: '{uri}'")
         return uri
-
-    def _get_client_ip(self, request):
-        ip = request.META.get('HTTP_X_FORWARDED_FOR')
-        return ip.split(',')[0].strip() if ip else request.META.get('REMOTE_ADDR', '')
-
-    def _create_audit_log(self, request, resultado, pk, detalle):
-        try:
-            AuditoriaSistema.objects.create(
-                usuario=request.user if request.user.is_authenticated else None,
-                tipo_accion='GENERACION_PDF',
-                tabla_afectada=Pago._meta.db_table,
-                registro_id_afectado=pk,
-                detalle_accion=f"Pago PDF {pk}: {detalle}",
-                direccion_ip=self._get_client_ip(request),
-                agente_usuario=request.META.get('HTTP_USER_AGENT', '')[:500],
-                resultado_accion=resultado
-            )
-        except Exception as audit_e:
-            logger.error(
-                f"Error auditoría PDF pago {pk}: {audit_e}", exc_info=True)
 
     def get(self, request, pk, *args, **kwargs):
         try:
-            # Obtener el pago con relaciones optimizadas para obtener datos del cliente
             pago = get_object_or_404(
                 Pago.objects.select_related(
                     'factura__contrato_individual__afiliado',
@@ -5649,123 +5504,64 @@ class PagoPdfView(LoginRequiredMixin, PermissionRequiredMixin, View):
                 pk=pk
             )
 
-            # Verificar permisos adicionales si es necesario
-            # (ej. solo ver pagos relacionados con contratos/reclamaciones que el usuario puede ver)
-            # ...
-
-            # --- Preparar contexto para el template PDF ---
+            monto_total_recibido = pago.monto_pago or Decimal('0.00')
             monto_igtf_percibido = Decimal('0.00')
-            monto_total_recibido = pago.monto_pago or Decimal(
-                '0.00')  # Monto total que se pagó
-            monto_abonado_neto = monto_total_recibido  # Por defecto, todo abona
-
             if pago.aplica_igtf_pago and monto_total_recibido > 0:
-                # Calcular IGTF sobre el monto total recibido
-                monto_igtf_percibido = (monto_total_recibido * self.TASA_IGTF_PAGO).quantize(
-                    Decimal('0.01'), rounding=ROUND_HALF_UP
-                )
-                # Lo que realmente abona a la deuda es el total menos el IGTF
-                monto_abonado_neto = monto_total_recibido - monto_igtf_percibido
+                monto_igtf_percibido = (
+                    monto_total_recibido * self.TASA_IGTF_PAGO).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
-            # --- Obtener info del cliente (lógica similar a PagoDetailView) ---
+            monto_abonado_neto = monto_total_recibido - monto_igtf_percibido
+
             cliente_nombre = "No identificado"
             cliente_doc = "N/A"
-            contrato_ref = None  # Para referencia en el PDF
+            contrato_ref = pago.factura.get_contrato_asociado if pago.factura else (
+                pago.reclamacion.contrato_individual or pago.reclamacion.contrato_colectivo if pago.reclamacion else None)
 
-            if pago.factura:
-                contrato_ref = pago.factura.contrato_individual or pago.factura.contrato_colectivo
-                if pago.factura.contrato_individual and pago.factura.contrato_individual.afiliado:
-                    afiliado = pago.factura.contrato_individual.afiliado
-                    cliente_nombre = afiliado.get_full_name()
+            if contrato_ref:
+                if isinstance(contrato_ref, ContratoIndividual) and contrato_ref.afiliado:
+                    afiliado = contrato_ref.afiliado
+                    # --- CORRECCIÓN: Acceder como propiedad, sin paréntesis ---
+                    cliente_nombre = afiliado.nombre_completo
                     cliente_doc = f"C.I.: {afiliado.cedula}"
-                elif pago.factura.contrato_colectivo:
-                    colectivo = pago.factura.contrato_colectivo
-                    cliente_nombre = colectivo.razon_social
-                    cliente_doc = f"RIF: {colectivo.rif}"
-            elif pago.reclamacion:
-                contrato_ref = pago.reclamacion.contrato_individual or pago.reclamacion.contrato_colectivo
-                if pago.reclamacion.contrato_individual and pago.reclamacion.contrato_individual.afiliado:
-                    afiliado = pago.reclamacion.contrato_individual.afiliado
-                    cliente_nombre = afiliado.get_full_name()
-                    cliente_doc = f"C.I.: {afiliado.cedula}"
-                elif pago.reclamacion.contrato_colectivo:
-                    colectivo = pago.reclamacion.contrato_colectivo
-                    cliente_nombre = colectivo.razon_social
-                    cliente_doc = f"RIF: {colectivo.rif}"
+                elif isinstance(contrato_ref, ContratoColectivo):
+                    cliente_nombre = contrato_ref.razon_social
+                    cliente_doc = f"RIF: {contrato_ref.rif}"
 
             context = {
                 'pago': pago,
                 'factura_asociada': pago.factura,
                 'reclamacion_asociada': pago.reclamacion,
-                'contrato_ref': contrato_ref,  # Pasar referencia del contrato
+                'contrato_ref': contrato_ref,
                 'cliente_nombre': cliente_nombre,
                 'cliente_doc': cliente_doc,
                 'pago_con_igtf': pago.aplica_igtf_pago,
                 'monto_igtf_percibido': monto_igtf_percibido,
-                # Mostrar tasa como %
                 'tasa_igtf_display': f"{self.TASA_IGTF_PAGO:.0%}",
-                'monto_abonado_neto': monto_abonado_neto,  # Monto que abona a deuda
-                'monto_total_recibido': monto_total_recibido  # Monto total del pago
+                'monto_abonado_neto': monto_abonado_neto,
+                'monto_total_recibido': monto_total_recibido
             }
 
-            # --- Renderizar HTML ---
-            try:
-                template = get_template(self.template_name)
-                html = template.render(context)
-                if not isinstance(html, str):
-                    raise TypeError(
-                        "El renderizado del template no devolvió un string.")
-            except Exception as render_error:
-                logger.error(
-                    f"Error renderizando template PDF para pago {pk}: {render_error}", exc_info=True)
-                self._create_audit_log(
-                    request, 'ERROR', pk, f"Error render template: {render_error}")
-                return HttpResponseServerError("Error interno generando contenido del PDF.")
-
-            # --- Generar PDF ---
+            template = get_template(self.template_name)
+            html = template.render(context)
             result = BytesIO()
-            pdf_status = pisa.pisaDocument(
-                BytesIO(html.encode('UTF-8')),
-                result,
-                encoding='UTF-8',
-                link_callback=self.link_callback  # Usar el método de esta instancia
-            )
+            pdf_status = pisa.pisaDocument(BytesIO(html.encode(
+                'UTF-8')), result, encoding='UTF-8', link_callback=self.link_callback)
 
             if pdf_status.err:
-                error_detail = f"xhtml2pdf error: {pdf_status.err}"
                 logger.error(
-                    f"Error generando PDF para pago {pk}: {error_detail}")
-                self._create_audit_log(request, 'ERROR', pk, error_detail)
-                return HttpResponse(f"Error al generar el PDF ({pdf_status.err}). Por favor, contacte soporte.", status=500)
+                    f"xhtml2pdf error code {pdf_status.err} para pago {pk}.")
+                return HttpResponse("Error al generar el PDF.", status=500)
 
-            # --- Respuesta HTTP con el PDF ---
             response = HttpResponse(
                 result.getvalue(), content_type='application/pdf')
             filename = f"recibo_pago_{pago.referencia_pago or pago.pk}.pdf"
             response['Content-Disposition'] = f'inline; filename="{filename}"'
-
-            # --- Auditoría Éxito ---
-            self._create_audit_log(request, 'EXITO', pk,
-                                   "PDF generado/visualizado")
-
             return response
 
-        except Http404:
-            logger.warning(
-                f"Intento de acceso a PDF de Pago inexistente: PK={pk}")
-            raise
-        except PermissionDenied as e:
-            logger.warning(
-                f"Acceso denegado a PDF Pago PK={pk} por usuario {request.user.email}: {e}")
-            messages.error(
-                request, "No tiene permiso para ver este documento.")
-            return redirect('myapp:home')  # O a donde sea apropiado
         except Exception as e:
             logger.error(
                 f"Error inesperado en PagoPdfView (pk={pk}): {e}", exc_info=True)
-            self._create_audit_log(request, 'ERROR', pk,
-                                   f"Error inesperado: {e}")
-            return HttpResponseServerError("Ocurrió un error inesperado al intentar generar el documento PDF.")
+            return HttpResponseServerError("Ocurrió un error inesperado al generar el PDF.")
 # License View
 
 
