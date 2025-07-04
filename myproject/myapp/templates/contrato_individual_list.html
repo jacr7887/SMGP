@@ -57,6 +57,7 @@
                 {% elif contrato.ramo == 'VEHICULOS' %}<span class="badge badge-dark">{{ contrato.get_ramo_display }}</span>
                 {% elif contrato.ramo == 'HOGAR' %}<span class="badge badge-teal">{{ contrato.get_ramo_display }}</span>
                 {% elif contrato.ramo == 'ACCIDENTES_PERSONALES' %}<span class="badge badge-warning">{{ contrato.get_ramo_display|truncatechars:20 }}</span>
+                {% elif contrato.ramo == 'PYME' %}<span class="badge badge-action">{{ contrato.get_ramo_display }}</span>
                 {% elif contrato.ramo == 'MASCOTAS' %}<span class="badge badge-relationship">{{ contrato.get_ramo_display }}</span>
                 {% else %}<span class="badge badge-system">{{ contrato.get_ramo_display }}</span>{% endif %}
               </td>

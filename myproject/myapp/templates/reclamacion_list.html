@@ -47,10 +47,13 @@
                 {% else %}<span class="badge badge-secondary">{{ reclamacion.get_estado_display }}</span>{% endif %}
               </td>
               <td>
+                {# --- LÓGICA DE COLOR DETALLADA PARA TIPO DE RECLAMACIÓN --- #}
                 {% if reclamacion.tipo_reclamacion == 'MEDICA' %}<span class="badge badge-primary">{{ reclamacion.get_tipo_reclamacion_display }}</span>
+                {% elif reclamacion.tipo_reclamacion == 'ADMINISTRATIVA' %}<span class="badge badge-info">{{ reclamacion.get_tipo_reclamacion_display }}</span>
                 {% elif reclamacion.tipo_reclamacion == 'LEGAL' %}<span class="badge badge-dark">{{ reclamacion.get_tipo_reclamacion_display }}</span>
                 {% elif reclamacion.tipo_reclamacion == 'FINANCIERA' %}<span class="badge badge-special">{{ reclamacion.get_tipo_reclamacion_display }}</span>
-                {% else %}<span class="badge badge-system">{{ reclamacion.get_tipo_reclamacion_display }}</span>{% endif %}
+                {% elif reclamacion.tipo_reclamacion == 'SERVICIO' %}<span class="badge badge-action">{{ reclamacion.get_tipo_reclamacion_display }}</span>
+                {% else %}<span class="badge badge-secondary">{{ reclamacion.get_tipo_reclamacion_display }}</span>{% endif %}
               </td>
               <td>${{ reclamacion.monto_reclamado|floatformat:2|intcomma }}</td>
               <td>{{ reclamacion.fecha_reclamo|date:"d/m/Y" }}</td>

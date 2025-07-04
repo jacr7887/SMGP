@@ -43,17 +43,20 @@
               </td>
               <td>${{ pago.monto_pago|floatformat:2|intcomma }}</td>
               <td>
+                {# --- LÓGICA DE COLOR DETALLADA PARA FORMA DE PAGO --- #}
                 {% if pago.forma_pago == 'TRANSFERENCIA' %}<span class="badge badge-primary">{{ pago.get_forma_pago_display }}</span>
                 {% elif pago.forma_pago == 'PAGO_MOVIL' %}<span class="badge badge-info">{{ pago.get_forma_pago_display }}</span>
                 {% elif pago.forma_pago == 'TARJETA_CREDITO' %}<span class="badge badge-relationship">{{ pago.get_forma_pago_display }}</span>
                 {% elif pago.forma_pago == 'EFECTIVO' %}<span class="badge badge-success">{{ pago.get_forma_pago_display }}</span>
+                {% elif pago.forma_pago == 'CHEQUE' %}<span class="badge badge-warning">{{ pago.get_forma_pago_display }}</span>
+                {% elif pago.forma_pago == 'TARJETA_DEBITO' %}<span class="badge badge-teal">{{ pago.get_forma_pago_display }}</span>
                 {% else %}<span class="badge badge-secondary">{{ pago.get_forma_pago_display }}</span>{% endif %}
               </td>
               <td>{{ pago.fecha_pago|date:"d/m/Y" }}</td>
               <td>{{ pago.fecha_notificacion_pago|date:"d/m/Y"|default:"-" }}</td>
               <td>
-                {% if pago.aplica_igtf_pago %}<span class="badge badge-special">Sí</span>
-                {% else %}<span class="badge badge-secondary">No</span>{% endif %}
+                {% if pago.aplica_igtf_pago %}<span class="badge badge-success">Sí</span>
+                {% else %}<span class="badge badge-danger">No</span>{% endif %}
               </td>
               <td>
                 {% if pago.documentos_soporte_pago %}

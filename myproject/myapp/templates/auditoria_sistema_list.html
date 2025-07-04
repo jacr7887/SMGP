@@ -34,6 +34,8 @@
                 {% elif log.tipo_accion == 'ELIMINACION' %}<span class="badge badge-danger">{{ log.get_tipo_accion_display }}</span>
                 {% elif log.tipo_accion == 'LOGIN' %}<span class="badge badge-primary">{{ log.get_tipo_accion_display }}</span>
                 {% elif log.tipo_accion == 'ERROR' %}<span class="badge badge-dark">{{ log.get_tipo_accion_display }}</span>
+                {% elif log.tipo_accion == 'EXPORTACION' %}<span class="badge badge-teal">{{ log.get_tipo_accion_display }}</span>
+                {% elif log.tipo_accion == 'IMPORTACION' %}<span class="badge badge-special">{{ log.get_tipo_accion_display }}</span>
                 {% else %}<span class="badge badge-secondary">{{ log.get_tipo_accion_display }}</span>{% endif %}
               </td>
               <td>

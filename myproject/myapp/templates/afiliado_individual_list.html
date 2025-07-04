@@ -84,15 +84,7 @@
                   {% else %}<span class="badge badge-info">{{ afiliado.get_sexo_display }}</span>{% endif %}
                 </td>
                 <td>
-                  {% if afiliado.tipo_identificacion == 'CEDULA' %}
-                    {# La cédula puede tener V o E, vamos a diferenciarla #}
-                    {% if afiliado.cedula|slice:":1" == 'V' %}
-                      <span class="badge badge-success">Cédula (V)</span>
-                    {% elif afiliado.cedula|slice:":1" == 'E' %}
-                      <span class="badge badge-warning">Cédula (E)</span>
-                    {% else %}
-                      <span class="badge badge-primary">Cédula</span>
-                    {% endif %}
+                  {% if afiliado.tipo_identificacion == 'CEDULA' %}<span class="badge badge-success">Cédula</span>
                   {% elif afiliado.tipo_identificacion == 'PASAPORTE' %}<span class="badge badge-dark">Pasaporte</span>
                   {% elif afiliado.tipo_identificacion == 'RIF' %}<span class="badge badge-system">RIF</span>
                   {% else %}<span class="badge badge-secondary">{{ afiliado.get_tipo_identificacion_display }}</span>{% endif %}

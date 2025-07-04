@@ -51,7 +51,8 @@
                 {% elif afiliado.tipo_empresa == 'PUBLICA' %}<span class="badge badge-dark">{{ afiliado.get_tipo_empresa_display }}</span>
                 {% elif afiliado.tipo_empresa == 'ONG' %}<span class="badge badge-success">{{ afiliado.get_tipo_empresa_display }}</span>
                 {% elif afiliado.tipo_empresa == 'COOPERATIVA' %}<span class="badge badge-action">{{ afiliado.get_tipo_empresa_display }}</span>
-                {% else %}<span class="badge badge-system">{{ afiliado.get_tipo_empresa_display }}</span>{% endif %}
+                {% elif afiliado.tipo_empresa == 'MIXTA' %}<span class="badge badge-system">{{ afiliado.get_tipo_empresa_display }}</span>
+                {% else %}<span class="badge badge-secondary">{{ afiliado.get_tipo_empresa_display }}</span>{% endif %}
               </td>
               <td>{{ afiliado.intermediario.nombre_completo|escape|default:"-" }}</td>
               <td>{{ afiliado.direccion_comercial|truncatechars:30|escape|default:"N/A" }}</td>

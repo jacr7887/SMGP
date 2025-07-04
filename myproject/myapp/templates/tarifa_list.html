@@ -40,6 +40,8 @@
                 {% elif tarifa.ramo == 'VEHICULOS' %}<span class="badge badge-dark">{{ tarifa.get_ramo_display }}</span>
                 {% elif tarifa.ramo == 'HOGAR' %}<span class="badge badge-teal">{{ tarifa.get_ramo_display }}</span>
                 {% elif tarifa.ramo == 'ACCIDENTES_PERSONALES' %}<span class="badge badge-warning">{{ tarifa.get_ramo_display|truncatechars:20 }}</span>
+                {% elif tarifa.ramo == 'PYME' %}<span class="badge badge-action">{{ tarifa.get_ramo_display }}</span>
+                {% elif tarifa.ramo == 'MASCOTAS' %}<span class="badge badge-relationship">{{ tarifa.get_ramo_display }}</span>
                 {% else %}<span class="badge badge-system">{{ tarifa.get_ramo_display }}</span>{% endif %}
               </td>
               <td><span class="badge badge-info">{{ tarifa.get_rango_etario_display }}</span></td>

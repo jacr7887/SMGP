@@ -58,7 +58,7 @@
               </td>
               <td>
                 {% if factura.pagada %}<span class="badge badge-success">Sí</span>
-                {% else %}<span class="badge badge-warning">No</span>{% endif %}
+                {% else %}<span class="badge badge-danger">No</span>{% endif %}
               </td>
               <td>${{ factura.monto|floatformat:2|intcomma }}</td>
               <td>${{ factura.monto_pendiente|floatformat:2|intcomma }}</td>
@@ -71,8 +71,8 @@
                 {% else %}<span class="badge badge-secondary">{{ factura.get_estatus_emision_display }}</span>{% endif %}
               </td>
               <td>
-                {% if factura.aplica_igtf %}<span class="badge badge-special">Sí</span>
-                {% else %}<span class="badge badge-secondary">No</span>{% endif %}
+                {% if factura.aplica_igtf %}<span class="badge badge-success">Sí</span>
+                {% else %}<span class="badge badge-danger">No</span>{% endif %}
               </td>
               <td>{{ factura.observaciones|truncatechars:30|default:"-" }}</td>
               <td>{{ factura.fecha_creacion|date:"d/m/Y H:i" }}</td>
