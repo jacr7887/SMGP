@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Listado de Intermediarios{% endblock %}
+{% block title %}Listado Exhaustivo de Intermediarios{% endblock %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 id="main-heading">🤝 Listado de Intermediarios</h1>
+    <h1 id="main-heading">🤝 Listado Exhaustivo de Intermediarios</h1>
 
     <div class="header-actions">
       {% if perms.myapp.add_intermediario %}
@@ -22,16 +22,13 @@
           <tr>
             <th>Código</th>
             <th>Nombre Completo</th>
-            <th>Activo</th>
             <th>RIF</th>
-            <th>Teléfono</th>
             <th>Email</th>
-            <th>Dirección Fiscal</th>
+            <th>Teléfono</th>
+            <th>Comisión (%)</th>
+            <th>Override (%)</th>
             <th>Intermediario Padre</th>
-            <th>% Comisión</th>
-            <th>% Override</th>
-            <th>Fecha Creación</th>
-            <th>Última Modificación</th>
+            <th>Activo</th>
             <th class="no-sort">Acciones</th>
           </tr>
         </thead>
@@ -39,20 +36,45 @@
           {% for intermediario in object_list %}
             <tr>
               <td><a href="{% url 'myapp:intermediario_detail' intermediario.pk %}">{{ intermediario.codigo|default:"N/A" }}</a></td>
-              <td>{{ intermediario.nombre_completo|default:"N/A"|escape }}</td>
+              <td>{{ intermediario.nombre_completo|default:"N/A" }}</td>
+              <td>{{ intermediario.rif|default:"N/A" }}</td>
+              <td>{{ intermediario.email_contacto|default:"N/A" }}</td>
+              <td>{{ intermediario.telefono_contacto|default:"N/A" }}</td>
+              
+              {# --- Columna Comisión con Psicología del Color --- #}
               <td>
-                {% if intermediario.activo %}<span class="badge badge-success">Activo</span>
-                {% else %}<span class="badge badge-danger">Inactivo</span>{% endif %}
+                {% with comision=intermediario.porcentaje_comision|default:0 %}
+                  {% if comision >= 20 %}
+                    <span class="badge badge-special" title="Comisión Alta: {{ comision }}%">{{ comision }}%</span>
+                  {% elif comision >= 10 %}
+                    <span class="badge badge-success" title="Comisión Estándar: {{ comision }}%">{{ comision }}%</span>
+                  {% elif comision > 0 %}
+                    <span class="badge badge-info" title="Comisión Baja: {{ comision }}%">{{ comision }}%</span>
+                  {% else %}
+                    <span class="badge badge-secondary" title="Sin Comisión: {{ comision }}%">{{ comision }}%</span>
+                  {% endif %}
+                {% endwith %}
               </td>
-              <td>{{ intermediario.rif|default:"N/A"|escape }}</td>
-              <td>{{ intermediario.telefono_contacto|default:"N/A"|escape }}</td>
-              <td>{{ intermediario.email_contacto|default:"N/A"|escape }}</td>
-              <td>{{ intermediario.direccion_fiscal|truncatechars:30|default:"N/A"|escape }}</td>
-              <td>{{ intermediario.intermediario_relacionado.nombre_completo|default:"-"|escape }}</td>
-              <td>{{ intermediario.porcentaje_comision|default:"0.00" }}%</td>
-              <td>{{ intermediario.porcentaje_override|default:"0.00" }}%</td>
-              <td>{{ intermediario.fecha_creacion|date:"d/m/Y H:i" }}</td>
-              <td>{{ intermediario.fecha_modificacion|date:"d/m/Y H:i" }}</td>
+
+              {# --- Columna Override con Psicología del Color --- #}
+              <td>
+                {% with override=intermediario.porcentaje_override|default:0 %}
+                  {% if override > 0 %}
+                    <span class="badge badge-system" title="Override Activo: {{ override }}%">{{ override }}%</span>
+                  {% else %}
+                    <span class="badge badge-secondary" title="Sin Override: {{ override }}%">{{ override }}%</span>
+                  {% endif %}
+                {% endwith %}
+              </td>
+
+              <td>{{ intermediario.intermediario_relacionado.nombre_completo|default:"--"|escape }}</td>
+              <td>
+                {% if intermediario.activo %}
+                  <span class="badge badge-success">Activo</span>
+                {% else %}
+                  <span class="badge badge-danger">Inactivo</span>
+                {% endif %}
+              </td>
               <td class="actions">
                 <div class="action-group">
                   <a href="{% url 'myapp:intermediario_detail' intermediario.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
@@ -60,7 +82,7 @@
                   <a href="{% url 'myapp:intermediario_update' intermediario.pk %}" class="action-icon" title="Editar">✏️</a>
                   {% endif %}
                   {% if perms.myapp.delete_intermediario %}
-                  <a href="{% url 'myapp:intermediario_delete' intermediario.pk %}" class="action-icon delete-link" title="Eliminar" data-confirm="¿Está seguro?">❌</a>
+                  <a href="{% url 'myapp:intermediario_delete' intermediario.pk %}" class="action-icon delete-link" title="Eliminar" data-confirm="¿Está seguro de que desea eliminar a este intermediario?">❌</a>
                   {% endif %}
                 </div>
               </td>
@@ -80,7 +102,8 @@ $(document).ready(function() {
         language: { "url": "{% get_static_prefix %}es-ES.json" },
         "dom": "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>><'dt-layout-row'<'dt-layout-cell dt-full-width'tr>><'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
         "columnDefs": [{ "orderable": false, "targets": -1 }],
-        "order": [[ 1, "asc" ]]
+        "order": [[ 1, "asc" ]], // Ordenar por Nombre Completo
+        "scrollX": true
     });
 });
 </script>

@@ -8,48 +8,61 @@
   <section>
     <h1 id="main-heading">🗃️ Auditoría del Sistema</h1>
 
+    {# No hay botón de "Nuevo" para auditoría, ya que se crea automáticamente #}
+
     <div class="table-container">
       <table id="auditoria-table" class="data-table" style="width:100%" data-custom-init="true">
         <thead>
           <tr>
             <th>Fecha y Hora</th>
-            <th>Usuario</th>
-            <th>Tipo Acción</th>
+            <th>Tipo de Acción</th>
             <th>Resultado</th>
+            <th>Usuario</th>
             <th>Tabla Afectada</th>
             <th>ID Registro</th>
-            <th>IP</th>
-            <th>Agente de Usuario</th>
-            <th class="no-sort">Detalle</th>
+            <th>Detalle</th>
+            <th>Dirección IP</th>
+            <th class="no-sort">Acciones</th>
           </tr>
         </thead>
         <tbody>
           {% for log in object_list %}
             <tr>
-              <td>{{ log.tiempo_inicio|date:"d/m/Y H:i:s" }}</td>
-              <td>{{ log.usuario.get_full_name|default:log.usuario.username|default:"Sistema" }}</td>
+              <td data-sort="{{ log.tiempo_inicio.isoformat }}">{{ log.tiempo_inicio|date:"d/m/Y H:i:s" }}</td>
+              
+              {# --- Columna Tipo de Acción con Psicología del Color --- #}
               <td>
-                {% if log.tipo_accion == 'CREACION' %}<span class="badge badge-success">{{ log.get_tipo_accion_display }}</span>
-                {% elif log.tipo_accion == 'MODIFICACION' %}<span class="badge badge-info">{{ log.get_tipo_accion_display }}</span>
-                {% elif log.tipo_accion == 'ELIMINACION' %}<span class="badge badge-danger">{{ log.get_tipo_accion_display }}</span>
-                {% elif log.tipo_accion == 'LOGIN' %}<span class="badge badge-primary">{{ log.get_tipo_accion_display }}</span>
-                {% elif log.tipo_accion == 'ERROR' %}<span class="badge badge-dark">{{ log.get_tipo_accion_display }}</span>
-                {% elif log.tipo_accion == 'EXPORTACION' %}<span class="badge badge-teal">{{ log.get_tipo_accion_display }}</span>
-                {% elif log.tipo_accion == 'IMPORTACION' %}<span class="badge badge-special">{{ log.get_tipo_accion_display }}</span>
+                {% if log.tipo_accion == 'CREACION' %}<span class="badge badge-success">Creación</span>
+                {% elif log.tipo_accion == 'MODIFICACION' %}<span class="badge badge-action">Modificación</span>
+                {% elif log.tipo_accion == 'ELIMINACION' %}<span class="badge badge-danger">Eliminación</span>
+                {% elif log.tipo_accion == 'LOGIN' %}<span class="badge badge-primary">Login</span>
+                {% elif log.tipo_accion == 'LOGOUT' %}<span class="badge badge-dark">Logout</span>
+                {% elif log.tipo_accion == 'CONSULTA' %}<span class="badge badge-info">Consulta</span>
+                {% elif log.tipo_accion == 'EXPORTACION' %}<span class="badge badge-teal">Exportación</span>
+                {% elif log.tipo_accion == 'ERROR' %}<span class="badge badge-warning">Error</span>
                 {% else %}<span class="badge badge-secondary">{{ log.get_tipo_accion_display }}</span>{% endif %}
               </td>
+
+              {# --- Columna Resultado con Psicología del Color --- #}
               <td>
-                {% if log.resultado_accion == 'EXITO' %}<span class="badge badge-success">{{ log.get_resultado_accion_display }}</span>
-                {% elif log.resultado_accion == 'ERROR' %}<span class="badge badge-danger">{{ log.get_resultado_accion_display }}</span>
+                {% if log.resultado_accion == 'EXITO' %}<span class="badge badge-success">Éxito</span>
+                {% elif log.resultado_accion == 'ERROR' %}<span class="badge badge-danger">Error</span>
                 {% else %}<span class="badge badge-secondary">{{ log.get_resultado_accion_display }}</span>{% endif %}
               </td>
-              <td>{{ log.tabla_afectada|default:"-" }}</td>
-              <td>{{ log.registro_id_afectado|default:"-" }}</td>
-              <td>{{ log.direccion_ip|default:"-" }}</td>
-              <td>{{ log.agente_usuario|truncatechars:40|default:"-" }}</td>
+
+              <td>{{ log.usuario.username|default:"Sistema" }}</td>
+              <td>{{ log.tabla_afectada|default:"N/A" }}</td>
+              <td>{{ log.registro_id_afectado|default:"N/A" }}</td>
+              <td title="{{ log.detalle_accion|escape }}">
+                {{ log.detalle_accion|truncatechars:50|default:"Sin detalle" }}
+              </td>
+              <td>{{ log.direccion_ip|default:"N/A" }}</td>
               <td class="actions">
                 <div class="action-group">
-                  <a href="{% url 'myapp:auditoria_sistema_detail' log.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
+                  {# No suele haber acciones de CRUD para los logs de auditoría desde la UI #}
+                  {# Se podría añadir un enlace a un detalle si existiera una vista para ello #}
+                  {# <a href="#" class="action-icon" title="Ver Detalles Completos">👁️</a> #}
+                  <span class="action-icon-placeholder" title="Sin acciones disponibles">➖</span>
                 </div>
               </td>
             </tr>
@@ -67,8 +80,9 @@ $(document).ready(function() {
     $('#auditoria-table').DataTable({
         language: { "url": "{% get_static_prefix %}es-ES.json" },
         "dom": "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>><'dt-layout-row'<'dt-layout-cell dt-full-width'tr>><'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
-        "columnDefs": [{ "orderable": false, "targets": -1 }],
-        "order": [[ 0, "desc" ]]
+        "columnDefs": [{ "orderable": false, "targets": -1 }], // La última columna (Acciones) no se ordena
+        "order": [[ 0, "desc" ]], // Ordenar por Fecha y Hora (la más reciente primero)
+        "scrollX": true
     });
 });
 </script>

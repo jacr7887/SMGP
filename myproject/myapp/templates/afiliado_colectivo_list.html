@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Listado de Afiliados Colectivos{% endblock %}
+{% block title %}Listado Exhaustivo de Afiliados Colectivos{% endblock %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 id="main-heading">🏢 Listado de Afiliados Colectivos</h1>
+    <h1 id="main-heading">👥 Listado Exhaustivo de Afiliados Colectivos</h1>
 
     <div class="header-actions">
       {% if perms.myapp.add_afiliadocolectivo %}
@@ -22,48 +22,52 @@
           <tr>
             <th>Razón Social</th>
             <th>RIF</th>
-            <th>Activo</th>
-            <th>Tipo Empresa</th>
-            <th>Intermediario</th>
+            <th>Email de Contacto</th>
+            <th>Teléfono</th>
+            <th>Tipo de Empresa</th>
             <th>Dirección Comercial</th>
             <th>Estado</th>
-            <th>Municipio</th>
             <th>Ciudad</th>
+            <th>Municipio</th>
             <th>Zona Postal</th>
-            <th>Teléfono</th>
-            <th>Email</th>
-            <th>Fecha Creación</th>
-            <th>Última Modificación</th>
+            <th>Intermediario</th>
+            <th>Activo</th>
             <th class="no-sort">Acciones</th>
           </tr>
         </thead>
         <tbody>
           {% for afiliado in object_list %}
             <tr>
-              <td><a href="{% url 'myapp:afiliado_colectivo_detail' afiliado.pk %}">{{ afiliado.razon_social|default:"N/A"|escape }}</a></td>
-              <td>{{ afiliado.rif|default:"N/A"|escape }}</td>
+              <td><a href="{% url 'myapp:afiliado_colectivo_detail' afiliado.pk %}">{{ afiliado.razon_social|default:"N/A" }}</a></td>
+              <td>{{ afiliado.rif|default:"N/A" }}</td>
+              <td>{{ afiliado.email_contacto|default:"N/A" }}</td>
+              <td>{{ afiliado.telefono_contacto|default:"N/A" }}</td>
+
+              {# --- Columna Tipo de Empresa con Psicología del Color --- #}
               <td>
-                {% if afiliado.activo %}<span class="badge badge-success">Activo</span>
-                {% else %}<span class="badge badge-danger">Inactivo</span>{% endif %}
-              </td>
-              <td>
-                {% if afiliado.tipo_empresa == 'PRIVADA' %}<span class="badge badge-primary">{{ afiliado.get_tipo_empresa_display }}</span>
-                {% elif afiliado.tipo_empresa == 'PUBLICA' %}<span class="badge badge-dark">{{ afiliado.get_tipo_empresa_display }}</span>
-                {% elif afiliado.tipo_empresa == 'ONG' %}<span class="badge badge-success">{{ afiliado.get_tipo_empresa_display }}</span>
-                {% elif afiliado.tipo_empresa == 'COOPERATIVA' %}<span class="badge badge-action">{{ afiliado.get_tipo_empresa_display }}</span>
-                {% elif afiliado.tipo_empresa == 'MIXTA' %}<span class="badge badge-system">{{ afiliado.get_tipo_empresa_display }}</span>
+                {% if afiliado.tipo_empresa == 'PRIVADA' %}<span class="badge badge-primary" title="Privada">Privada</span>
+                {% elif afiliado.tipo_empresa == 'PUBLICA' %}<span class="badge badge-dark" title="Pública">Pública</span>
+                {% elif afiliado.tipo_empresa == 'MIXTA' %}<span class="badge badge-teal" title="Mixta">Mixta</span>
+                {% elif afiliado.tipo_empresa == 'ONG' %}<span class="badge badge-success" title="ONG">ONG</span>
+                {% elif afiliado.tipo_empresa == 'COOPERATIVA' %}<span class="badge badge-relationship" title="Cooperativa">Cooperativa</span>
+                {% elif afiliado.tipo_empresa == 'SA' or afiliado.tipo_empresa == 'CA' or afiliado.tipo_empresa == 'RL' %}
+                  <span class="badge badge-info" title="Sociedad/Compañía">{{ afiliado.get_tipo_empresa_display }}</span>
                 {% else %}<span class="badge badge-secondary">{{ afiliado.get_tipo_empresa_display }}</span>{% endif %}
               </td>
-              <td>{{ afiliado.intermediario.nombre_completo|escape|default:"-" }}</td>
-              <td>{{ afiliado.direccion_comercial|truncatechars:30|escape|default:"N/A" }}</td>
-              <td>{{ afiliado.get_estado_display|escape|default:"N/A" }}</td>
-              <td>{{ afiliado.municipio|escape|default:"N/A" }}</td>
-              <td>{{ afiliado.ciudad|escape|default:"N/A" }}</td>
-              <td>{{ afiliado.zona_postal|escape|default:"N/A" }}</td>
-              <td>{{ afiliado.telefono_contacto|escape|default:"N/A" }}</td>
-              <td>{{ afiliado.email_contacto|escape|default:"N/A" }}</td>
-              <td>{{ afiliado.fecha_creacion|date:"d/m/Y H:i" }}</td>
-              <td>{{ afiliado.fecha_modificacion|date:"d/m/Y H:i" }}</td>
+
+              <td>{{ afiliado.direccion_comercial|truncatechars:40|default:"N/A" }}</td>
+              <td>{{ afiliado.get_estado_display|default:"N/A" }}</td>
+              <td>{{ afiliado.ciudad|default:"N/A" }}</td>
+              <td>{{ afiliado.municipio|default:"N/A" }}</td>
+              <td>{{ afiliado.zona_postal|default:"N/A" }}</td>
+              <td>{{ afiliado.intermediario.nombre_completo|default:"No Asignado"|escape }}</td>
+              <td>
+                {% if afiliado.activo %}
+                  <span class="badge badge-success">Activo</span>
+                {% else %}
+                  <span class="badge badge-danger">Inactivo</span>
+                {% endif %}
+              </td>
               <td class="actions">
                 <div class="action-group">
                   <a href="{% url 'myapp:afiliado_colectivo_detail' afiliado.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
@@ -71,7 +75,7 @@
                   <a href="{% url 'myapp:afiliado_colectivo_update' afiliado.pk %}" class="action-icon" title="Editar">✏️</a>
                   {% endif %}
                   {% if perms.myapp.delete_afiliadocolectivo %}
-                  <a href="{% url 'myapp:afiliado_colectivo_delete' afiliado.pk %}" class="action-icon delete-link" title="Eliminar" data-confirm="¿Está seguro?">❌</a>
+                  <a href="{% url 'myapp:afiliado_colectivo_delete' afiliado.pk %}" class="action-icon delete-link" title="Eliminar" data-confirm="¿Está seguro de que desea eliminar a este afiliado colectivo?">❌</a>
                   {% endif %}
                 </div>
               </td>
@@ -91,7 +95,8 @@ $(document).ready(function() {
         language: { "url": "{% get_static_prefix %}es-ES.json" },
         "dom": "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>><'dt-layout-row'<'dt-layout-cell dt-full-width'tr>><'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
         "columnDefs": [{ "orderable": false, "targets": -1 }],
-        "order": [[ 0, "asc" ]]
+        "order": [[ 0, "asc" ]], // Ordenar por Razón Social
+        "scrollX": true
     });
 });
 </script>

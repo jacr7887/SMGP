@@ -598,12 +598,22 @@ def actualizar_factura_post_pago(factura_id):
             campos_a_actualizar_factura['pagada'] = nueva_pagada
 
         # Determinar el nuevo estatus de la factura
-        estatus_factura_calculado = factura.estatus_factura  # Mantener actual por defecto
+        estatus_factura_calculado = factura.estatus_factura
         if nueva_pagada:
             estatus_factura_calculado = 'PAGADA'
-        elif factura.estatus_factura != 'ANULADA':  # No cambiar si ya está anulada
+
+            # === [CORRECCIÓN CLAVE] ===
+            # Si la factura se está marcando como pagada, también actualizamos el estado de emisión.
+            if factura.estatus_emision != 'EMITIDO':
+                campos_a_actualizar_factura['estatus_emision'] = 'EMITIDO'
+                logger.info(
+                    f"[Signal actualizar_factura] Factura {factura_id}: Marcando estatus_emision como 'EMITIDO'.")
+            # ==========================
+
+        elif factura.estatus_factura != 'ANULADA':
             esta_vencida = False
             if factura.vigencia_recibo_hasta and isinstance(factura.vigencia_recibo_hasta, date):
+                # Usamos un valor por defecto seguro si la constante no existe
                 dias_vencimiento = getattr(
                     CommonChoices, 'DIAS_VENCIMIENTO_FACTURA', 30)
                 if django_timezone.now().date() > (factura.vigencia_recibo_hasta + timedelta(days=dias_vencimiento)):
@@ -611,7 +621,6 @@ def actualizar_factura_post_pago(factura_id):
 
             if esta_vencida:
                 estatus_factura_calculado = 'VENCIDA'
-            # Si estaba pagada y ya no, o generada/pendiente
             elif factura.estatus_factura in ['GENERADA', 'PENDIENTE', 'PAGADA']:
                 estatus_factura_calculado = 'PENDIENTE'
 
@@ -627,13 +636,10 @@ def actualizar_factura_post_pago(factura_id):
             logger.info(
                 f"[Signal actualizar_factura] Factura {factura_id} actualizada con: {campos_a_actualizar_factura}")
 
-            # === [CORRECCIÓN CLAVE] ===
             # Actualizar contador de pagos en contrato si el estado 'pagada' cambió
             contrato_pk = factura.contrato_individual_id or factura.contrato_colectivo_id
             contrato_model_class = ContratoIndividualModel if factura.contrato_individual_id else ContratoColectivoModel if factura.contrato_colectivo_id else None
 
-            # En lugar de hasattr, comprobamos si el modelo y el pk existen.
-            # El campo 'pagos_realizados' está en ambos modelos Contrato, así que la comprobación es segura.
             if contrato_pk and contrato_model_class:
                 if nueva_pagada and not pagada_antes_de_recalcular:
                     contrato_model_class.objects.filter(pk=contrato_pk).update(

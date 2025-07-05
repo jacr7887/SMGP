@@ -1,67 +1,109 @@
-{% extends "base.html" %} 
 {% load static %}
-
-{% block title %}Página No Encontrada - ¿Pergamino Perdido?{% endblock %} {# Título temático #}
-
-{% block extra_css %}
-<style>
-    .notfound-container { /* Cambiado nombre de clase */
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        min-height: 60vh; 
-        text-align: center;
-        padding: 2rem;
-        color: var(--text-light);
-    }
-    .notfound-icon { /* Cambiado nombre de clase */
-        font-size: 5rem; 
-        color: var(--info); /* Usando color info para "perdido", no necesariamente error grave */
-        margin-bottom: 1.5rem;
-        text-shadow: 0 0 15px rgba(var(--info-rgb), 0.4); /* Brillo azulado */
-        animation: float 3s infinite ease-in-out; /* Animación flotante */
-    }
-    @keyframes float {
-        0% { transform: translateY(0px); }
-        50% { transform: translateY(-10px); }
-        100% { transform: translateY(0px); }
-    }
-    .notfound-title { /* Cambiado nombre de clase */
-        font-size: 2rem;
-        font-weight: 600;
-        margin-bottom: 1rem;
-        color: var(--text-light);
-    }
-    .notfound-message { /* Cambiado nombre de clase */
-        font-size: 1.1rem;
-        color: var(--text-muted);
-        max-width: 600px; 
-        margin-bottom: 2rem;
-        line-height: 1.6;
-    }
-    .notfound-actions .btn { /* Cambiado nombre de clase */
-        margin: 0 0.5rem;
-    }
-</style>
-{% endblock %}
-
-{% block content %}
-<div class="notfound-container">
-    {# Icono de mapa, brújula, lupa o estrella fugaz #}
-    {# <i class="fas fa-map-signs fa-5x notfound-icon"></i> #}
-    <div class="notfound-icon">🗺️</div> {# Usando emoji de mapa #}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Página No Encontrada (404) - SMGP</title>
     
-    <h1 class="notfound-title">¡Extraviado en el Laberinto Arcano! (Error 404)</h1> 
+    <!-- Enlazamos el CSS principal directamente -->
+    <link rel="stylesheet" href="{% static 'styles.css' %}" />
     
-    <p class="notfound-message">
-        ¡Vaya! Parece que el pergamino que buscas se ha desvanecido o quizás tomó un camino equivocado en la biblioteca mágica. 🧙‍♂️<br><br>
-        No te preocupes, hasta los mejores exploradores se pierden a veces. Comprueba la URL o usa un hechizo de localización (Volver al Castillo 🏰 ).
-    </p>
+    <!-- Favicons para consistencia visual -->
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'favicon-32x32.png' %}">
+    <link rel="shortcut icon" href="{% static 'favicon.ico' %}">
     
-    <div class="notfound-actions">
-        </a>
-        <button onclick="window.history.back();" class="btn nav_link-sidebar">Lanzar Hechizo de Retroceso 💫🧙‍♀️</button> 
+    <style>
+        /* Estilos base para que la página se vea bien por sí sola */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0f1224; /* Color de fondo de tu app */
+            color: #ffffff;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        /* Contenedor principal del error */
+        .error-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+            max-width: 90%;
+        }
+
+        /* Icono temático */
+        .error-icon {
+            width: 120px;
+            height: auto;
+            margin-bottom: 2rem;
+            filter: drop-shadow(0 0 15px rgba(50, 150, 255, 0.4));
+            animation: float 3s infinite ease-in-out;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-15px); }
+            100% { transform: translateY(0px); }
+        }
+
+        /* Título del error */
+        .error-title {
+            font-size: 2.2rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #ffffff;
+        }
+
+        /* Mensaje descriptivo */
+        .error-message {
+            font-size: 1.1rem;
+            color: #adb5bd; /* Un gris claro */
+            max-width: 600px;
+            margin-bottom: 2.5rem;
+            line-height: 1.6;
+        }
+
+        /* Botón de acción */
+        .error-action-link {
+            display: inline-block;
+            padding: 12px 25px;
+            background: linear-gradient(145deg, rgba(50, 150, 255, 0.8), rgba(13, 110, 253, 0.9));
+            color: #e0f0ff;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(13, 110, 253, 0.3);
+        }
+        .error-action-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(13, 110, 253, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <!-- Usamos el logo de tu app como icono principal -->
+        <img src="{% static 'favicon-96x96.png' %}" alt="Icono de SMGP" class="error-icon">
+        
+        <h1 class="error-title">¡Extraviado en el Laberinto Arcano! (Error 404)</h1> 
+        
+        <p class="error-message">
+            ¡Vaya! Parece que el pergamino que buscas se ha desvanecido o quizás tomó un camino equivocado en la biblioteca mágica. 🧙‍♂️<br>
+            No te preocupes, hasta los mejores exploradores se pierden a veces.
+        </p>
+        
+        <div>
+            <!-- Enlace directo al home, que siempre funcionará -->
+            <a href="{% url 'myapp:home' %}" class="error-action-link">Usar Hechizo de Localización (Volver al Castillo 🏰)</a>
+        </div>
     </div>
-</div>
-{% endblock %}
+</body>
+</html>

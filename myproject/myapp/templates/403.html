@@ -1,69 +1,125 @@
-{% extends "base.html" %} 
 {% load static %}
-
-{% block title %}Acceso Denegado - Nivel de Magia Insuficiente{% endblock %} {# Título temático #}
-
-{% block extra_css %}
-<style>
-    .forbidden-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        min-height: 60vh; 
-        text-align: center;
-        padding: 2rem;
-        color: var(--text-light);
-    }
-    .forbidden-icon {
-        font-size: 5rem; 
-        color: var(--warning); /* Cambiado a warning para "nivel bajo" en lugar de error grave */
-        margin-bottom: 1.5rem;
-        text-shadow: 0 0 15px rgba(var(--warning-rgb), 0.5); /* Efecto brillo */
-        animation: pulse 2s infinite ease-in-out; /* Animación sutil */
-    }
-    @keyframes pulse {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.05); }
-        100% { transform: scale(1); }
-    }
-    .forbidden-title {
-        font-size: 2rem;
-        font-weight: 600;
-        margin-bottom: 1rem;
-        color: var(--text-light);
-    }
-    .forbidden-message {
-        font-size: 1.1rem;
-        color: var(--text-muted);
-        max-width: 600px; 
-        margin-bottom: 2rem;
-        line-height: 1.6;
-    }
-    .forbidden-actions .btn { /* Reutiliza tus estilos de botón */
-        margin: 0 0.5rem;
-    }
-</style>
-{% endblock %}
-
-{% block content %}
-<div class="forbidden-container">
-    {# <i class="fas fa-wand-sparkles fa-5x forbidden-icon"></i> #}
-    <div class="forbidden-icon">🪄✨</div> {# Usando emoji de chispa por ahora #}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Acceso Denegado (403) - SMGP</title>
     
-    <h1 class="forbidden-title">¡YOU SHALL NOT PASS 🧙‍♂️!</h1> 
+    <!-- Enlazamos el CSS principal directamente -->
+    <link rel="stylesheet" href="{% static 'styles.css' %}" />
     
-    <p class="forbidden-message">
-        Parece que tu nivel de magia actual no es suficiente para acceder a este pergamino arcano 📜.<br><br>
-        Si necesitas realizar hechizos más poderosos (como editar o eliminar registros), consulta con el Archimago (administrador del sistema) para que considere aumentar tus poderes.
-    </p>
+    <!-- Favicons para consistencia visual -->
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'favicon-32x32.png' %}">
+    <link rel="shortcut icon" href="{% static 'favicon.ico' %}">
     
-    <div class="forbidden-actions">
-        <a href="{% url 'myapp:home' %}" class="btn nav_link-sidebar">
-            <span class="nav_icon">🏰</span> Volver al Castillo (Inicio)
-        </a>
-        {# Puedes añadir un botón para volver atrás si quieres #}
-        {# <button onclick="window.history.back();" class="btn btn-secondary">Usar Hechizo de Retroceso</button> #}
+    <style>
+        /* Estilos base para que la página se vea bien por sí sola */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0f1224; /* Color de fondo de tu app */
+            color: #ffffff;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        /* Contenedor principal del error */
+        .error-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+            max-width: 90%;
+        }
+
+        /* Icono temático */
+        .error-icon {
+            font-size: 5rem;
+            margin-bottom: 1.5rem;
+            text-shadow: 0 0 20px rgba(255, 193, 7, 0.5); /* Brillo ámbar/dorado */
+            animation: pulse 2.5s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.9; }
+            50% { transform: scale(1.08); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.9; }
+        }
+
+        /* Título del error */
+        .error-title {
+            font-size: 2.2rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #ffffff;
+        }
+
+        /* Mensaje descriptivo */
+        .error-message {
+            font-size: 1.1rem;
+            color: #adb5bd; /* Un gris claro */
+            max-width: 600px;
+            margin-bottom: 2.5rem;
+            line-height: 1.6;
+        }
+
+        /* Botón de acción */
+        .error-action-link {
+            display: inline-block;
+            padding: 12px 25px;
+            background: linear-gradient(145deg, rgba(255, 193, 7, 0.7), rgba(217, 164, 4, 0.8));
+            color: #343a40;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);
+            margin-right: 1rem; /* Espacio entre botones */
+        }
+        .error-action-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 193, 7, 0.4);
+        }
+        
+        .error-action-secondary {
+            display: inline-block;
+            padding: 12px 25px;
+            background: transparent;
+            border: 1px solid #6c757d;
+            color: #adb5bd;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .error-action-secondary:hover {
+            background-color: rgba(108, 117, 125, 0.2);
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <!-- Icono de escudo, barrera mágica o mano deteniendo -->
+        <div class="error-icon">🛡️</div>
+        
+        <h1 class="error-title">¡Acceso Denegado! (Error 403)</h1> 
+        
+        <p class="error-message">
+            Parece que tu nivel de magia actual no es suficiente para acceder a este pergamino arcano 📜.<br><br>
+            Si crees que deberías poder entrar, consulta con el Archimago (administrador del sistema) para que considere aumentar tus poderes.
+        </p>
+        
+        <div>
+            <a href="{% url 'myapp:home' %}" class="error-action-link">Volver al Castillo 🏰</a>
+            <a href="javascript:window.history.back()" class="error-action-secondary">Lanzar Hechizo de Retroceso 💫</a>
+        </div>
     </div>
-</div>
-{% endblock %}
+</body>
+</html>

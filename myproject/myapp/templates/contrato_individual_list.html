@@ -6,7 +6,7 @@
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 id="main-heading">📝 Listado de Contratos Individuales</h1>
+    <h1 id="main-heading">📝 Listado Completo de Contratos Individuales</h1>
 
     <div class="header-actions">
       {% if perms.myapp.add_contratoindividual %}
@@ -22,7 +22,10 @@
           <tr>
             <th>N° Contrato</th>
             <th>Afiliado</th>
-            <th>Estatus</th>
+            <th>Contratante</th>
+            <th>Cédula/RIF Contratante</th>
+            <th>Estatus Vigencia</th>
+            <th>Estado Contrato</th>
             <th>Ramo</th>
             <th>Forma de Pago</th>
             <th>Monto Total</th>
@@ -33,8 +36,6 @@
             <th>Certificado</th>
             <th>Tarifa Aplicada</th>
             <th>Plan Contratado</th>
-            <th>Contratante</th>
-            <th>Cédula Contratante</th>
             <th>Activo</th>
             <th class="no-sort">Acciones</th>
           </tr>
@@ -44,41 +45,59 @@
             <tr>
               <td><a href="{% url 'myapp:contrato_individual_detail' contrato.pk %}">{{ contrato.numero_contrato|default:"N/A" }}</a></td>
               <td>{{ contrato.afiliado.nombre_completo|default:"N/A"|escape }}</td>
+              <td>{{ contrato.contratante_nombre|default:"N/A"|escape }}</td>
+              <td>{{ contrato.contratante_cedula|default:"N/A" }}</td>
+
+              {# Estatus de Vigencia #}
               <td>
-                {% if contrato.estatus == 'VIGENTE' %}<span class="badge badge-success">{{ contrato.get_estatus_display }}</span>
-                {% elif contrato.estatus == 'VENCIDO' %}<span class="badge badge-warning">{{ contrato.get_estatus_display }}</span>
-                {% elif contrato.estatus == 'ANULADO' %}<span class="badge badge-danger">{{ contrato.get_estatus_display }}</span>
-                {% elif contrato.estatus == 'NO_VIGENTE_AUN' %}<span class="badge badge-info">{{ contrato.get_estatus_display }}</span>
+                {% if contrato.estatus == 'VIGENTE' %}<span class="badge badge-success" title="El contrato está en su período de cobertura.">{{ contrato.get_estatus_display }}</span>
+                {% elif contrato.estatus == 'VENCIDO' %}<span class="badge badge-warning" title="El período de cobertura ha finalizado.">{{ contrato.get_estatus_display }}</span>
+                {% elif contrato.estatus == 'NO_VIGENTE_AUN' %}<span class="badge badge-info" title="La cobertura aún no ha comenzado.">{{ contrato.get_estatus_display }}</span>
                 {% else %}<span class="badge badge-secondary">{{ contrato.get_estatus_display }}</span>{% endif %}
               </td>
+
+              {# Estado Administrativo del Contrato #}
               <td>
-                {% if contrato.ramo == 'HCM' %}<span class="badge badge-primary">{{ contrato.get_ramo_display|truncatechars:20 }}</span>
-                {% elif contrato.ramo == 'VIDA' %}<span class="badge badge-success">{{ contrato.get_ramo_display }}</span>
-                {% elif contrato.ramo == 'VEHICULOS' %}<span class="badge badge-dark">{{ contrato.get_ramo_display }}</span>
-                {% elif contrato.ramo == 'HOGAR' %}<span class="badge badge-teal">{{ contrato.get_ramo_display }}</span>
-                {% elif contrato.ramo == 'ACCIDENTES_PERSONALES' %}<span class="badge badge-warning">{{ contrato.get_ramo_display|truncatechars:20 }}</span>
-                {% elif contrato.ramo == 'PYME' %}<span class="badge badge-action">{{ contrato.get_ramo_display }}</span>
-                {% elif contrato.ramo == 'MASCOTAS' %}<span class="badge badge-relationship">{{ contrato.get_ramo_display }}</span>
-                {% else %}<span class="badge badge-system">{{ contrato.get_ramo_display }}</span>{% endif %}
+                {% if contrato.estado_contrato == 'ACTIVO' %}<span class="badge badge-success" title="El contrato está activo y en pleno efecto.">{{ contrato.get_estado_contrato_display }}</span>
+                {% elif contrato.estado_contrato == 'PRE_APROBADO' %}<span class="badge badge-teal" title="Aprobado, pendiente de activación final.">{{ contrato.get_estado_contrato_display }}</span>
+                {% elif contrato.estado_contrato == 'EN_TRAMITE_RENOVACION' %}<span class="badge badge-system" title="El proceso de renovación está en marcha.">{{ contrato.get_estado_contrato_display }}</span>
+                {% elif contrato.estado_contrato == 'PENDIENTE' or contrato.estado_contrato == 'EN_REVISION' %}<span class="badge badge-info" title="Requiere atención o está en espera de una acción.">{{ contrato.get_estado_contrato_display }}</span>
+                {% elif contrato.estado_contrato == 'VENCIDO' or contrato.estado_contrato == 'SUSPENDIDO' %}<span class="badge badge-warning" title="Atención: El contrato ha vencido o está suspendido.">{{ contrato.get_estado_contrato_display }}</span>
+                {% elif contrato.estado_contrato == 'ANULADO' or contrato.estado_contrato == 'RECHAZADO' %}<span class="badge badge-danger" title="Acción final y negativa.">{{ contrato.get_estado_contrato_display }}</span>
+                {% elif contrato.estado_contrato == 'BLOQUEADO' %}<span class="badge badge-dark" title="El contrato está bloqueado y no se pueden realizar operaciones.">{{ contrato.get_estado_contrato_display }}</span>
+                {% else %}<span class="badge badge-secondary">{{ contrato.get_estado_contrato_display|default:"N/A" }}</span>{% endif %}
               </td>
+
+              {# Ramo #}
               <td>
-                {% if contrato.forma_pago == 'ANUAL' %}<span class="badge badge-teal">{{ contrato.get_forma_pago_display }}</span>
-                {% elif contrato.forma_pago == 'SEMESTRAL' %}<span class="badge badge-special">{{ contrato.get_forma_pago_display }}</span>
-                {% elif contrato.forma_pago == 'TRIMESTRAL' %}<span class="badge badge-action">{{ contrato.get_forma_pago_display }}</span>
-                {% elif contrato.forma_pago == 'MENSUAL' %}<span class="badge badge-secondary">{{ contrato.get_forma_pago_display }}</span>
-                {% elif contrato.forma_pago == 'CONTADO' %}<span class="badge badge-primary">{{ contrato.get_forma_pago_display }}</span>
-                {% else %}<span class="badge badge-info">{{ contrato.get_forma_pago_display }}</span>{% endif %}
+                {% if contrato.ramo == 'HCM' %}<span class="badge badge-primary" title="Salud">HCM</span>
+                {% elif contrato.ramo == 'VIDA' %}<span class="badge badge-success" title="Vida">Vida</span>
+                {% elif contrato.ramo == 'PYME' %}<span class="badge badge-action" title="Negocios">PYME</span>
+                {% elif contrato.ramo == 'ACCIDENTES_PERSONALES' %}<span class="badge badge-warning" title="Accidentes">AP</span>
+                {% elif contrato.ramo == 'VEHICULOS' %}<span class="badge badge-dark" title="Vehículos">Vehículos</span>
+                {% elif contrato.ramo == 'HOGAR' %}<span class="badge badge-teal" title="Hogar">Hogar</span>
+                {% elif contrato.ramo == 'MASCOTAS' %}<span class="badge badge-relationship" title="Mascotas">Mascotas</span>
+                {% else %}<span class="badge badge-secondary">{{ contrato.get_ramo_display }}</span>{% endif %}
               </td>
+
+              {# Forma de Pago #}
+              <td>
+                {% if contrato.forma_pago == 'CONTADO' %}<span class="badge badge-special">Contado</span>
+                {% elif contrato.forma_pago == 'ANUAL' %}<span class="badge badge-success">Anual</span>
+                {% elif contrato.forma_pago == 'SEMESTRAL' %}<span class="badge badge-primary">Semestral</span>
+                {% elif contrato.forma_pago == 'TRIMESTRAL' %}<span class="badge badge-info">Trimestral</span>
+                {% elif contrato.forma_pago == 'MENSUAL' %}<span class="badge badge-secondary">Mensual</span>
+                {% else %}<span class="badge badge-secondary">{{ contrato.get_forma_pago_display }}</span>{% endif %}
+              </td>
+
               <td>${{ contrato.monto_total|floatformat:2|default:"0.00" }}</td>
               <td>${{ contrato.suma_asegurada|floatformat:2|default:"0.00" }}</td>
-              <td>{{ contrato.fecha_emision|date:"d/m/Y" }}</td>
+              <td>{{ contrato.fecha_emision|date:"d/m/Y" }}</td> {# Columna índice 10 #}
               <td>{{ contrato.intermediario.nombre_completo|default:"N/A"|escape }}</td>
               <td>{{ contrato.numero_poliza|default:"N/A" }}</td>
               <td>{{ contrato.certificado|default:"N/A" }}</td>
               <td>{{ contrato.tarifa_aplicada.codigo_tarifa|default:"N/A" }}</td>
               <td>{{ contrato.plan_contratado|default:"N/A" }}</td>
-              <td>{{ contrato.contratante_nombre|default:"N/A"|escape }}</td>
-              <td>{{ contrato.contratante_cedula|default:"N/A"|escape }}</td>
               <td>
                 {% if contrato.activo %}<span class="badge badge-success">Activo</span>
                 {% else %}<span class="badge badge-danger">Inactivo</span>{% endif %}
@@ -90,7 +109,7 @@
                   <a href="{% url 'myapp:contrato_individual_update' contrato.pk %}" class="action-icon" title="Editar">✏️</a>
                   {% endif %}
                   {% if perms.myapp.delete_contratoindividual %}
-                  <a href="{% url 'myapp:contrato_individual_delete' contrato.pk %}" class="action-icon delete-link" title="Eliminar" data-confirm="¿Está seguro?">❌</a>
+                  <a href="{% url 'myapp:contrato_individual_delete' contrato.pk %}" class="action-icon delete-link" title="Eliminar" data-confirm="¿Está seguro de que desea eliminar este contrato individual?">❌</a>
                   {% endif %}
                 </div>
               </td>
@@ -110,7 +129,8 @@ $(document).ready(function() {
         language: { "url": "{% get_static_prefix %}es-ES.json" },
         "dom": "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>><'dt-layout-row'<'dt-layout-cell dt-full-width'tr>><'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
         "columnDefs": [{ "orderable": false, "targets": -1 }],
-        "order": [[ 7, "desc" ]]
+        "order": [[ 10, "desc" ]], // Ordenar por Fecha de Emisión (columna 11, índice 10)
+        "scrollX": true
     });
 });
 </script>

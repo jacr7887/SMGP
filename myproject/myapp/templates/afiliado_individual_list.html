@@ -1,123 +1,111 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Listado de Afiliados Individuales{% endblock %}
+{% block title %}Listado Exhaustivo de Afiliados Individuales{% endblock %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 id="main-heading">📋 Listado de Afiliados Individuales</h1>
+    <h1 id="main-heading">👤 Listado Exhaustivo de Afiliados Individuales</h1>
 
     <div class="header-actions">
       {% if perms.myapp.add_afiliadoindividual %}
       <a href="{% url 'myapp:afiliado_individual_create' %}" class="nav_link">
-        ➕ Nuevo Afiliado
+        ➕ Nuevo Afiliado Individual
       </a>
       {% endif %}
     </div>
 
     <div class="table-container">
-      <table id="afiliados-table" class="data-table" style="width:100%" data-custom-init="true">
+      <table id="afiliados-individuales-table" class="data-table" style="width:100%" data-custom-init="true">
         <thead>
           <tr>
             <th>Nombre Completo</th>
             <th>Cédula</th>
+            <th>Tipo Doc.</th>
+            <th>Email</th>
+            <th>Teléfono Hab.</th>
+            <th>Teléfono Ofic.</th>
             <th>Edad</th>
-            <th>Activo</th>
-            <th>Parentesco</th>
+            <th>Fecha Nac.</th>
             <th>Estado Civil</th>
             <th>Sexo</th>
-            <th>Tipo ID</th>
-            <th>Intermediario</th>
-            <th>Fecha Nacimiento</th>
+            <th>Parentesco</th>
             <th>Nacionalidad</th>
-            <th>Zona Postal</th>
             <th>Estado</th>
-            <th>Municipio</th>
             <th>Ciudad</th>
+            <th>Municipio</th>
+            <th>Zona Postal</th>
             <th>Fecha Ingreso</th>
-            <th>Dirección Habitación</th>
-            <th>Teléfono Habitación</th>
-            <th>Email</th>
-            <th>Dirección Oficina</th>
-            <th>Teléfono Oficina</th>
-            <th>Código Validación</th>
-            <th>Fecha Creación</th>
-            <th>Última Modificación</th>
+            <th>Intermediario</th>
+            <th>Activo</th>
             <th class="no-sort">Acciones</th>
           </tr>
         </thead>
         <tbody>
           {% for afiliado in object_list %}
-            {% if afiliado.decryption_error %}
-              <tr class="table-danger">
-                <td colspan="25">⚠️ Error al leer datos para el afiliado con ID: {{ afiliado.pk }}. Por favor, revise este registro en el admin.</td>
-              </tr>
-            {% else %}
-              <tr>
-                <td><a href="{% url 'myapp:afiliado_individual_detail' afiliado.pk %}">{{ afiliado.nombre_completo|default:"N/A"|escape }}</a></td>
-                <td>{{ afiliado.cedula|default:"N/A"|escape }}</td>
-                <td>{{ afiliado.edad|default:"N/A" }}</td>
-                <td>
-                  {% if afiliado.activo %}<span class="badge badge-success">Activo</span>
-                  {% else %}<span class="badge badge-danger">Inactivo</span>{% endif %}
-                </td>
-                <td>
-                  {% if afiliado.parentesco == 'TITULAR' %}<span class="badge badge-primary">{{ afiliado.get_parentesco_display }}</span>
-                  {% elif afiliado.parentesco == 'CONYUGE' %}<span class="badge badge-relationship">{{ afiliado.get_parentesco_display }}</span>
-                  {% elif afiliado.parentesco == 'HIJO' %}<span class="badge badge-info">{{ afiliado.get_parentesco_display }}</span>
-                  {% elif afiliado.parentesco == 'PADRE' or afiliado.parentesco == 'MADRE' %}<span class="badge badge-special">{{ afiliado.get_parentesco_display }}</span>
-                  {% elif afiliado.parentesco == 'HERMANO' %}<span class="badge badge-action">{{ afiliado.get_parentesco_display }}</span>
-                  {% else %}<span class="badge badge-secondary">{{ afiliado.get_parentesco_display }}</span>{% endif %}
-                </td>
-                <td>
-                  {% if afiliado.estado_civil == 'C' %}<span class="badge badge-relationship">Casado/a</span>
-                  {% elif afiliado.estado_civil == 'S' %}<span class="badge badge-success">Soltero/a</span>
-                  {% elif afiliado.estado_civil == 'V' %}<span class="badge badge-dark">Viudo/a</span>
-                  {% elif afiliado.estado_civil == 'D' %}<span class="badge badge-warning">Divorciado/a</span>
-                  {% else %}<span class="badge badge-secondary">{{ afiliado.get_estado_civil_display }}</span>{% endif %}
-                </td>
-                <td>
-                  {% if afiliado.sexo == 'F' %}<span class="badge badge-relationship">Femenino</span>
-                  {% elif afiliado.sexo == 'M' %}<span class="badge badge-primary">Masculino</span>
-                  {% elif afiliado.sexo == 'NO_BINARIO' %}<span class="badge badge-system">No Binario</span>
-                  {% else %}<span class="badge badge-info">{{ afiliado.get_sexo_display }}</span>{% endif %}
-                </td>
-                <td>
-                  {% if afiliado.tipo_identificacion == 'CEDULA' %}<span class="badge badge-success">Cédula</span>
-                  {% elif afiliado.tipo_identificacion == 'PASAPORTE' %}<span class="badge badge-dark">Pasaporte</span>
-                  {% elif afiliado.tipo_identificacion == 'RIF' %}<span class="badge badge-system">RIF</span>
-                  {% else %}<span class="badge badge-secondary">{{ afiliado.get_tipo_identificacion_display }}</span>{% endif %}
-                </td>
-                <td>{{ afiliado.intermediario.nombre_completo|escape|default:"-" }}</td>
-                <td>{{ afiliado.fecha_nacimiento|date:"d/m/Y"|default:"N/A" }}</td>
-                <td>{{ afiliado.nacionalidad|escape|default:"N/A" }}</td>
-                <td>{{ afiliado.zona_postal|escape|default:"N/A" }}</td>
-                <td>{{ afiliado.get_estado_display|escape|default:"N/A" }}</td>
-                <td>{{ afiliado.municipio|escape|default:"N/A" }}</td>
-                <td>{{ afiliado.ciudad|escape|default:"N/A" }}</td>
-                <td>{{ afiliado.fecha_ingreso|date:"d/m/Y"|default:"N/A" }}</td>
-                <td>{{ afiliado.direccion_habitacion|truncatechars:30|escape|default:"N/A" }}</td>
-                <td>{{ afiliado.telefono_habitacion|escape|default:"N/A" }}</td>
-                <td>{{ afiliado.email|escape|default:"N/A" }}</td>
-                <td>{{ afiliado.direccion_oficina|truncatechars:30|escape|default:"N/A" }}</td>
-                <td>{{ afiliado.telefono_oficina|escape|default:"N/A" }}</td>
-                <td>{{ afiliado.codigo_validacion|escape|default:"N/A" }}</td>
-                <td>{{ afiliado.fecha_creacion|date:"d/m/Y H:i" }}</td>
-                <td>{{ afiliado.fecha_modificacion|date:"d/m/Y H:i" }}</td>
-                <td class="actions">
-                  <div class="action-group">
-                    <a href="{% url 'myapp:afiliado_individual_detail' afiliado.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
-                    {% if perms.myapp.change_afiliadoindividual %}
-                    <a href="{% url 'myapp:afiliado_individual_update' afiliado.pk %}" class="action-icon" title="Editar">✏️</a>
-                    {% endif %}
-                    {% if perms.myapp.delete_afiliadoindividual %}
-                    <a href="{% url 'myapp:afiliado_individual_delete' afiliado.pk %}" class="action-icon delete-link" title="Eliminar" data-confirm="¿Está seguro?">❌</a>
-                    {% endif %}
-                  </div>
-                </td>
-              </tr>
-            {% endif %}
+            <tr>
+              <td><a href="{% url 'myapp:afiliado_individual_detail' afiliado.pk %}">{{ afiliado.nombre_completo|default:"N/A" }}</a></td>
+              <td>{{ afiliado.cedula|default:"N/A" }}</td>
+              <td>{{ afiliado.get_tipo_identificacion_display|default:"N/A" }}</td>
+              <td>{{ afiliado.email|default:"N/A" }}</td>
+              <td>{{ afiliado.telefono_habitacion|default:"N/A" }}</td>
+              <td>{{ afiliado.telefono_oficina|default:"N/A" }}</td>
+              <td>{{ afiliado.edad|default:"N/A" }}</td>
+              <td>{{ afiliado.fecha_nacimiento|date:"d/m/Y"|default:"N/A" }}</td>
+              
+              {# --- Columna Estado Civil con Psicología del Color --- #}
+              <td>
+                {% if afiliado.estado_civil == 'C' %}<span class="badge badge-primary" title="Casado/a">Casado/a</span>
+                {% elif afiliado.estado_civil == 'S' %}<span class="badge badge-info" title="Soltero/a">Soltero/a</span>
+                {% elif afiliado.estado_civil == 'V' %}<span class="badge badge-dark" title="Viudo/a">Viudo/a</span>
+                {% elif afiliado.estado_civil == 'D' %}<span class="badge badge-action" title="Divorciado/a">Divorciado/a</span>
+                {% else %}<span class="badge badge-secondary">{{ afiliado.get_estado_civil_display }}</span>{% endif %}
+              </td>
+
+              {# --- Columna Sexo con Psicología del Color --- #}
+              <td>
+                {% if afiliado.sexo == 'F' %}<span class="badge badge-relationship" title="Femenino">Femenino</span>
+                {% elif afiliado.sexo == 'M' %}<span class="badge badge-primary" title="Masculino">Masculino</span>
+                {% elif afiliado.sexo == 'NO_BINARIO' %}<span class="badge badge-system" title="No Binario">No Binario</span>
+                {% else %}<span class="badge badge-secondary">{{ afiliado.get_sexo_display }}</span>{% endif %}
+              </td>
+
+              {# --- Columna Parentesco con Psicología del Color --- #}
+              <td>
+                {% if afiliado.parentesco == 'TITULAR' %}<span class="badge badge-special" title="Titular del Contrato">Titular</span>
+                {% elif afiliado.parentesco == 'CONYUGE' %}<span class="badge badge-primary" title="Cónyuge">Cónyuge</span>
+                {% elif afiliado.parentesco == 'HIJO' %}<span class="badge badge-teal" title="Hijo/a">Hijo/a</span>
+                {% elif afiliado.parentesco == 'PADRE' or afiliado.parentesco == 'MADRE' %}<span class="badge badge-success" title="Padre/Madre">Ascendiente</span>
+                {% else %}<span class="badge badge-secondary">{{ afiliado.get_parentesco_display }}</span>{% endif %}
+              </td>
+
+              <td>{{ afiliado.nacionalidad|default:"N/A" }}</td>
+              <td>{{ afiliado.get_estado_display|default:"N/A" }}</td>
+              <td>{{ afiliado.ciudad|default:"N/A" }}</td>
+              <td>{{ afiliado.municipio|default:"N/A" }}</td>
+              <td>{{ afiliado.zona_postal|default:"N/A" }}</td>
+              <td>{{ afiliado.fecha_ingreso|date:"d/m/Y"|default:"N/A" }}</td>
+              <td>{{ afiliado.intermediario.nombre_completo|default:"No Asignado"|escape }}</td>
+              <td>
+                {% if afiliado.activo %}
+                  <span class="badge badge-success">Activo</span>
+                {% else %}
+                  <span class="badge badge-danger">Inactivo</span>
+                {% endif %}
+              </td>
+              <td class="actions">
+                <div class="action-group">
+                  <a href="{% url 'myapp:afiliado_individual_detail' afiliado.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
+                  {% if perms.myapp.change_afiliadoindividual %}
+                  <a href="{% url 'myapp:afiliado_individual_update' afiliado.pk %}" class="action-icon" title="Editar">✏️</a>
+                  {% endif %}
+                  {% if perms.myapp.delete_afiliadoindividual %}
+                  <a href="{% url 'myapp:afiliado_individual_delete' afiliado.pk %}" class="action-icon delete-link" title="Eliminar" data-confirm="¿Está seguro de que desea eliminar a este afiliado?">❌</a>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
           {% endfor %}
         </tbody>
       </table>
@@ -129,11 +117,12 @@
 {% block extra_scripts %}
 <script>
 $(document).ready(function() {
-    $('#afiliados-table').DataTable({
+    $('#afiliados-individuales-table').DataTable({
         language: { "url": "{% get_static_prefix %}es-ES.json" },
         "dom": "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>><'dt-layout-row'<'dt-layout-cell dt-full-width'tr>><'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
         "columnDefs": [{ "orderable": false, "targets": -1 }],
-        "order": [[ 0, "asc" ]]
+        "order": [[ 0, "asc" ]], // Ordenar por Nombre Completo
+        "scrollX": true
     });
 });
 </script>

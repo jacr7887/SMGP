@@ -1,95 +1,111 @@
-{% extends "base.html" %} 
 {% load static %}
-
-{% block title %}Error Arcano Inesperado - ¡Fallo en el Hechizo!{% endblock %} {# Título temático #}
-
-{% block extra_css %}
-<style>
-    .servererror-container { /* Cambiado nombre de clase */
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        min-height: 60vh; 
-        text-align: center;
-        padding: 2rem;
-        color: var(--text-light);
-        /* Fondo ligeramente diferente para indicar seriedad, pero aún oscuro */
-        background: radial-gradient(circle, rgba(var(--danger-rgb), 0.1) 0%, rgba(var(--bg-dark-rgb), 0.5) 70%), var(--bg-dark);
-    }
-    .servererror-icon { /* Cambiado nombre de clase */
-        font-size: 5rem; 
-        color: var(--danger); /* Rojo para indicar error grave */
-        margin-bottom: 1.5rem;
-        text-shadow: 0 0 20px rgba(var(--danger-rgb), 0.6); /* Brillo rojo */
-        animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) both infinite; /* Animación de temblor */
-        transform: translate3d(0, 0, 0);
-    }
-     /* Animación simple de temblor */
-    @keyframes shake {
-      10%, 90% { transform: translate3d(-1px, 0, 0); }
-      20%, 80% { transform: translate3d(2px, 0, 0); }
-      30%, 50%, 70% { transform: translate3d(-3px, 0, 0); }
-      40%, 60% { transform: translate3d(3px, 0, 0); }
-    }
-    .servererror-title { /* Cambiado nombre de clase */
-        font-size: 2rem;
-        font-weight: 600;
-        margin-bottom: 1rem;
-        color: var(--text-light);
-    }
-    .servererror-message { /* Cambiado nombre de clase */
-        font-size: 1.1rem;
-        color: var(--text-muted);
-        max-width: 650px; /* Un poco más ancho */
-        margin-bottom: 2rem;
-        line-height: 1.6;
-    }
-    .servererror-actions .btn { /* Cambiado nombre de clase */
-        margin: 0 0.5rem;
-    }
-    .error-details { /* Para mostrar detalles técnicos si DEBUG=True (no recomendado en prod) */
-        margin-top: 2rem;
-        padding: 1rem;
-        background: rgba(0,0,0,0.3);
-        border-radius: 8px;
-        font-family: monospace;
-        font-size: 0.8rem;
-        color: #ccc;
-        text-align: left;
-        max-width: 800px;
-        max-height: 200px;
-        overflow: auto;
-        white-space: pre-wrap;
-        word-wrap: break-word;
-    }
-</style>
-{% endblock %}
-
-{% block content %}
-<div class="servererror-container">
-    {# Icono de explosión, calavera, o engranaje roto #}
-    {# <i class="fas fa-bomb fa-5x servererror-icon"></i> #}
-    <div class="servererror-icon">🤯💥</div> {# Usando emoji de explosión #}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Error del Servidor (500) - SMGP</title>
     
-    <h1 class="servererror-title">¡Algo anda mal! (Error 500)</h1> 
+    <!-- Enlazamos el CSS principal directamente -->
+    <link rel="stylesheet" href="{% static 'styles.css' %}" />
     
-    <p class="servererror-message">
-        Nuestros escribas arcanos ya han sido notificados y están trabajando para restaurar el orden.<br><br>
-        Por favor, intenta refrescar la página en unos momentos o regresa al inicio. Disculpa las molestias causadas por esta perturbación mágica.
-    </p>
+    <!-- Favicons para consistencia visual -->
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'favicon-32x32.png' %}">
+    <link rel="shortcut icon" href="{% static 'favicon.ico' %}">
     
-    <div class="servererror-actions">
-        <button onclick="window.location.reload();" class="btn nav_link-sidebar">Intentar Recargar Hechizo 💫</button> 
-    </div>
+    <style>
+        /* Estilos base para que la página se vea bien por sí sola */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0f1224; /* Color de fondo de tu app */
+            color: #ffffff;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            /* Fondo con un toque de rojo para indicar seriedad */
+            background: radial-gradient(circle, rgba(220, 53, 69, 0.1) 0%, rgba(15, 18, 36, 1) 70%);
+        }
 
-    {# Mostrar detalles del error solo si DEBUG está activo (NO en producción) #}
-    {% if debug %} 
-        <div class="error-details">
-            <h4>Detalles Técnicos (Solo Desarrollo):</h4>
-            <pre>{{ exception|escape }}</pre> {# Asume que la vista pasa 'exception' #}
+        /* Contenedor principal del error */
+        .error-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+            max-width: 90%;
+        }
+
+        /* Icono temático */
+        .error-icon {
+            font-size: 5rem;
+            margin-bottom: 1.5rem;
+            text-shadow: 0 0 25px rgba(220, 53, 69, 0.6); /* Brillo rojo intenso */
+            animation: shake 0.8s cubic-bezier(.36,.07,.19,.97) both infinite;
+            transform: translate3d(0, 0, 0);
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        /* Título del error */
+        .error-title {
+            font-size: 2.2rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #ffffff;
+        }
+
+        /* Mensaje descriptivo */
+        .error-message {
+            font-size: 1.1rem;
+            color: #adb5bd; /* Un gris claro */
+            max-width: 650px;
+            margin-bottom: 2.5rem;
+            line-height: 1.6;
+        }
+
+        /* Botón de acción */
+        .error-action-link {
+            display: inline-block;
+            padding: 12px 25px;
+            background: linear-gradient(145deg, rgba(220, 53, 69, 0.8), rgba(187, 45, 59, 0.9));
+            color: #ffe8eb;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+        }
+        .error-action-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(220, 53, 69, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <!-- Icono de engranaje roto, explosión o calavera -->
+        <div class="error-icon">⚙️💥</div>
+        
+        <h1 class="error-title">¡Fallo en el Hechizo! (Error 500)</h1> 
+        
+        <p class="error-message">
+            Una perturbación mágica inesperada ha ocurrido en el servidor. Nuestros escribas arcanos ya han sido notificados y están trabajando para restaurar el orden.<br><br>
+            Por favor, intenta refrescar la página en unos momentos o regresa al inicio. Disculpa las molestias.
+        </p>
+        
+        <div>
+            <a href="{% url 'myapp:home' %}" class="error-action-link">Volver al Castillo 🏰</a>
         </div>
-    {% endif %}
-
-</div>
-{% endblock %}
+    </div>
+</body>
+</html>
