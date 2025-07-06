@@ -17,6 +17,7 @@ from dateutil.relativedelta import relativedelta
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import date, timedelta, datetime  # Python's datetime
 import logging
+import hashlib
 from django.apps import apps
 # TUS IMPORTS LOCALES
 from .licensing import MIN_KEY_LENGTH
@@ -128,17 +129,30 @@ class AfiliadoColectivoForm(BaseModelForm):
                    'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido'
                    ]
 
+# En AfiliadoColectivoForm
+
     def clean_rif(self):
-        rif = self.cleaned_data['rif']
-        try:
-            validate_rif(rif)
-        except ValidationError as e:
-            raise forms.ValidationError("RIF inválido") from e
-        if self.instance.pk:
-            if AfiliadoColectivo.objects.filter(rif=rif).exclude(pk=self.instance.pk).exists():
-                raise ValidationError("Este RIF ya está registrado.")
-        elif AfiliadoColectivo.objects.filter(rif=rif).exists():
-            raise ValidationError("Este RIF ya está registrado.")
+        rif = self.cleaned_data.get('rif')
+        if rif:
+            try:
+                validate_rif(rif)  # Primero, valida el formato
+            except ValidationError as e:
+                raise forms.ValidationError("Formato de RIF inválido.") from e
+
+            # Ahora, valida la unicidad usando el hash
+            rif_hash = hashlib.sha256(rif.encode('utf-8')).hexdigest()
+
+            # Construimos la consulta base
+            qs = AfiliadoColectivo.objects.filter(rif_hash=rif_hash)
+
+            # Si estamos editando, excluimos el objeto actual de la búsqueda
+            if self.instance and self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+
+            if qs.exists():
+                raise forms.ValidationError(
+                    "Este RIF ya está registrado para otro afiliado colectivo.")
+
         return rif
 
     def clean_zona_postal(self):
@@ -169,82 +183,71 @@ class AfiliadoColectivoForm(BaseModelForm):
 # ===================================================================
 
 
+# myapp/forms.py
+
 class FormularioCreacionUsuario(AwareDateInputMixinVE, UserCreationForm, BaseModelForm):
     aware_date_fields = ['fecha_nacimiento']
-
-    # Los campos de contraseña ya vienen de UserCreationForm, no es necesario redefinirlos.
-    # Los demás campos se definirán en Meta.
 
     class Meta(UserCreationForm.Meta):
         model = Usuario
         fields = (
             'email', 'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido',
-            'tipo_usuario', 'fecha_nacimiento', 'departamento', 'telefono', 'direccion',
-            'intermediario', 'nivel_acceso', 'activo'
+            'tipo_usuario',  # <--- ¡SE QUEDA! Es la nueva fuente de verdad.
+            'fecha_nacimiento', 'departamento', 'telefono', 'direccion',
+            'intermediario',
+            'activo'
         )
 
-        # Definimos todos los widgets personalizados aquí.
         widgets = {
-            # Campos que serán Select2
             'tipo_usuario': forms.Select(attrs={'class': 'select2-enable'}),
-            'nivel_acceso': forms.Select(attrs={'class': 'select2-enable'}),
             'departamento': forms.Select(attrs={'class': 'select2-enable'}),
             'intermediario': Select2Widget(attrs={'data-placeholder': 'Seleccione un intermediario...', 'class': 'select2-enable'}),
-
-            # Widgets para otros campos que ya tenías
             'fecha_nacimiento': forms.DateInput(
                 format='%d/%m/%Y',
-                attrs={
-                    'type': 'text',
-                    'placeholder': 'DD/MM/YYYY',
-                    'class': 'form-control date-input'
-                }
+                attrs={'type': 'text', 'placeholder': 'DD/MM/YYYY',
+                       'class': 'form-control date-input'}
             ),
             'direccion': forms.Textarea(attrs={'rows': 3}),
-            # Asumiendo que quieres un switch
             'activo': forms.CheckboxInput(attrs={'class': 'switch'}),
         }
 
-    # El método save se mantiene igual
     def save(self, commit=True):
         user = super().save(commit=False)
+        # La lógica de is_staff/is_superuser ahora está en el modelo, así que no se necesita aquí.
         if commit:
             user.save()
+            # El método save del modelo se encargará de asignar los grupos.
         return user
-
 
 # ===================================================================
 # ===          FORMULARIO DE EDICIÓN DE USUARIO                   ===
 # ===================================================================
+
+
 class FormularioEdicionUsuario(AwareDateInputMixinVE, BaseModelForm):
     aware_date_fields = ['fecha_nacimiento']
 
     class Meta:
         model = Usuario
+        # --- LISTA DE CAMPOS CORREGIDA ---
         fields = [
             'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido',
             'fecha_nacimiento', 'telefono', 'direccion',
-            'tipo_usuario', 'nivel_acceso', 'departamento', 'intermediario', 'activo',
+            'tipo_usuario', 'departamento', 'intermediario', 'activo',
             'is_staff', 'is_superuser', 'groups', 'user_permissions',
         ]
 
+        # --- WIDGETS CORREGIDOS ---
         widgets = {
-            # Campos que serán Select2
             'tipo_usuario': forms.Select(attrs={'class': 'select2-enable'}),
-            'nivel_acceso': forms.Select(attrs={'class': 'select2-enable'}),
             'departamento': forms.Select(attrs={'class': 'select2-enable'}),
             'intermediario': Select2Widget(attrs={'data-placeholder': 'Seleccione un intermediario...', 'class': 'select2-enable'}),
             'groups': Select2MultipleWidget(attrs={'data-placeholder': 'Seleccionar grupos...', 'class': 'select2-enable'}),
             'user_permissions': Select2MultipleWidget(attrs={'data-placeholder': 'Seleccionar permisos...', 'class': 'select2-enable'}),
-
-            # Widgets para otros campos que ya tenías
             'fecha_nacimiento': forms.DateInput(
                 format='%d/%m/%Y',
-                attrs={
-                    'type': 'text',
-                    'placeholder': 'DD/MM/YYYY',
-                    'class': 'form-control date-input'
-                }
+                attrs={'type': 'text', 'placeholder': 'DD/MM/YYYY',
+                       'class': 'form-control date-input'}
             ),
             'direccion': forms.Textarea(attrs={'rows': 3}),
             'activo': forms.CheckboxInput(attrs={'class': 'switch'}),
@@ -256,81 +259,49 @@ class FormularioEdicionUsuario(AwareDateInputMixinVE, BaseModelForm):
         self.request_user = kwargs.pop('request_user', None)
         super().__init__(*args, **kwargs)
         user_being_edited = self.instance
+
+        # Añadir campos de solo lectura para email y username
         if user_being_edited and user_being_edited.pk:
             self.fields['email_display'] = forms.CharField(label="Correo Electrónico", initial=user_being_edited.email, disabled=True, required=False, widget=forms.TextInput(
                 attrs={'readonly': True, 'class': 'form-control-plaintext'}))
             self.fields['username_display'] = forms.CharField(label="Nombre de usuario (interno)", initial=user_being_edited.username,
                                                               disabled=True, required=False, widget=forms.TextInput(attrs={'readonly': True, 'class': 'form-control-plaintext'}))
-            field_order = ['email_display', 'username_display'] + [
-                f_name for f_name in self.fields if f_name not in ['email_display', 'username_display']]
+            # Reordenar para que aparezcan primero
+            field_order = ['email_display', 'username_display'] + \
+                [f for f in self.fields if f not in [
+                    'email_display', 'username_display']]
             self.fields = {k: self.fields[k]
                            for k in field_order if k in self.fields}
+
+        # --- LÓGICA DE PERMISOS SIMPLIFICADA Y CORREGIDA ---
         if self.request_user and user_being_edited and user_being_edited.pk:
-            is_editing_self = self.request_user.pk == user_being_edited.pk
+            # Un usuario no puede editar a un superusuario si él mismo no lo es.
             if user_being_edited.is_superuser and not self.request_user.is_superuser:
-                for field_name in self.Meta.fields:
-                    if field_name in self.fields:
-                        self.fields[field_name].disabled = True
-                if 'email_display' in self.fields:
-                    self.fields['email_display'].disabled = True
-                if 'username_display' in self.fields:
-                    self.fields['username_display'].disabled = True
+                for field_name in self.fields:
+                    self.fields[field_name].disabled = True
                 return
+
+            # Un no-superusuario no puede hacer a otros (o a sí mismo) superusuario.
             if 'is_superuser' in self.fields and not self.request_user.is_superuser:
                 self.fields['is_superuser'].disabled = True
-            if 'nivel_acceso' in self.fields:
-                if not self.request_user.is_superuser:
-                    self.fields['nivel_acceso'].choices = [
-                        c for c in CommonChoices.NIVEL_ACCESO if c[0] != 5]
-                    if user_being_edited.nivel_acceso == 5:
-                        self.fields['nivel_acceso'].disabled = True
-                    elif not is_editing_self and self.request_user.nivel_acceso < 5:
-                        self.fields['nivel_acceso'].choices = [
-                            c for c in CommonChoices.NIVEL_ACCESO if c[0] <= self.request_user.nivel_acceso and c[0] != 5]
-            if not self.request_user.is_superuser:
-                if 'is_staff' in self.fields:
-                    self.fields['is_staff'].disabled = True
-                    self.fields['is_staff'].help_text = "Gestionado por Nivel de Acceso. Solo Superusuarios pueden modificar directamente."
-                if self.request_user.nivel_acceso < 4:
-                    if 'groups' in self.fields:
-                        self.fields['groups'].disabled = True
-                    if 'user_permissions' in self.fields:
-                        self.fields['user_permissions'].disabled = True
 
-    def clean_nivel_acceso(self):
-        nivel_acceso_str = self.cleaned_data.get('nivel_acceso')
-        try:
-            nivel_acceso = int(
-                nivel_acceso_str) if nivel_acceso_str is not None else None
-        except (ValueError, TypeError):
-            raise forms.ValidationError("Nivel de acceso inválido.")
-        user_being_edited = self.instance
-        request_user = self.request_user
-        if user_being_edited and user_being_edited.pk and request_user and nivel_acceso is not None:
-            is_editing_self = request_user.pk == user_being_edited.pk
-            if is_editing_self and user_being_edited.is_superuser and nivel_acceso < 5 and Usuario.objects.filter(is_superuser=True, activo=True).exclude(pk=user_being_edited.pk).count() == 0:
-                raise forms.ValidationError(
-                    "No se puede remover el estado de Administrador/Superusuario del único superusuario activo.")
-            if not request_user.is_superuser and nivel_acceso == 5:
-                raise forms.ValidationError(
-                    "No tiene permiso para asignar el nivel de Administrador/Superusuario.")
-            if not request_user.is_superuser and user_being_edited.nivel_acceso == 5 and nivel_acceso != 5:
-                raise forms.ValidationError(
-                    "No tiene permiso para cambiar el nivel de un Administrador/Superusuario.")
-            if not request_user.is_superuser and not is_editing_self and nivel_acceso > request_user.nivel_acceso:
-                raise forms.ValidationError(
-                    "No puede asignar a otro usuario un nivel de acceso superior al suyo.")
-        elif nivel_acceso is None and self.fields['nivel_acceso'].required:
-            raise forms.ValidationError("Este campo es requerido.")
-        return nivel_acceso
+            # Un no-superusuario no puede cambiar el rol de un ADMIN.
+            if 'tipo_usuario' in self.fields and not self.request_user.is_superuser and user_being_edited.tipo_usuario == 'ADMIN':
+                self.fields['tipo_usuario'].disabled = True
 
+            # Un no-superusuario no puede asignar el rol de ADMIN.
+            if 'tipo_usuario' in self.fields and not self.request_user.is_superuser:
+                # Excluimos la opción 'ADMIN' de las choices
+                self.fields['tipo_usuario'].choices = [
+                    (key, value) for key, value in CommonChoices.TIPO_USUARIO if key != 'ADMIN'
+                ]
+
+    # El método clean_fecha_nacimiento se mantiene igual
     def clean_fecha_nacimiento(self):
         fecha_nacimiento_obj = self.cleaned_data.get('fecha_nacimiento')
         if fecha_nacimiento_obj:
             validate_fecha_nacimiento(fecha_nacimiento_obj)
         return fecha_nacimiento_obj
-
-# --- Formulario de Login - SIN CAMBIOS ---
 
 
 class LoginForm(forms.Form):
@@ -472,7 +443,25 @@ class IntermediarioForm(BaseModelForm):
     def clean_rif(self):
         rif = self.cleaned_data.get('rif')
         if rif:
-            validate_rif(rif)
+            try:
+                validate_rif(rif)  # Primero, valida el formato
+            except ValidationError as e:
+                raise forms.ValidationError("Formato de RIF inválido.") from e
+
+            # Ahora, valida la unicidad usando el hash
+            rif_hash = hashlib.sha256(rif.encode('utf-8')).hexdigest()
+
+            # Construimos la consulta base
+            qs = Intermediario.objects.filter(rif_hash=rif_hash)
+
+            # Si estamos editando, excluimos el objeto actual de la búsqueda
+            if self.instance and self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+
+            if qs.exists():
+                raise forms.ValidationError(
+                    "Este RIF ya está registrado para otro afiliado colectivo.")
+
         return rif
 
     def clean_direccion_fiscal(self):
@@ -608,29 +597,27 @@ class AfiliadoIndividualForm(AwareDateInputMixinVE, BaseModelForm):
         # else: # Modo Creación
             # Puedes setear defaults aquí si es necesario
 
-    def clean_cedula(self):  # Tu validación existente
-        tipo = self.cleaned_data.get('tipo_identificacion')
-        cedula_str = self.cleaned_data.get('cedula')
-        if not cedula_str:
-            raise ValidationError("El campo cédula es obligatorio.")
-        cedula = cedula_str.upper().strip()
-        try:
-            # Asumiendo que tus CommonChoices.TIPO_IDENTIFICACION tienen claves como 'CEDULA', 'RIF'
-            if tipo == 'CEDULA':  # Ajusta si las claves son V, E
-                validate_cedula(cedula)
-            elif tipo == 'RIF':  # Ajusta si las claves son J, G
-                validate_rif(cedula)
+    def clean_cedula(self):
+        cedula = self.cleaned_data.get('cedula')
+        if cedula:
+            try:
+                validate_cedula(cedula)  # Valida el formato primero
+            except ValidationError as e:
+                raise forms.ValidationError(
+                    "Formato de Cédula inválido.") from e
 
-            is_updating = self.instance and self.instance.pk
-            query = self._meta.model.objects.filter(
-                cedula=cedula, tipo_identificacion=tipo)
-            if is_updating:
-                query = query.exclude(pk=self.instance.pk)
-            if query.exists():
-                raise ValidationError(
-                    "Esta identificación ya está registrada para este tipo.")
-        except ValidationError as e:
-            raise e  # Re-lanzar la validación del validador
+            # Valida la unicidad usando el hash
+            cedula_hash = hashlib.sha256(cedula.encode('utf-8')).hexdigest()
+
+            qs = AfiliadoIndividual.objects.filter(cedula_hash=cedula_hash)
+
+            if self.instance and self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+
+            if qs.exists():
+                raise forms.ValidationError(
+                    "Esta cédula ya está registrada para otro afiliado.")
+
         return cedula
 
     def clean_telefono_habitacion(self):

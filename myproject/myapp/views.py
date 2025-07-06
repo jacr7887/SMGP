@@ -15,7 +15,7 @@ import plotly.express as px
 from django.utils.http import url_has_allowed_host_and_scheme
 import plotly.graph_objects as go
 import pandas as pd
-# Renombrado para evitar conflicto
+import hashlib
 from datetime import date as py_date, datetime as py_datetime
 from .commons import CommonChoices
 from .models import Pago, Factura, Reclamacion, AuditoriaSistema
@@ -3547,27 +3547,31 @@ class HistorialLiquidacionesListView(LoginRequiredMixin, ListView):
 # Usuario Vistas
 # ==========================
 
-# --- VISTAS DE USUARIO ---
+
+# ==========================
+# Usuario Vistas (CORREGIDAS)
+# ==========================
+
 class UsuarioListView(LoginRequiredMixin, ListView):
     model = Usuario
-    template_name = 'usuario_list.html'  # Nuevo nombre de plantilla
+    template_name = 'usuario_list.html'
     context_object_name = 'object_list'
 
     def get_queryset(self):
         """
-        Devuelve TODOS los usuarios. DataTables se encargará del resto.
-        Filtra para que los no-superusuarios no vean a los superusuarios.
+        Devuelve los usuarios. Los superusuarios ven a todos.
+        Los demás usuarios no ven a los de tipo ADMIN.
         """
         user = self.request.user
         if user.is_superuser:
-            # El superusuario puede ver a todos
+            # El superusuario puede ver a todos, incluyendo inactivos.
             queryset = Usuario.all_objects.all()
         else:
-            # Los demás usuarios solo ven a otros de nivel igual o inferior
-            queryset = Usuario.objects.filter(
-                nivel_acceso__lte=user.nivel_acceso)
+            # Los demás usuarios ven a todos excepto a los de tipo ADMIN.
+            # Usamos el manager 'objects' que filtra por activo=True por defecto.
+            queryset = Usuario.objects.exclude(tipo_usuario='ADMIN')
 
-        return queryset.select_related('intermediario').prefetch_related('groups')
+        return queryset.select_related('intermediario').prefetch_related('groups').order_by('primer_apellido', 'primer_nombre')
 
     def get_context_data(self, **kwargs):
         """
@@ -3591,11 +3595,11 @@ class UsuarioListView(LoginRequiredMixin, ListView):
 
 
 @method_decorator(csrf_protect, name='dispatch')
-class UsuarioDetailView(BaseDetailView):  # O tu clase base
+class UsuarioDetailView(BaseDetailView):
     model = Usuario
     model_manager_name = 'all_objects'
     template_name = 'usuario_detail.html'
-    context_object_name = 'usuario_detalle'  # Correcto
+    context_object_name = 'usuario_detalle'
     permission_required = 'myapp.view_usuario'
 
     def get_queryset(self):
@@ -3606,21 +3610,24 @@ class UsuarioDetailView(BaseDetailView):  # O tu clase base
         return qs.select_related('intermediario').prefetch_related('groups', 'user_permissions')
 
     def get_object(self, queryset=None):
+        """
+        Sobrescribe para añadir una capa de seguridad: un usuario no puede ver
+        el perfil de un ADMIN a menos que sea superusuario.
+        """
         obj = super().get_object(queryset)
-        if not self.request.user.is_superuser:
-            if obj.nivel_acceso > self.request.user.nivel_acceso:
-                raise PermissionDenied(
-                    "No tiene permiso para ver el perfil de este usuario (nivel superior).")
-            if not obj.activo and obj.pk != self.request.user.pk:
-                raise PermissionDenied(
-                    "No tiene permiso para ver el perfil de este usuario (inactivo).")
+        user = self.request.user
+
+        # Un no-superusuario no puede ver el perfil de un ADMIN.
+        if not user.is_superuser and obj.tipo_usuario == 'ADMIN':
+            raise PermissionDenied(
+                "No tiene permiso para ver el perfil de este usuario.")
+
         return obj
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        usuario_obj = context[self.context_object_name]  # o self.object
+        usuario_obj = context[self.context_object_name]
 
-        context['nivel_acceso_display'] = usuario_obj.get_nivel_acceso_display()
         context['tipo_usuario_display'] = usuario_obj.get_tipo_usuario_display()
         context['departamento_display'] = usuario_obj.get_departamento_display()
         # 'groups' y 'user_permissions' ya están en usuario_obj por prefetch_related
@@ -3628,7 +3635,7 @@ class UsuarioDetailView(BaseDetailView):  # O tu clase base
 
 
 @method_decorator(csrf_protect, name='dispatch')
-class UsuarioCreateView(BaseCreateView):  # O tu clase base
+class UsuarioCreateView(BaseCreateView):
     model = Usuario
     model_manager_name = 'all_objects'
     form_class = FormularioCreacionUsuario
@@ -3643,20 +3650,20 @@ class UsuarioCreateView(BaseCreateView):  # O tu clase base
             'fecha_nacimiento', 'telefono', 'direccion'
         ]
         context['campos_seccion_roles'] = [
-            'tipo_usuario', 'nivel_acceso', 'departamento', 'intermediario',
+            'tipo_usuario', 'departamento', 'intermediario',
             'activo', 'is_staff', 'is_superuser', 'groups', 'user_permissions'
         ]
         return context
 
 
 @method_decorator(csrf_protect, name='dispatch')
-class UsuarioUpdateView(BaseUpdateView):  # O tu clase base
+class UsuarioUpdateView(BaseUpdateView):
     model = Usuario
     model_manager_name = 'all_objects'
     form_class = FormularioEdicionUsuario
     template_name = 'usuario_form.html'
     permission_required = 'myapp.change_usuario'
-    context_object_name = 'object'  # o 'usuario_detalle' si cambiaste el template
+    context_object_name = 'object'
 
     def get_success_url(self):
         return reverse_lazy('myapp:usuario_detail', kwargs={'pk': self.object.pk})
@@ -3667,98 +3674,84 @@ class UsuarioUpdateView(BaseUpdateView):  # O tu clase base
         return kwargs
 
     def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)  # Llama a la base primero
-
-        # 'form' y 'object' ya están en el contexto por la clase base UpdateView.
-        # No accedas a self.form directamente.
+        context = super().get_context_data(**kwargs)
 
         context['campos_seccion_personal'] = [
             'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido',
             'fecha_nacimiento', 'telefono', 'direccion'
         ]
-        # Para edición, según tu FormularioEdicionUsuario.Meta.fields:
+
         campos_roles_edicion = [
-            'tipo_usuario', 'nivel_acceso', 'departamento', 'intermediario',
-            'activo', 'is_staff',
+            'tipo_usuario',
+            'departamento', 'intermediario', 'activo',
+            'is_staff', 'is_superuser',
             'groups', 'user_permissions'
-            # Solo añade 'is_superuser' si está en FormularioEdicionUsuario.Meta.fields
-            # Y si la lógica en el __init__ del form lo permite para el usuario actual.
         ]
-        # Para saber si 'is_superuser' está realmente disponible para edición en ESTE formulario
-        # para ESTE usuario, es mejor verificar el formulario que ya está en el contexto.
-        form_in_context = context.get('form')
-        if form_in_context and 'is_superuser' in form_in_context.fields and not form_in_context.fields['is_superuser'].disabled:
-            campos_roles_edicion.append('is_superuser')
 
         context['campos_seccion_roles'] = campos_roles_edicion
         return context
 
 
 @method_decorator(csrf_protect, name='dispatch')
-# Asegúrate que herede de tu BaseDeleteView correcta
 class UsuarioDeleteView(BaseDeleteView):
     model = Usuario
     template_name = 'usuario_confirm_delete.html'
     permission_required = 'myapp.delete_usuario'
     success_url = reverse_lazy('myapp:usuario_list')
-    # context_object_name = 'object' # Django DeleteView usa 'object' por defecto
 
-    # Mantenemos tu método can_delete, pero lo ajustaremos para que devuelva también un mensaje
     def can_delete(self, obj_to_delete):
         """
-        Verifica si el usuario puede ser eliminado.
+        Verifica si el usuario puede ser eliminado, ahora basado en roles.
         Devuelve: (True, "") si se puede eliminar.
                   (False, "Mensaje de error") si no se puede eliminar.
         """
-        if obj_to_delete == self.request.user:
+        user = self.request.user
+
+        # Regla 1: Nadie puede eliminar su propia cuenta.
+        if obj_to_delete == user:
             return False, "Acción denegada: No puedes eliminar tu propia cuenta."
 
-        if not self.request.user.is_superuser:
-            if obj_to_delete.is_superuser:
-                return False, "Acción denegada: No tienes permiso para eliminar a un superusuario."
-            if obj_to_delete.nivel_acceso >= self.request.user.nivel_acceso:
-                return False, "Acción denegada: No puedes eliminar usuarios con nivel de acceso igual o superior al tuyo."
+        # Regla 2: Solo los superusuarios pueden eliminar a otros usuarios con rol 'ADMIN'.
+        if obj_to_delete.tipo_usuario == 'ADMIN' and not user.is_superuser:
+            return False, "Acción denegada: No tienes permiso para eliminar a un Administrador."
 
-        # Aquí puedes añadir más chequeos, por ejemplo, si el usuario tiene objetos críticos asociados
-        # Ejemplo:
-        # if hasattr(obj_to_delete, 'contratos_asignados_como_intermediario') and obj_to_delete.contratos_asignados_como_intermediario.exists():
-        #     return False, "Este usuario es un intermediario con contratos activos y no puede ser eliminado directamente."
+        # Aquí puedes añadir más chequeos si es necesario.
+        # Por ejemplo, verificar si el usuario es un intermediario con contratos activos.
+        # if hasattr(obj_to_delete, 'intermediario') and obj_to_delete.intermediario:
+        #     if obj_to_delete.intermediario.contratoindividual_set.exists() or \
+        #        obj_to_delete.intermediario.contratos_colectivos.exists():
+        #         return False, "No se puede eliminar, el intermediario asociado a este usuario tiene contratos activos."
 
-        return True, ""  # Puede ser eliminado, no hay mensaje de bloqueo específico
+        return True, ""  # Si pasa todas las validaciones, se puede eliminar.
 
     def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)  # self.object ya está aquí
-
-        # Llamamos a can_delete para obtener el flag y el mensaje
+        context = super().get_context_data(**kwargs)
         can_delete_flag, reason_message = self.can_delete(self.object)
-
         context['usuario_puede_ser_eliminado'] = can_delete_flag
         context['mensaje_bloqueo_eliminacion'] = reason_message
         context['page_title'] = f"Confirmar Eliminación de Usuario: {self.object.get_full_name() or self.object.username}"
         return context
 
     def post(self, request, *args, **kwargs):
-        self.object = self.get_object()  # Obtener el objeto a eliminar
-
+        self.object = self.get_object()
         can_delete_flag, reason_message = self.can_delete(self.object)
 
         if not can_delete_flag:
             messages.error(
                 request, reason_message or "Este usuario no puede ser eliminado.")
-            # Redirigir de vuelta al detalle del usuario o a la lista
             try:
                 return redirect(reverse('myapp:usuario_detail', kwargs={'pk': self.object.pk}))
-            except NoReverseMatch:  # Fallback si la URL de detalle no existe o falla
+            except NoReverseMatch:
                 return redirect(self.get_success_url())
 
-        # Si puede ser eliminado, proceder con la lógica de BaseDeleteView
-        # (que incluye la auditoría y la notificación si las tienes ahí)
+        # Si puede ser eliminado, procede con la lógica de la clase base.
         return super().post(request, *args, **kwargs)
-
 
 # ==========================
 # Factura Vistas
 # ==========================
+
+
 class FacturaListView(LoginRequiredMixin, ListView):
     model = Factura
     template_name = 'factura_list.html'  # Nuevo nombre de plantilla
@@ -4979,7 +4972,7 @@ class ReporteGeneralView(LoginRequiredMixin, TemplateView):
 
 # Diccionario modelos_busqueda (sin cambios)
 modelos_busqueda = {
-    'usuario': {'nombre': ('Usuario'), 'campos': [('id', 'ID'), ('primer_nombre', 'Primer Nombre'), ('segundo_nombre', 'Segundo Nombre'), ('primer_apellido', 'Primer Apellido'), ('segundo_apellido', 'Segundo Apellido'), ('email', 'Correo Electrónico'), ('tipo_usuario', 'Tipo Usuario'), ('fecha_nacimiento', 'Fecha Nacimiento'), ('departamento', 'Departamento'), ('telefono', 'Teléfono'), ('direccion', 'Dirección'), ('intermediario', 'Intermediario'), ('nivel_acceso', 'Nivel Acceso'), ('username', 'Nombre de Usuario'), ('is_staff', 'Es Staff'), ('is_active', 'Está Activo'), ('is_superuser', 'Es Superusuario'), ('last_login', 'Último Login'), ('date_joined', 'Fecha de Registro')]},
+    'usuario': {'nombre': ('Usuario'), 'campos': [('id', 'ID'), ('primer_nombre', 'Primer Nombre'), ('segundo_nombre', 'Segundo Nombre'), ('primer_apellido', 'Primer Apellido'), ('segundo_apellido', 'Segundo Apellido'), ('email', 'Correo Electrónico'), ('tipo_usuario', 'Tipo Usuario'), ('fecha_nacimiento', 'Fecha Nacimiento'), ('departamento', 'Departamento'), ('telefono', 'Teléfono'), ('direccion', 'Dirección'), ('intermediario', 'Intermediario'), ('username', 'Nombre de Usuario'), ('is_staff', 'Es Staff'), ('is_active', 'Está Activo'), ('is_superuser', 'Es Superusuario'), ('last_login', 'Último Login'), ('date_joined', 'Fecha de Registro')]},
     'contratoindividual': {'nombre': ('Contrato Individual'), 'campos': [('id', 'ID'), ('primer_nombre', 'Primer Nombre'), ('segundo_nombre', 'Segundo Nombre'), ('primer_apellido', 'Primer Apellido'), ('segundo_apellido', 'Segundo Apellido'), ('fecha_creacion', 'Fecha de Creación'), ('fecha_modificacion', 'Fecha de modificación'), ('ramo', 'Ramo'), ('forma_pago', 'Forma de Pago'), ('pagos_realizados', 'Pagos Realizados'), ('estatus', 'Estatus'), ('estado_contrato', 'Estado Contrato'), ('numero_contrato', 'Número de Contrato'), ('numero_poliza', 'Número de Póliza'), ('fecha_emision', 'Fecha de Emisión del Contrato'), ('fecha_inicio_vigencia', 'Fecha de Inicio de Vigencia'), ('fecha_fin_vigencia', 'Fecha de Fin de Vigencia'), ('monto_total', 'Monto Total del Contrato'), ('intermediario', 'Intermediario'), ('consultar_afiliados_activos', 'Consultar en data de afiliados activos'), ('tipo_identificacion_contratante', 'Tipo de Identificación del Contratante'), ('contratante_cedula', 'Cédula del Contratante'), ('contratante_nombre', 'Nombre del Contratante'), ('direccion_contratante', 'Dirección del Contratante'), ('telefono_contratante', 'Teléfono del Contratante'), ('email_contratante', 'Email del Contratante'), ('cantidad_cuotas', 'Cantidad de Cuotas'), ('afiliado', 'Afiliado'), ('plan_contratado', 'Plan Contratado'), ('comision_recibo', 'Comisión Recibo'), ('certificado', 'Certificado'), ('importe_anual_contrato', 'Importe Anual del Contrato'), ('importe_recibo_contrato', 'Importe Recibo del Contrato'), ('fecha_inicio_vigencia_recibo', 'Fecha Inicio Vigencia Recibo'), ('fecha_fin_vigencia_recibo', 'Fecha Fin Vigencia Recibo'), ('criterio_busqueda', 'Criterio de Búsqueda'), ('dias_transcurridos_ingreso', 'Días Transcurridos Ingreso'), ('estatus_detalle', 'Estatus Detalle'), ('estatus_emision_recibo', 'Estatus Emisión Recibo')]},
     'afiliadoindividual': {'nombre': ('Afiliado Individual'), 'campos': [('id', 'ID'), ('primer_nombre', 'Primer Nombre'), ('segundo_nombre', 'Segundo Nombre'), ('primer_apellido', 'Primer Apellido'), ('segundo_apellido', 'Segundo Apellido'), ('tipo_identificacion', 'Tipo de Identificación'), ('cedula', 'Cédula'), ('estado_civil', 'Estado Civil'), ('sexo', 'Sexo'), ('parentesco', 'Parentesco'), ('fecha_nacimiento', 'Fecha Nacimiento'), ('nacionalidad', 'Nacionalidad'), ('zona_postal', 'Zona Postal'), ('estado', 'Estado'), ('municipio', 'Municipio'), ('ciudad', 'Ciudad'), ('fecha_ingreso', 'Fecha Ingreso'), ('direccion_habitacion', 'Dirección Habitación'), ('telefono_habitacion', 'Teléfono Habitación'), ('direccion_oficina', 'Dirección Oficina'), ('telefono_oficina', 'Teléfono Oficina'), ('codigo_validacion', 'Código de Validación'), ('activo', 'Estado activo')]},
     'afiliadocolectivo': {'nombre': ('Afiliado Colectivo'), 'campos': [('id', 'ID'), ('primer_nombre', 'Primer Nombre'), ('segundo_nombre', 'Segundo Nombre'), ('primer_apellido', 'Primer Apellido'), ('segundo_apellido', 'Segundo Apellido'), ('activo', 'Activo'), ('razon_social', 'Razón Social'), ('rif', 'RIF'), ('tipo_empresa', 'Tipo Empresa'), ('direccion_comercial', 'Dirección Fiscal'), ('estado', 'Estado'), ('municipio', 'Municipio'), ('ciudad', 'Ciudad'), ('zona_postal', 'Zona Postal'), ('telefono_contacto', 'Teléfono Contacto'), ('email_contacto', 'Email Contacto')]},
@@ -5029,9 +5022,37 @@ class BusquedaAvanzadaView(LoginRequiredMixin, TemplateView):
             return [], f"No tiene permiso para ver registros de {ModelClass._meta.verbose_name_plural}."
 
         try:
+            # Obtenemos la instancia del campo para verificar sus propiedades
             field_instance = ModelClass._meta.get_field(campo.split('__')[0])
         except FieldDoesNotExist:
             return [], f"Campo '{campo}' no es válido para buscar en {ModelClass._meta.verbose_name}."
+
+        # --- INICIO DE LA LÓGICA DE CORRECCIÓN ---
+
+        campo_de_busqueda = campo
+        valor_de_busqueda = valor
+        lookup_exacto = False  # Flag para forzar una búsqueda exacta
+
+        # 1. Manejar campos únicos encriptados que ahora tienen un hash
+        campo_hash_asociado = f"{campo}_hash"
+        if hasattr(ModelClass, campo_hash_asociado):
+            logger.info(
+                f"Búsqueda detectada en campo con hash: '{campo}'. Usando '{campo_hash_asociado}'.")
+            # Si el usuario busca por cédula o RIF, usamos el hash para una búsqueda exacta.
+            hash_a_buscar = hashlib.sha256(valor.encode('utf-8')).hexdigest()
+
+            # Actualizamos las variables que usaremos para construir la consulta Q
+            campo_de_busqueda = campo_hash_asociado
+            valor_de_busqueda = hash_a_buscar
+            # Forzamos una búsqueda exacta (ej. campo_hash='valor')
+            lookup_exacto = True
+
+        # 2. Advertir sobre búsquedas en otros campos encriptados sin hash
+        elif 'encrypted_model_fields' in str(type(field_instance.__class__)):
+            logger.warning(f"ADVERTENCIA: Se está intentando una búsqueda por el campo encriptado '{campo}' "
+                           f"en el modelo '{modelo_str}'. Esta búsqueda probablemente no devolverá resultados.")
+            # Opcional: devolver un error amigable al usuario
+            # return [], f"La búsqueda por '{field_instance.verbose_name}' no está permitida por razones de seguridad."
 
         queryset = ModelClass.objects.all()
         opt_config = self.OPTIMIZACIONES_BUSQUEDA.get(modelo_str)
@@ -5212,33 +5233,113 @@ class DynamicHomeView(LoginRequiredMixin, TemplateView):
         'contrato_individual': {
             'model': ContratoIndividual, 'list_view': 'myapp:contrato_individual_list', 'create_view': 'myapp:contrato_individual_create',
             'detail_view': 'myapp:contrato_individual_detail', 'update_view': 'myapp:contrato_individual_update', 'delete_view': 'myapp:contrato_individual_delete',
-            # --- AJUSTADO fields: Quitado monto_total, añadido tarifa_aplicada y calculados si relevantes para home ---
             'fields': ['numero_contrato', 'afiliado', 'fecha_inicio_vigencia', 'estatus', 'tarifa_aplicada', 'importe_recibo_contrato'],
-            'search_fields': ['numero_contrato', 'contratante_nombre', 'afiliado__cedula', 'afiliado__primer_nombre', 'afiliado__primer_apellido'],
+            # CORREGIDO: Eliminados contratante_nombre, afiliado__cedula, etc.
+            'search_fields': ['numero_contrato'],
             'verbose_name': 'Contrato Individual', 'verbose_name_plural': 'Contratos Individuales',
-            # Añadido tarifa
             'related_fields': ['intermediario', 'afiliado', 'tarifa_aplicada'],
             'permissions': {'list': 'myapp.view_contratoindividual', 'create': 'myapp.add_contratoindividual', 'change': 'myapp.change_contratoindividual', 'delete': 'myapp.delete_contratoindividual', }
-        },  'afiliado_individual': {'model': AfiliadoIndividual, 'list_view': 'myapp:afiliado_individual_list', 'create_view': 'myapp:afiliado_individual_create', 'detail_view': 'myapp:afiliado_individual_detail', 'update_view': 'myapp:afiliado_individual_update', 'delete_view': 'myapp:afiliado_individual_delete', 'fields': ['cedula', 'primer_nombre', 'primer_apellido', 'fecha_nacimiento', 'activo'], 'search_fields': ['cedula', 'primer_nombre', 'primer_apellido'], 'verbose_name': 'Afiliado Individual', 'verbose_name_plural': 'Afiliados Individuales', 'related_fields': [], 'permissions': {'list': 'myapp.view_afiliadoindividual', 'create': 'myapp.add_afiliadoindividual', 'change': 'myapp.change_afiliadoindividual', 'delete': 'myapp.delete_afiliadoindividual', }},
-        'auditoria_sistema': {'model': AuditoriaSistema, 'list_view': 'myapp:auditoria_sistema_list', 'create_view': 'myapp:auditoria_sistema_create', 'detail_view': 'myapp:auditoria_sistema_detail', 'update_view': 'myapp:auditoria_sistema_update', 'delete_view': 'myapp:auditoria_sistema_delete', 'fields': ['usuario', 'tipo_accion', 'tiempo_inicio', 'tabla_afectada', 'resultado_accion'], 'search_fields': ['usuario__username', 'tipo_accion', 'tabla_afectada', 'detalle_accion', 'direccion_ip'], 'verbose_name': 'Auditoría de Sistema', 'verbose_name_plural': 'Auditorías de Sistema', 'related_fields': ['usuario'], 'permissions': {'list': 'myapp.view_auditoriasistema', 'create': 'myapp.add_auditoriasistema', 'change': 'myapp.change_auditoriasistema', 'delete': 'myapp.delete_auditoriasistema', }},
-        'afiliado_colectivo': {'model': AfiliadoColectivo, 'list_view': 'myapp:afiliado_colectivo_list', 'create_view': 'myapp:afiliado_colectivo_create', 'detail_view': 'myapp:afiliado_colectivo_detail', 'update_view': 'myapp:afiliado_colectivo_update', 'delete_view': 'myapp:afiliado_colectivo_delete', 'fields': ['rif', 'razon_social', 'email_contacto', 'activo'], 'search_fields': ['rif', 'razon_social', 'email_contacto'], 'verbose_name': 'Afiliado Colectivo', 'verbose_name_plural': 'Afiliados Colectivos', 'related_fields': [], 'permissions': {'list': 'myapp.view_afiliadocolectivo', 'create': 'myapp.add_afiliadocolectivo', 'change': 'myapp.change_afiliadocolectivo', 'delete': 'myapp.delete_afiliadocolectivo', }},
+        },
+        'afiliado_individual': {
+            'model': AfiliadoIndividual, 'list_view': 'myapp:afiliado_individual_list', 'create_view': 'myapp:afiliado_individual_create',
+            'detail_view': 'myapp:afiliado_individual_detail', 'update_view': 'myapp:afiliado_individual_update', 'delete_view': 'myapp:afiliado_individual_delete',
+            'fields': ['cedula', 'primer_nombre', 'primer_apellido', 'fecha_nacimiento', 'activo'],
+            # CORREGIDO: Eliminados todos los campos encriptados. La búsqueda por hash se manejaría en una vista dedicada.
+            'search_fields': [],
+            'verbose_name': 'Afiliado Individual', 'verbose_name_plural': 'Afiliados Individuales',
+            'related_fields': [],
+            'permissions': {'list': 'myapp.view_afiliadoindividual', 'create': 'myapp.add_afiliadoindividual', 'change': 'myapp.change_afiliadoindividual', 'delete': 'myapp.delete_afiliadoindividual', }
+        },
+        'auditoria_sistema': {
+            'model': AuditoriaSistema, 'list_view': 'myapp:auditoria_sistema_list', 'create_view': 'myapp:auditoria_sistema_create',
+            'detail_view': 'myapp:auditoria_sistema_detail', 'update_view': 'myapp:auditoria_sistema_update', 'delete_view': 'myapp:auditoria_sistema_delete',
+            'fields': ['usuario', 'tipo_accion', 'tiempo_inicio', 'tabla_afectada', 'resultado_accion'],
+            # CORREGIDO: Eliminados detalle_accion y direccion_ip.
+            'search_fields': ['usuario__username', 'tipo_accion', 'tabla_afectada'],
+            'verbose_name': 'Auditoría de Sistema', 'verbose_name_plural': 'Auditorías de Sistema',
+            'related_fields': ['usuario'],
+            'permissions': {'list': 'myapp.view_auditoriasistema', 'create': 'myapp.add_auditoriasistema', 'change': 'myapp.change_auditoriasistema', 'delete': 'myapp.delete_auditoriasistema', }
+        },
+        'afiliado_colectivo': {
+            'model': AfiliadoColectivo, 'list_view': 'myapp:afiliado_colectivo_list', 'create_view': 'myapp:afiliado_colectivo_create',
+            'detail_view': 'myapp:afiliado_colectivo_detail', 'update_view': 'myapp:afiliado_colectivo_update', 'delete_view': 'myapp:afiliado_colectivo_delete',
+            'fields': ['rif', 'razon_social', 'email_contacto', 'activo'],
+            # CORREGIDO: Eliminados todos los campos encriptados.
+            'search_fields': [],
+            'verbose_name': 'Afiliado Colectivo', 'verbose_name_plural': 'Afiliados Colectivos',
+            'related_fields': [],
+            'permissions': {'list': 'myapp.view_afiliadocolectivo', 'create': 'myapp.add_afiliadocolectivo', 'change': 'myapp.change_afiliadocolectivo', 'delete': 'myapp.delete_afiliadocolectivo', }
+        },
         'contrato_colectivo': {
             'model': ContratoColectivo, 'list_view': 'myapp:contrato_colectivo_list', 'create_view': 'myapp:contrato_colectivo_create',
             'detail_view': 'myapp:contrato_colectivo_detail', 'update_view': 'myapp:contrato_colectivo_update', 'delete_view': 'myapp:contrato_colectivo_delete',
-            # --- AJUSTADO fields: Quitado monto_total, añadido tarifa_aplicada y calculados si relevantes ---
             'fields': ['numero_contrato', 'razon_social', 'fecha_inicio_vigencia', 'estatus', 'tarifa_aplicada', 'importe_recibo_contrato'],
-            'search_fields': ['numero_contrato', 'razon_social', 'rif'],
+            # CORREGIDO: Eliminados razon_social y rif.
+            'search_fields': ['numero_contrato'],
             'verbose_name': 'Contrato Colectivo', 'verbose_name_plural': 'Contratos Colectivos',
-            # Añadido tarifa
             'related_fields': ['intermediario', 'tarifa_aplicada'],
             'permissions': {'list': 'myapp.view_contratocolectivo', 'create': 'myapp.add_contratocolectivo', 'change': 'myapp.change_contratocolectivo', 'delete': 'myapp.delete_contratocolectivo', }
         },
-        'intermediario': {'model': Intermediario, 'list_view': 'myapp:intermediario_list', 'create_view': 'myapp:intermediario_create', 'detail_view': 'myapp:intermediario_detail', 'update_view': 'myapp:intermediario_update', 'delete_view': 'myapp:intermediario_delete', 'fields': ['codigo', 'nombre_completo', 'rif', 'porcentaje_comision', 'activo'], 'search_fields': ['codigo', 'nombre_completo', 'rif', 'email_contacto'], 'verbose_name': 'Intermediario', 'verbose_name_plural': 'Intermediarios', 'related_fields': [], 'permissions': {'list': 'myapp.view_intermediario', 'create': 'myapp.add_intermediario', 'change': 'myapp.change_intermediario', 'delete': 'myapp.delete_intermediario', }},
-        'factura': {'model': Factura, 'list_view': 'myapp:factura_list', 'create_view': 'myapp:factura_create', 'detail_view': 'myapp:factura_detail', 'update_view': 'myapp:factura_update', 'delete_view': 'myapp:factura_delete', 'fields': ['numero_recibo', 'monto', 'vigencia_recibo_desde', 'vigencia_recibo_hasta', 'pagada'], 'search_fields': ['numero_recibo', 'contrato_individual__numero_contrato', 'contrato_colectivo__numero_contrato', 'relacion_ingreso'], 'verbose_name': 'Factura', 'verbose_name_plural': 'Facturas', 'related_fields': ['contrato_individual', 'contrato_colectivo', 'intermediario'], 'permissions': {'list': 'myapp.view_factura', 'create': 'myapp.add_factura', 'change': 'myapp.change_factura', 'delete': 'myapp.delete_factura', }},
-        'pago': {'model': Pago, 'list_view': 'myapp:pago_list', 'create_view': 'myapp:pago_create', 'detail_view': 'myapp:pago_detail', 'update_view': 'myapp:pago_update', 'delete_view': 'myapp:pago_delete', 'fields': ['id', 'factura', 'fecha_pago', 'monto_pago', 'forma_pago'], 'search_fields': ['referencia_pago', 'reclamacion__id', 'factura__numero_recibo'], 'verbose_name': 'Pago', 'verbose_name_plural': 'Pagos', 'related_fields': ['reclamacion', 'factura'], 'permissions': {'list': 'myapp.view_pago', 'create': 'myapp.add_pago', 'change': 'myapp.change_pago', 'delete': 'myapp.delete_pago', }},
-        'tarifa': {'model': Tarifa, 'list_view': 'myapp:tarifa_list', 'create_view': 'myapp:tarifa_create', 'detail_view': 'myapp:tarifa_detail', 'update_view': 'myapp:tarifa_update', 'delete_view': 'myapp:tarifa_delete', 'fields': ['ramo', 'rango_etario', 'fecha_aplicacion', 'monto_anual', 'activo'], 'search_fields': ['ramo', 'rango_etario'], 'verbose_name': 'Tarifa', 'verbose_name_plural': 'Tarifas', 'related_fields': [], 'permissions': {'list': 'myapp.view_tarifa', 'create': 'myapp.add_tarifa', 'change': 'myapp.change_tarifa', 'delete': 'myapp.delete_tarifa', }},
-        'reclamacion': {'model': Reclamacion, 'list_view': 'myapp:reclamacion_list', 'create_view': 'myapp:reclamacion_create', 'detail_view': 'myapp:reclamacion_detail', 'update_view': 'myapp:reclamacion_update', 'delete_view': 'myapp:reclamacion_delete', 'fields': ['id', 'tipo_reclamacion', 'estado', 'fecha_reclamo', 'monto_reclamado'], 'search_fields': ['id', 'descripcion_reclamo', 'tipo_reclamacion', 'estado', 'contrato_individual__numero_contrato', 'contrato_colectivo__numero_contrato'], 'verbose_name': 'Reclamación', 'verbose_name_plural': 'Reclamaciones', 'related_fields': ['contrato_individual', 'contrato_colectivo', 'usuario_asignado'], 'permissions': {'list': 'myapp.view_reclamacion', 'create': 'myapp.add_reclamacion', 'change': 'myapp.change_reclamacion', 'delete': 'myapp.delete_reclamacion', }},
-        'usuario': {'model': Usuario, 'list_view': 'myapp:usuario_list', 'create_view': 'myapp:usuario_create', 'detail_view': 'myapp:usuario_detail', 'update_view': 'myapp:usuario_update', 'delete_view': 'myapp:usuario_delete', 'fields': ['username', 'primer_nombre', 'primer_apellido', 'email', 'tipo_usuario', 'is_active'], 'search_fields': ['username', 'primer_nombre', 'primer_apellido', 'email', 'intermediario__nombre_completo'], 'verbose_name': 'Usuario', 'verbose_name_plural': 'Usuarios', 'related_fields': ['intermediario'], 'permissions': {'list': 'myapp.view_usuario', 'create': 'myapp.add_usuario', 'change': 'myapp.change_usuario', 'delete': 'myapp.delete_usuario', }}
+        'intermediario': {
+            'model': Intermediario, 'list_view': 'myapp:intermediario_list', 'create_view': 'myapp:intermediario_create',
+            'detail_view': 'myapp:intermediario_detail', 'update_view': 'myapp:intermediario_update', 'delete_view': 'myapp:intermediario_delete',
+            'fields': ['codigo', 'nombre_completo', 'rif', 'porcentaje_comision', 'activo'],
+            # CORREGIDO: Eliminados nombre_completo, rif, email_contacto.
+            'search_fields': ['codigo'],
+            'verbose_name': 'Intermediario', 'verbose_name_plural': 'Intermediarios',
+            'related_fields': [],
+            'permissions': {'list': 'myapp.view_intermediario', 'create': 'myapp.add_intermediario', 'change': 'myapp.change_intermediario', 'delete': 'myapp.delete_intermediario', }
+        },
+        'factura': {
+            'model': Factura, 'list_view': 'myapp:factura_list', 'create_view': 'myapp:factura_create',
+            'detail_view': 'myapp:factura_detail', 'update_view': 'myapp:factura_update', 'delete_view': 'myapp:factura_delete',
+            'fields': ['numero_recibo', 'monto', 'vigencia_recibo_desde', 'vigencia_recibo_hasta', 'pagada'],
+            # CORRECTO: Todos estos campos son buscables y no están encriptados.
+            'search_fields': ['numero_recibo', 'contrato_individual__numero_contrato', 'contrato_colectivo__numero_contrato', 'relacion_ingreso'],
+            'verbose_name': 'Factura', 'verbose_name_plural': 'Facturas',
+            'related_fields': ['contrato_individual', 'contrato_colectivo', 'intermediario'],
+            'permissions': {'list': 'myapp.view_factura', 'create': 'myapp.add_factura', 'change': 'myapp.change_factura', 'delete': 'myapp.delete_factura', }
+        },
+        'pago': {
+            'model': Pago, 'list_view': 'myapp:pago_list', 'create_view': 'myapp:pago_create',
+            'detail_view': 'myapp:pago_detail', 'update_view': 'myapp:pago_update', 'delete_view': 'myapp:pago_delete',
+            'fields': ['id', 'factura', 'fecha_pago', 'monto_pago', 'forma_pago'],
+            # CORREGIDO: referencia_pago está encriptado.
+            'search_fields': ['reclamacion__id', 'factura__numero_recibo'],
+            'verbose_name': 'Pago', 'verbose_name_plural': 'Pagos',
+            'related_fields': ['reclamacion', 'factura'],
+            'permissions': {'list': 'myapp.view_pago', 'create': 'myapp.add_pago', 'change': 'myapp.change_pago', 'delete': 'myapp.delete_pago', }
+        },
+        'tarifa': {
+            'model': Tarifa, 'list_view': 'myapp:tarifa_list', 'create_view': 'myapp:tarifa_create',
+            'detail_view': 'myapp:tarifa_detail', 'update_view': 'myapp:tarifa_update', 'delete_view': 'myapp:tarifa_delete',
+            'fields': ['ramo', 'rango_etario', 'fecha_aplicacion', 'monto_anual', 'activo'],
+            # CORRECTO: Ninguno de estos está encriptado.
+            'search_fields': ['ramo', 'rango_etario'],
+            'verbose_name': 'Tarifa', 'verbose_name_plural': 'Tarifas',
+            'related_fields': [],
+            'permissions': {'list': 'myapp.view_tarifa', 'create': 'myapp.add_tarifa', 'change': 'myapp.change_tarifa', 'delete': 'myapp.delete_tarifa', }
+        },
+        'reclamacion': {
+            'model': Reclamacion, 'list_view': 'myapp:reclamacion_list', 'create_view': 'myapp:reclamacion_create',
+            'detail_view': 'myapp:reclamacion_detail', 'update_view': 'myapp:reclamacion_update', 'delete_view': 'myapp:reclamacion_delete',
+            'fields': ['id', 'tipo_reclamacion', 'estado', 'fecha_reclamo', 'monto_reclamado'],
+            # CORREGIDO: descripcion_reclamo está encriptado.
+            'search_fields': ['id', 'tipo_reclamacion', 'estado', 'contrato_individual__numero_contrato', 'contrato_colectivo__numero_contrato'],
+            'verbose_name': 'Reclamación', 'verbose_name_plural': 'Reclamaciones',
+            'related_fields': ['contrato_individual', 'contrato_colectivo', 'usuario_asignado'],
+            'permissions': {'list': 'myapp.view_reclamacion', 'create': 'myapp.add_reclamacion', 'change': 'myapp.change_reclamacion', 'delete': 'myapp.delete_reclamacion', }
+        },
+        'usuario': {
+            'model': Usuario, 'list_view': 'myapp:usuario_list', 'create_view': 'myapp:usuario_create',
+            'detail_view': 'myapp:usuario_detail', 'update_view': 'myapp:usuario_update', 'delete_view': 'myapp:usuario_delete',
+            'fields': ['username', 'primer_nombre', 'primer_apellido', 'email', 'tipo_usuario', 'is_active'],
+            # CORREGIDO: Eliminados primer_nombre, primer_apellido.
+            'search_fields': ['username', 'email', 'intermediario__nombre_completo'],
+            'verbose_name': 'Usuario', 'verbose_name_plural': 'Usuarios',
+            'related_fields': ['intermediario'],
+            'permissions': {'list': 'myapp.view_usuario', 'create': 'myapp.add_usuario', 'change': 'myapp.change_usuario', 'delete': 'myapp.delete_usuario', }
+        }
     }
 
     def get_context_data(self, **kwargs):

@@ -58,11 +58,11 @@ class ReclamacionInline(admin.TabularInline):
 @admin.register(Usuario)
 class UsuarioAdmin(BaseUserAdmin):
     list_display = ('email', 'get_full_name', 'tipo_usuario',
-                    'nivel_acceso', 'activo', 'is_staff')
+                    'activo', 'is_staff')
     # La búsqueda en nombres/apellidos no funcionará por el cifrado, pero dejamos los campos.
     search_fields = ('email', 'primer_nombre', 'primer_apellido')
     list_filter = ('activo', 'is_staff', 'is_superuser',
-                   'nivel_acceso', 'tipo_usuario', 'groups')
+                   'tipo_usuario', 'groups')
     ordering = ('-date_joined',)
 
     fieldsets = (
@@ -70,7 +70,7 @@ class UsuarioAdmin(BaseUserAdmin):
         ('Información Personal', {'fields': ('primer_nombre', 'segundo_nombre',
          'primer_apellido', 'segundo_apellido', 'fecha_nacimiento', 'telefono', 'direccion')}),
         ('Permisos y Clasificación', {'fields': ('activo', 'is_staff', 'is_superuser',
-         'nivel_acceso', 'tipo_usuario', 'departamento', 'groups', 'user_permissions')}),
+         'tipo_usuario', 'departamento', 'groups', 'user_permissions')}),
         ('Asociaciones', {'fields': ('intermediario',)}),
         ('Fechas Importantes', {'fields': (
             'last_login', 'date_joined', 'fecha_creacion', 'fecha_modificacion')}),

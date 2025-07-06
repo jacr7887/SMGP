@@ -401,44 +401,44 @@ class Command(BaseCommand):
                                 self.stderr.write(self.style.ERROR(
                                     f"Failed to create emergency tariff: {e}"))
 
-                    # --- 3. Usuarios ---
-                    model_name = 'User'  # Mantenemos 'User' como la clave
+                    # --- 3. Usuarios (LÓGICA CORREGIDA Y SIMPLIFICADA) ---
+                    model_name = 'User'
                     stats_m = stats[model_name]
-                    user_ids_created = []  # Asegúrate de que esta lista esté definida
+                    user_ids_created = []
 
                     try:
-                        # Leemos las credenciales del superusuario desde settings
+                        # --- Creación del Superusuario ---
                         admin_email = settings.DJANGO_SUPERUSER_EMAIL
                         admin_password = settings.DJANGO_SUPERUSER_PASSWORD
 
-                        # Usamos get_or_create con el modelo User (que es un alias de Usuario)
+                        # Usamos get_or_create para evitar duplicados en ejecuciones repetidas.
+                        # El manager se encargará de los valores por defecto.
                         admin_user, created = User.objects.get_or_create(
                             email=admin_email,
                             defaults={
                                 'primer_nombre': settings.DJANGO_SUPERUSER_PRIMER_NOMBRE,
                                 'primer_apellido': settings.DJANGO_SUPERUSER_PRIMER_APELLIDO,
-                                'nivel_acceso': 5,
-                                'tipo_usuario': 'ADMIN',
+                                'tipo_usuario': 'ADMIN',  # <-- El rol define todo
                                 'fecha_nacimiento': fake.date_of_birth(minimum_age=30, maximum_age=60),
                                 'activo': True,
-                                'is_staff': True,
-                                'is_superuser': True
                             }
                         )
 
                         # Si el usuario es nuevo, establecemos la contraseña.
-                        # Si ya existe, nos aseguramos de que tenga los flags correctos.
+                        # Si ya existe, nos aseguramos de que tenga los flags y el rol correctos.
                         if created:
                             admin_user.set_password(admin_password)
-
-                        admin_user.is_staff = True
-                        admin_user.is_superuser = True
-                        admin_user.save()
-
-                        print("="*50)
-                        print(
-                            f"!!! Superusuario '{admin_email}' configurado con la contraseña del entorno. !!!")
-                        print("="*50)
+                            admin_user.save()  # Guardar la contraseña hasheada
+                            print(
+                                f"!!! Superusuario '{admin_email}' CREADO con la contraseña del entorno. !!!")
+                        else:
+                            # Asegurarse de que el usuario existente sea un superusuario
+                            admin_user.is_staff = True
+                            admin_user.is_superuser = True
+                            admin_user.tipo_usuario = 'ADMIN'
+                            admin_user.save()
+                            print(
+                                f"!!! Superusuario '{admin_email}' ya existía. Permisos y rol asegurados. !!!")
 
                         if admin_user.pk not in user_ids_created:
                             user_ids_created.append(admin_user.pk)
@@ -448,35 +448,35 @@ class Command(BaseCommand):
                         stats_m['failed'] += 1
                         stats_m['errors'][e.__class__.__name__] += 1
                         logger.error(
-                            f"Error creando usuario admin: {e}", exc_info=True)
+                            f"Error crítico configurando el superusuario: {e}", exc_info=True)
 
-                    # Creación de usuarios de prueba (Faker)
-                    # Usamos el bucle original que tenías
-                    for _ in range(max(0, stats_m['requested'] - 1 if stats_m['requested'] > 0 else 0)):
-                        user_email = None
+                    # --- Creación de usuarios de prueba (Faker) ---
+                    # Definimos los roles posibles, excluyendo 'ADMIN' para los usuarios de prueba.
+                    ROLES_DE_PRUEBA = [
+                        rol[0] for rol in CommonChoices.TIPO_USUARIO if rol[0] != 'ADMIN']
+
+                    # -1 por el admin ya creado
+                    for _ in range(max(0, stats_m['requested'] - 1)):
                         try:
-                            for _ in range(5):
-                                user_email_raw = fake.unique.email()
-                                # Usa User
-                                if not User.objects.filter(email=user_email_raw).exists():
-                                    user_email = user_email_raw
-                                    break
-                            if not user_email:
-                                stats_m['failed'] += 1
-                                stats_m['errors']['UniqueEmailFail_User'] += 1
+                            # Generar un email único
+                            user_email = fake.unique.email()
+                            if User.objects.filter(email=user_email).exists():
+                                stats_m['skipped'] += 1
                                 continue
 
-                            # Usa tu modelo real `User` (alias de Usuario)
-                            user_obj = User(
+                            # Crear el usuario usando el manager, que es la forma correcta.
+                            # El manager se encarga de los valores por defecto de is_staff/is_superuser.
+                            user_obj = User.objects.create_user(
                                 email=user_email,
+                                password='password',  # Contraseña por defecto para usuarios de prueba
                                 primer_nombre=fake.first_name(),
                                 segundo_nombre=fake.first_name() if fake.boolean(
                                     chance_of_getting_true=60) else None,
                                 primer_apellido=fake.last_name(),
                                 segundo_apellido=fake.last_name() if fake.boolean(
                                     chance_of_getting_true=50) else None,
-                                tipo_usuario=random.choice(
-                                    [c[0] for c in CommonChoices.TIPO_USUARIO]),
+                                # Asigna un rol aleatorio
+                                tipo_usuario=random.choice(ROLES_DE_PRUEBA),
                                 fecha_nacimiento=fake.date_of_birth(
                                     minimum_age=18, maximum_age=75),
                                 departamento=random.choice(
@@ -484,11 +484,8 @@ class Command(BaseCommand):
                                 telefono=generate_phone_ve() if fake.boolean(
                                     chance_of_getting_true=85) else None,
                                 direccion=fake.address() if fake.boolean(chance_of_getting_true=80) else None,
-                                nivel_acceso=random.randint(1, 4),
                                 activo=fake.boolean(chance_of_getting_true=95)
                             )
-                            user_obj.set_password('password')
-                            user_obj.save()
 
                             if user_obj.pk not in user_ids_created:
                                 user_ids_created.append(user_obj.pk)
@@ -498,13 +495,13 @@ class Command(BaseCommand):
                             stats_m['failed'] += 1
                             stats_m['errors'][e.__class__.__name__] += 1
                             fake.unique.clear()
-                            logger.warning(f"IntegrityError creando User: {e}")
+                            logger.warning(
+                                f"IntegrityError creando usuario de prueba: {e}")
                         except Exception as e:
                             stats_m['failed'] += 1
                             stats_m['errors'][e.__class__.__name__] += 1
                             logger.error(
-                                f"Error creando User: {e}", exc_info=True)
-                    # --- [FIN DE LA CORRECCIÓN] ---
+                                f"Error creando usuario de prueba: {e}", exc_info=True)
 
                     # --- 4. Intermediarios ---
                     model_name = 'Intermediario'

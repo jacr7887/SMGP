@@ -1,4 +1,5 @@
-# filters.py
+# myapp/filters.py
+
 import django_filters
 from django_filters import (
     FilterSet, CharFilter, BooleanFilter, DateFilter, DateFromToRangeFilter,
@@ -14,6 +15,7 @@ from datetime import date, timedelta, datetime
 from django.db.models import Q
 from django.apps import apps
 import logging
+import hashlib
 
 from .models import (
     ContratoIndividual, AfiliadoIndividual, ContratoColectivo, AfiliadoColectivo,
@@ -68,10 +70,6 @@ class AwareDateTimeFromToRangeFilter(django_filters.DateFromToRangeFilter):
 
 
 class ContratoIndividualFilter(django_filters.FilterSet):
-    primer_nombre = django_filters.CharFilter(
-        lookup_expr='icontains', label="Primer Nombre (Afiliado)")
-    primer_apellido = django_filters.CharFilter(
-        lookup_expr='icontains', label="Primer Apellido (Afiliado)")
     ramo = ChoiceFilter(choices=CommonChoices.RAMO,
                         label="Ramo", widget=Select2Widget)
     forma_pago = ChoiceFilter(
@@ -87,13 +85,6 @@ class ContratoIndividualFilter(django_filters.FilterSet):
         'ramo', 'rango_etario', '-fecha_aplicacion'), label="Tarifa Aplicada", widget=Select2Widget)
     afiliado = ModelChoiceFilter(queryset=AfiliadoIndividual.objects.filter(activo=True).order_by(
         'primer_apellido', 'primer_nombre'), label="Afiliado Individual", widget=Select2Widget)
-    contratante_cedula = CharFilter(
-        lookup_expr='icontains', label="Cédula/RIF Contratante")
-    contratante_nombre = CharFilter(
-        lookup_expr='icontains', label="Nombre Contratante")
-    plan_contratado = CharFilter(
-        lookup_expr='icontains', label="Plan Contratado")
-    numero_recibo = CharFilter(lookup_expr='icontains', label="N° Recibo")
     estatus_emision_recibo = ChoiceFilter(
         choices=CommonChoices.EMISION_RECIBO, label="Estatus Emisión Recibo", widget=Select2Widget)
     activo = BooleanFilter(field_name='activo', label="Contrato Activo")
@@ -108,15 +99,13 @@ class ContratoIndividualFilter(django_filters.FilterSet):
 
     class Meta:
         model = ContratoIndividual
-        fields = ['primer_nombre', 'primer_apellido', 'ramo', 'forma_pago', 'estatus', 'numero_contrato', 'numero_poliza', 'intermediario', 'tarifa_aplicada', 'afiliado', 'contratante_cedula', 'contratante_nombre',
-                  'plan_contratado', 'numero_recibo', 'estatus_emision_recibo', 'activo', 'fecha_emision_range', 'fecha_vigencia_range', 'fecha_fin_vigencia_range', 'monto_total_range', 'certificado']
+        fields = ['ramo', 'forma_pago', 'estatus', 'numero_contrato', 'numero_poliza', 'intermediario', 'tarifa_aplicada', 'afiliado',
+                  'estatus_emision_recibo', 'activo', 'fecha_emision_range', 'fecha_vigencia_range', 'fecha_fin_vigencia_range', 'monto_total_range', 'certificado']
 
 
 class AfiliadoIndividualFilter(django_filters.FilterSet):
-    primer_nombre = CharFilter(lookup_expr='icontains', label="Primer Nombre")
-    primer_apellido = CharFilter(
-        lookup_expr='icontains', label="Primer Apellido")
-    cedula = CharFilter(lookup_expr='icontains', label="Cédula")
+    cedula = CharFilter(method='filter_by_cedula_hash',
+                        label="Cédula (Búsqueda Exacta)")
     tipo_identificacion = ChoiceFilter(
         choices=CommonChoices.TIPO_IDENTIFICACION, label="Tipo ID", widget=Select2Widget)
     estado_civil = ChoiceFilter(
@@ -125,28 +114,30 @@ class AfiliadoIndividualFilter(django_filters.FilterSet):
                         label="Sexo", widget=Select2Widget)
     parentesco = ChoiceFilter(
         choices=CommonChoices.PARENTESCO, label="Parentesco", widget=Select2Widget)
-    fecha_nacimiento_range = DateFromToRangeFilter(
-        field_name='fecha_nacimiento', widget=date_range_widget, label="Nacido Entre")
-    nacionalidad = CharFilter(lookup_expr='icontains', label="Nacionalidad")
     estado = ChoiceFilter(choices=CommonChoices.ESTADOS_VE,
                           label="Estado (VE)", widget=Select2Widget)
-    municipio = CharFilter(lookup_expr='icontains', label="Municipio")
-    ciudad = CharFilter(lookup_expr='icontains', label="Ciudad")
-    fecha_ingreso_range = DateFromToRangeFilter(
-        field_name='fecha_ingreso', widget=date_range_widget, label="Ingresó Entre")
-    email = CharFilter(lookup_expr='icontains', label="Email")
     intermediario = ModelChoiceFilter(queryset=Intermediario.objects.filter(activo=True).order_by(
         'nombre_completo'), field_name='intermediario', label="Intermediario Asignado", widget=Select2Widget)
     activo = django_filters.ChoiceFilter(field_name='activo', label="Estado (Activo/Inactivo)", choices=[
                                          ('', 'Todos'), (True, 'Sí'), (False, 'No')], empty_label='Todos', widget=forms.Select)
+    fecha_nacimiento_range = DateFromToRangeFilter(
+        field_name='fecha_nacimiento', widget=date_range_widget, label="Nacido Entre")
+    fecha_ingreso_range = DateFromToRangeFilter(
+        field_name='fecha_ingreso', widget=date_range_widget, label="Ingresó Entre")
     edad = NumberFilter(method='filter_by_edad', label="Edad (años)")
     edad_range = NumericRangeFilter(
         method='filter_by_edad_range', widget=numeric_range_widget, label="Edad Entre")
 
     class Meta:
         model = AfiliadoIndividual
-        fields = ['primer_nombre', 'primer_apellido', 'cedula', 'tipo_identificacion', 'estado_civil', 'sexo', 'parentesco', 'nacionalidad',
-                  'estado', 'municipio', 'ciudad', 'email', 'intermediario', 'activo', 'fecha_nacimiento_range', 'fecha_ingreso_range', 'edad', 'edad_range']
+        fields = ['cedula', 'tipo_identificacion', 'estado_civil', 'sexo', 'parentesco', 'estado',
+                  'intermediario', 'activo', 'fecha_nacimiento_range', 'fecha_ingreso_range', 'edad', 'edad_range']
+
+    def filter_by_cedula_hash(self, queryset, name, value):
+        if value:
+            cedula_hash = hashlib.sha256(value.encode('utf-8')).hexdigest()
+            return queryset.filter(cedula_hash=cedula_hash)
+        return queryset
 
     def filter_by_edad(self, queryset, name, value):
         if value:
@@ -183,22 +174,14 @@ class AfiliadoIndividualFilter(django_filters.FilterSet):
             return queryset.filter(q_filter)
         return queryset
 
-# ----------------------------------------------------
-# AfiliadoColectivoFilter (AHORA SÍ ESTÁ DEFINIDO)
-# ----------------------------------------------------
-
 
 class AfiliadoColectivoFilter(django_filters.FilterSet):
-    razon_social = CharFilter(lookup_expr='icontains', label="Razón Social")
-    rif = CharFilter(lookup_expr='icontains', label="RIF")
+    rif = CharFilter(method='filter_by_rif_hash',
+                     label="RIF (Búsqueda Exacta)")
     tipo_empresa = ChoiceFilter(
         choices=CommonChoices.TIPO_EMPRESA, label="Tipo Empresa", widget=Select2Widget)
     estado = ChoiceFilter(choices=CommonChoices.ESTADOS_VE,
                           label="Estado (VE)", widget=Select2Widget)
-    municipio = CharFilter(lookup_expr='icontains', label="Municipio")
-    ciudad = CharFilter(lookup_expr='icontains', label="Ciudad")
-    email_contacto = CharFilter(
-        lookup_expr='icontains', label="Email Contacto")
     intermediario = ModelChoiceFilter(
         queryset=Intermediario.objects.filter(
             activo=True).order_by('nombre_completo'),
@@ -210,11 +193,13 @@ class AfiliadoColectivoFilter(django_filters.FilterSet):
 
     class Meta:
         model = AfiliadoColectivo
-        fields = [
-            'razon_social', 'rif', 'tipo_empresa', 'estado', 'municipio',
-            'ciudad', 'email_contacto', 'intermediario', 'activo'
-        ]
-# ----------------------------------------------------
+        fields = ['rif', 'tipo_empresa', 'estado', 'intermediario', 'activo']
+
+    def filter_by_rif_hash(self, queryset, name, value):
+        if value:
+            rif_hash = hashlib.sha256(value.encode('utf-8')).hexdigest()
+            return queryset.filter(rif_hash=rif_hash)
+        return queryset
 
 
 class ContratoColectivoFilter(django_filters.FilterSet):
@@ -233,20 +218,11 @@ class ContratoColectivoFilter(django_filters.FilterSet):
         'ramo', 'rango_etario', '-fecha_aplicacion'), label="Tarifa Aplicada", widget=Select2Widget)
     tipo_empresa = ChoiceFilter(
         choices=CommonChoices.TIPO_EMPRESA, label="Tipo Empresa", widget=Select2Widget)
-    razon_social = CharFilter(lookup_expr='icontains', label="Razón Social")
-    rif = CharFilter(lookup_expr='icontains', label="RIF")
-    plan_contratado = CharFilter(
-        lookup_expr='icontains', label="Plan Contratado")
-    numero_recibo = CharFilter(lookup_expr='icontains', label="N° Recibo")
     activo = BooleanFilter(field_name='activo', label="Contrato Activo")
     afiliados_colectivos = ModelMultipleChoiceFilter(queryset=AfiliadoColectivo.objects.filter(
         activo=True).order_by('razon_social'), label="Afiliados Colectivos", widget=Select2MultipleWidget)
     fecha_emision_range = AwareDateTimeFromToRangeFilter(
         field_name='fecha_emision', widget=date_range_widget, label="Emitido Entre")
-    fecha_vigencia_range = DateFromToRangeFilter(
-        field_name='fecha_inicio_vigencia', widget=date_range_widget, label="Vigente Entre (Inicio)")
-    fecha_fin_vigencia_range = DateFromToRangeFilter(
-        field_name='fecha_fin_vigencia', widget=date_range_widget, label="Vigente Entre (Fin)")
     monto_total_range = NumericRangeFilter(
         field_name='monto_total', widget=numeric_range_widget, label="Monto Total Entre")
     cantidad_empleados_range = NumericRangeFilter(
@@ -254,8 +230,8 @@ class ContratoColectivoFilter(django_filters.FilterSet):
 
     class Meta:
         model = ContratoColectivo
-        fields = ['ramo', 'forma_pago', 'estatus', 'numero_contrato', 'numero_poliza', 'intermediario', 'certificado', 'tarifa_aplicada', 'tipo_empresa', 'razon_social', 'rif', 'plan_contratado',
-                  'numero_recibo', 'activo', 'afiliados_colectivos', 'fecha_emision_range', 'fecha_vigencia_range', 'fecha_fin_vigencia_range', 'monto_total_range', 'cantidad_empleados_range']
+        fields = ['ramo', 'forma_pago', 'estatus', 'numero_contrato', 'numero_poliza', 'intermediario', 'certificado', 'tarifa_aplicada', 'tipo_empresa',
+                  'activo', 'afiliados_colectivos', 'fecha_emision_range', 'monto_total_range', 'cantidad_empleados_range']
 
 
 class FacturaFilter(django_filters.FilterSet):
@@ -307,16 +283,15 @@ class AuditoriaSistemaFilter(django_filters.FilterSet):
     tabla_afectada = ChoiceFilter(
         choices=[], label="Tabla Afectada", widget=Select2Widget, empty_label="Todas")
     registro_id_afectado = NumberFilter(label="ID Registro Afectado")
-    detalle_accion = CharFilter(
-        lookup_expr='icontains', label="Detalle Acción")
-    direccion_ip = CharFilter(lookup_expr='icontains', label="Dirección IP")
+    direccion_ip = CharFilter(
+        method='filter_by_ip_hash', label="Dirección IP (Búsqueda Exacta)")
     tiempo_inicio_range = AwareDateTimeFromToRangeFilter(
         field_name='tiempo_inicio', widget=date_range_widget, label="Ocurrido Entre")
 
     class Meta:
         model = AuditoriaSistema
         fields = ['tipo_accion', 'resultado_accion', 'usuario', 'tabla_afectada',
-                  'registro_id_afectado', 'detalle_accion', 'direccion_ip', 'tiempo_inicio_range']
+                  'registro_id_afectado', 'direccion_ip', 'tiempo_inicio_range']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -330,6 +305,17 @@ class AuditoriaSistemaFilter(django_filters.FilterSet):
                 self.filters['tabla_afectada'].extra['choices'] = [
                     ('', 'Todas')]
 
+    def filter_by_ip_hash(self, queryset, name, value):
+        # Este método es un placeholder. Si 'direccion_ip' fuera encriptado con hash,
+        # la lógica iría aquí. Como no lo es, una búsqueda 'icontains' normal funcionaría,
+        # pero para mantener el patrón, lo dejamos así. Si no está encriptado, se puede
+        # cambiar el método a un simple CharFilter.
+        if value:
+            # Si en el futuro encriptas la IP, aquí iría la lógica de hash.
+            # Por ahora, hacemos una búsqueda exacta.
+            return queryset.filter(direccion_ip=value)
+        return queryset
+
 
 class PagoFilter(django_filters.FilterSet):
     forma_pago = ChoiceFilter(choices=CommonChoices.FORMA_PAGO_RECLAMACION,
@@ -342,7 +328,6 @@ class PagoFilter(django_filters.FilterSet):
         field_name='fecha_pago', widget=date_range_widget, label="Pagado Entre")
     monto_pago_range = NumericRangeFilter(
         field_name='monto_pago', widget=numeric_range_widget, label="Monto Entre")
-    referencia_pago = CharFilter(lookup_expr='icontains', label="Referencia")
     aplica_igtf_pago = BooleanFilter(
         field_name='aplica_igtf_pago', label="Sujeto a IGTF")
     fecha_notificacion_pago_range = DateFromToRangeFilter(
@@ -352,7 +337,7 @@ class PagoFilter(django_filters.FilterSet):
     class Meta:
         model = Pago
         fields = ['forma_pago', 'reclamacion', 'factura', 'fecha_pago_range', 'monto_pago_range',
-                  'referencia_pago', 'aplica_igtf_pago', 'fecha_notificacion_pago_range', 'activo']
+                  'aplica_igtf_pago', 'fecha_notificacion_pago_range', 'activo']
 
 
 class ReclamacionFilter(django_filters.FilterSet):
@@ -393,6 +378,7 @@ class TarifaFilter(django_filters.FilterSet):
         field_name='monto_anual', widget=numeric_range_widget, label="Monto Anual Entre")
     tipo_fraccionamiento = ChoiceFilter(
         choices=CommonChoices.FORMA_PAGO, label="Tipo Fraccionamiento", widget=Select2Widget)
+    activo = BooleanFilter(field_name='activo', label="Tarifa Activa")
 
     class Meta:
         model = Tarifa
@@ -402,11 +388,8 @@ class TarifaFilter(django_filters.FilterSet):
 
 class IntermediarioFilter(django_filters.FilterSet):
     codigo = CharFilter(lookup_expr='icontains', label="Código")
-    nombre_completo = CharFilter(
-        lookup_expr='icontains', label="Nombre Completo")
-    rif = CharFilter(lookup_expr='icontains', label="RIF")
-    email_contacto = CharFilter(
-        lookup_expr='icontains', label="Email Contacto")
+    rif = CharFilter(method='filter_by_rif_hash',
+                     label="RIF (Búsqueda Exacta)")
     porcentaje_comision_range = NumericRangeFilter(
         field_name='porcentaje_comision', widget=numeric_range_widget, label="Comisión (%) Entre")
     intermediario_relacionado = ModelChoiceFilter(queryset=Intermediario.objects.filter(
@@ -415,27 +398,25 @@ class IntermediarioFilter(django_filters.FilterSet):
 
     class Meta:
         model = Intermediario
-        fields = ['codigo', 'nombre_completo', 'rif', 'email_contacto',
-                  'porcentaje_comision_range', 'intermediario_relacionado', 'activo']
+        fields = ['codigo', 'rif', 'porcentaje_comision_range',
+                  'intermediario_relacionado', 'activo']
+
+    def filter_by_rif_hash(self, queryset, name, value):
+        if value:
+            rif_hash = hashlib.sha256(value.encode('utf-8')).hexdigest()
+            return queryset.filter(rif_hash=rif_hash)
+        return queryset
 
 
 class UsuarioFilter(django_filters.FilterSet):
-    primer_nombre = CharFilter(lookup_expr='icontains', label="Primer Nombre")
-    primer_apellido = CharFilter(
-        lookup_expr='icontains', label="Primer Apellido")
     email = CharFilter(lookup_expr='icontains', label="Email")
     username = CharFilter(lookup_expr='icontains', label="Username (Interno)")
     tipo_usuario = ChoiceFilter(
         choices=CommonChoices.TIPO_USUARIO, label="Tipo Usuario", widget=Select2Widget)
-    fecha_nacimiento_range = DateFromToRangeFilter(
-        field_name='fecha_nacimiento', widget=date_range_widget, label="Nacido Entre")
     departamento = ChoiceFilter(
         choices=CommonChoices.DEPARTAMENTO, label="Departamento", widget=Select2Widget)
-    telefono = CharFilter(lookup_expr='icontains', label="Teléfono")
     intermediario = ModelChoiceFilter(queryset=Intermediario.objects.filter(activo=True).order_by(
         'nombre_completo'), label="Intermediario Asociado", widget=Select2Widget)
-    nivel_acceso = ChoiceFilter(
-        choices=CommonChoices.NIVEL_ACCESO, label="Nivel Acceso", widget=Select2Widget)
     is_active = BooleanFilter(field_name='activo', label="Cuenta Activa")
     is_staff = BooleanFilter(field_name='is_staff', label="Es Staff (Admin)")
     is_superuser = BooleanFilter(
@@ -447,8 +428,8 @@ class UsuarioFilter(django_filters.FilterSet):
 
     class Meta:
         model = Usuario
-        fields = ['primer_nombre', 'primer_apellido', 'email', 'username', 'tipo_usuario', 'departamento', 'telefono', 'intermediario',
-                  'nivel_acceso', 'is_active', 'is_staff', 'is_superuser', 'fecha_nacimiento_range', 'date_joined_range', 'last_login_range']
+        fields = ['email', 'username', 'tipo_usuario', 'departamento', 'intermediario',
+                  'is_active', 'is_staff', 'is_superuser', 'date_joined_range', 'last_login_range']
 
 
 class RegistroComisionFilter(django_filters.FilterSet):

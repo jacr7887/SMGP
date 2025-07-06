@@ -1,79 +1,34 @@
-{% extends "home.html" %}
-{% load static humanize %}
-{% load querystring_tags %} {# Si usas query_transform para los enlaces de volver #}
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Confirmar Eliminación de Usuario{% endblock %}
 
 {% block content %}
-<div class="dark-container" role="main" aria-labelledby="main-heading">
-  <section>
-    <h1 id="main-heading">🗑️ Confirmar Eliminación de Usuario #{{ object.pk }}</h1> {# Título ajustado #}
-
-    <div class="header-actions">
-        <a href="{% url 'myapp:usuario_detail' object.pk %}" class="nav_link" aria-label="Cancelar y volver al detalle del usuario">
-            ⬅️ Cancelar y Volver al Detalle
-        </a>
-         <a href="{% url 'myapp:usuario_list' %}" class="nav_link" aria-label="Volver al listado de usuarios">
-            ⬅️ Volver al Listado
-        </a>
-    </div>
-
-    <div class="delete-confirmation mt-3" data-section="confirmacion-eliminacion">
-        <h2 class="dark-label">⚠️ Confirmación de Eliminación</h2>
-        <p>Estás a punto de eliminar permanentemente el siguiente registro de usuario. Verifica los datos:</p>
-
-        {# --- Resumen de Datos Clave del Usuario --- #}
-        <div class="detail-summary mb-3">
-            <div class="detail-section"> 
-                <h3 class="section-title visually-hidden">Datos Principales del Usuario</h3>
-                <div class="dark-group"><span class="dark-label">#️⃣ ID:</span><span class="data-value">{{ object.pk }}</span></div>
-                <div class="dark-group"><span class="dark-label">👤 Nombre Completo:</span><span class="data-value">{{ object.get_full_name|default:"No disponible" }}</span></div>
-                <div class="dark-group"><span class="dark-label">📧 Correo:</span><span class="data-value">{{ object.email|default:"No disponible" }}</span></div>
-                <div class="dark-group"><span class="dark-label">🔑 Tipo de Usuario:</span><span class="data-value">{{ object.get_tipo_usuario_display|default:"No disponible" }}</span></div>
-                <div class="dark-group"><span class="dark-label">🏢 Departamento:</span><span class="data-value">{{ object.get_departamento_display|default:"No disponible" }}</span></div>
-                <div class="dark-group"><span class="dark-label">☎️ Teléfono:</span><span class="data-value">{{ object.telefono|default:"No disponible" }}</span></div>
-                {# <div class="dark-group"><span class="dark-label">🏠 Dirección:</span><span class="data-value">{{ object.direccion|truncatechars:50|default:"No disponible" }}</span></div> #}
-                <div class="dark-group"><span class="dark-label">🔒 Nivel de Acceso:</span><span class="data-value">{{ object.get_nivel_acceso_display|default:"No disponible" }}</span></div>
-                <div class="dark-group"><span class="dark-label">💡 Estado Cuenta (Personalizado):</span><span class="badge {% if object.activo %}badge-success{% else %}badge-danger{% endif %}">{{ object.activo|yesno:"Activa,Inactiva" }}</span></div>
-                <div class="dark-group"><span class="dark-label">✅ Estado Django (is_active):</span><span class="badge {% if object.is_active %}badge-success{% else %}badge-danger{% endif %}">{{ object.is_active|yesno:"Activa,Inactiva" }}</span></div>
-            </div>
-        </div>
-        {# --- Fin Resumen de Datos --- #}
-
-        {# --- Lógica de Advertencia Mejorada --- #}
-        {# Asume que la vista pasa 'usuario_puede_ser_eliminado' (booleano) y 'mensaje_bloqueo_eliminacion' (string) al contexto #}
-        {% if not usuario_puede_ser_eliminado %} {# Si la vista determina que NO se puede eliminar #}
-            <div class="alert alert-danger mt-4" role="alert">
-                <p><strong>¡Acción Bloqueada!</strong> Este usuario **no puede ser eliminado**.</p>
-                {% if mensaje_bloqueo_eliminacion %}
-                    <p>{{ mensaje_bloqueo_eliminacion }}</p>
-                {% else %}
-                    <p>Puede tener registros asociados importantes o es un usuario protegido.</p>
-                {% endif %}
-            </div>
-        {% else %}
-            <div class="alert alert-warning mt-4" role="alert">
-                <p><strong>¡Atención!</strong> Esta acción no se puede deshacer.</p>
-                <p>Si eliminas este usuario, todos sus datos y asociaciones podrían perderse o quedar huérfanos.</p>
-                <p>¿Estás completamente seguro de que deseas eliminar a <strong>{{ object.get_full_name|default:object.username }}</strong>?</p>
-            </div>
-        {% endif %}
-        {# --- FIN Lógica de Advertencia --- #}
-
-        {# --- Formulario de Confirmación --- #}
-        <form method="post" class="delete-form mt-3" aria-label="Formulario de confirmación de eliminación">
+<div class="container" role="main">
+    <div class="confirm-delete-container">
+        <form method="post">
             {% csrf_token %}
+            <h1>Confirmar Eliminación</h1>
+            <p>¿Estás seguro de que quieres eliminar permanentemente al usuario <strong>"{{ object.get_full_name|default:object.username }}"</strong>?</p>
+            
+            {% if not usuario_puede_ser_eliminado %}
+                <div class="alert alert-danger">
+                    <h4>🚫 Acción Bloqueada</h4>
+                    <p>{{ mensaje_bloqueo_eliminacion }}</p>
+                </div>
+            {% else %}
+                <div class="alert alert-warning">
+                    <p><strong>Advertencia:</strong> Esta acción es irreversible y eliminará todos los datos asociados que no estén protegidos.</p>
+                </div>
+            {% endif %}
+
             <div class="form-actions">
-                <button type="submit" class="btn-warning" {% if not usuario_puede_ser_eliminado %}disabled title="{{ mensaje_bloqueo_eliminacion|default:'No se puede eliminar este usuario.' }}"{% endif %} aria-label="Confirmar la eliminación permanente de este usuario">
-                    🗑️ {% if not usuario_puede_ser_eliminado %}Eliminar (Bloqueado){% else %}Eliminar Definitivamente{% endif %}
-                </button>
-                
-                <a href="{% url 'myapp:usuario_detail' object.pk %}" class="btn-success" aria-label="Cancelar y volver al detalle del usuario">
-                    🚫 No, cancelar
-                </a>
+                {% if usuario_puede_ser_eliminado %}
+                    <button type="submit" class="btn btn-danger">Sí, estoy seguro, eliminar</button>
+                {% endif %}
+                <a href="{% url 'myapp:usuario_detail' object.pk %}" class="btn btn-secondary">No, cancelar y volver</a>
             </div>
         </form>
-        {# --- Fin Formulario --- #}
-
-    </div> {# Fin delete-confirmation #}
-  </section>
+    </div>
 </div>
-{% endblock content %}
+{% endblock %}

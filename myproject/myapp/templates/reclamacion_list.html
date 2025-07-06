@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% load static humanize %}
+{% load static %}
 
-{% block title %}Listado de Reclamaciones{% endblock %}
+{% block title %}Reclamaciones{% endblock %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 id="main-heading">🆘 Listado de Reclamaciones</h1>
+    <h1 id="main-heading">🆘 Reclamaciones</h1>
 
     <div class="header-actions">
       {% if perms.myapp.add_reclamacion %}
@@ -21,14 +21,18 @@
         <thead>
           <tr>
             <th>N° Reclamación</th>
-            <th>Contrato</th>
+            <th>Contrato Asociado</th>
             <th>Estado</th>
             <th>Tipo</th>
             <th>Monto Reclamado</th>
-            <th>Fecha Reclamo</th>
+            <th>Diagnóstico</th>
+            <th>Descripción</th>
+            <th>Obs. Internas</th>
+            <th>Obs. Cliente</th>
+            <th>Fecha Reclamo</th> {# Columna índice 9 #}
             <th>Fecha Cierre</th>
             <th>Usuario Asignado</th>
-            <th>Documentos</th>
+            <th>Soporte</th> {# <-- NUEVA COLUMNA #}
             <th>Activo</th>
             <th class="no-sort">Acciones</th>
           </tr>
@@ -37,38 +41,58 @@
           {% for reclamacion in object_list %}
             <tr>
               <td><a href="{% url 'myapp:reclamacion_detail' reclamacion.pk %}">{{ reclamacion.numero_reclamacion|default:"N/A" }}</a></td>
-              <td>{{ reclamacion.get_contrato_asociado_display }}</td>
+              <td>{{ reclamacion.get_contrato_asociado_display|default:"N/A" }}</td>
+              
+              {# --- Columna Estado con Psicología del Color MEJORADA --- #}
               <td>
-                {% if reclamacion.estado == 'APROBADA' or reclamacion.estado == 'CERRADA' %}<span class="badge badge-success">{{ reclamacion.get_estado_display }}</span>
-                {% elif reclamacion.estado == 'RECHAZADA' %}<span class="badge badge-danger">{{ reclamacion.get_estado_display }}</span>
-                {% elif reclamacion.estado == 'PENDIENTE_DOCS' %}<span class="badge badge-warning">{{ reclamacion.get_estado_display }}</span>
-                {% elif reclamacion.estado == 'ABIERTA' or reclamacion.estado == 'EN_PROCESO' %}<span class="badge badge-info">{{ reclamacion.get_estado_display }}</span>
-                {% elif reclamacion.estado == 'EN_ANALISIS' or reclamacion.estado == 'INVESTIGACION' %}<span class="badge badge-action">{{ reclamacion.get_estado_display }}</span>
+                {% if reclamacion.estado == 'ABIERTA' %}<span class="badge badge-danger" title="Requiere atención inmediata">Abierta</span>
+                {% elif reclamacion.estado == 'PENDIENTE_DOCS' %}<span class="badge badge-info" title="En espera de documentos del cliente">Pend. Docs</span>
+                {% elif reclamacion.estado == 'EN_PROCESO' or reclamacion.estado == 'EN_ANALISIS' or reclamacion.estado == 'INVESTIGACION' %}<span class="badge badge-action" title="Gestión activa en proceso">En Proceso</span>
+                {% elif reclamacion.estado == 'ESCALADA' %}<span class="badge badge-system" title="Escalada a un nivel superior de gestión">Escalada</span>
+                {% elif reclamacion.estado == 'APROBADA' %}<span class="badge badge-teal" title="Aprobada, pendiente de pago">Aprobada</span>
+                {% elif reclamacion.estado == 'PAGADA' %}<span class="badge badge-success" title="Reclamación pagada y finalizada">Pagada</span>
+                {% elif reclamacion.estado == 'CERRADA' %}<span class="badge badge-dark" title="Cerrada sin pago o por otra razón">Cerrada</span>
+                {% elif reclamacion.estado == 'RECHAZADA' or reclamacion.estado == 'SUSPENDIDA' %}<span class="badge badge-warning" title="Rechazada o suspendida, requiere revisión">Rechazada/Susp.</span>
                 {% else %}<span class="badge badge-secondary">{{ reclamacion.get_estado_display }}</span>{% endif %}
               </td>
+
+              {# --- Columna Tipo de Reclamación con Psicología del Color --- #}
               <td>
-                {# --- LÓGICA DE COLOR DETALLADA PARA TIPO DE RECLAMACIÓN --- #}
-                {% if reclamacion.tipo_reclamacion == 'MEDICA' %}<span class="badge badge-primary">{{ reclamacion.get_tipo_reclamacion_display }}</span>
-                {% elif reclamacion.tipo_reclamacion == 'ADMINISTRATIVA' %}<span class="badge badge-info">{{ reclamacion.get_tipo_reclamacion_display }}</span>
-                {% elif reclamacion.tipo_reclamacion == 'LEGAL' %}<span class="badge badge-dark">{{ reclamacion.get_tipo_reclamacion_display }}</span>
-                {% elif reclamacion.tipo_reclamacion == 'FINANCIERA' %}<span class="badge badge-special">{{ reclamacion.get_tipo_reclamacion_display }}</span>
-                {% elif reclamacion.tipo_reclamacion == 'SERVICIO' %}<span class="badge badge-action">{{ reclamacion.get_tipo_reclamacion_display }}</span>
+                {% if reclamacion.tipo_reclamacion == 'MEDICA' %}<span class="badge badge-primary" title="Reclamación Médica">Médica</span>
+                {% elif reclamacion.tipo_reclamacion == 'FINANCIERA' %}<span class="badge badge-success" title="Reclamación Financiera">Financiera</span>
+                {% elif reclamacion.tipo_reclamacion == 'LEGAL' %}<span class="badge badge-dark" title="Reclamación Legal">Legal</span>
+                {% elif reclamacion.tipo_reclamacion == 'ADMINISTRATIVA' %}<span class="badge badge-secondary" title="Reclamación Administrativa">Admin.</span>
+                {% elif reclamacion.tipo_reclamacion == 'SERVICIO' %}<span class="badge badge-info" title="Reclamación de Servicio">Servicio</span>
                 {% else %}<span class="badge badge-secondary">{{ reclamacion.get_tipo_reclamacion_display }}</span>{% endif %}
               </td>
-              <td>${{ reclamacion.monto_reclamado|floatformat:2|intcomma }}</td>
-              <td>{{ reclamacion.fecha_reclamo|date:"d/m/Y" }}</td>
-              <td>{{ reclamacion.fecha_cierre_reclamo|date:"d/m/Y"|default:"-" }}</td>
-              <td>{{ reclamacion.usuario_asignado.get_full_name|default:"-" }}</td>
-              <td>
+
+              <td>${{ reclamacion.monto_reclamado|floatformat:2|default:"0.00" }}</td>
+              <td title="{{ reclamacion.get_diagnostico_principal_display|default:'' }}">{{ reclamacion.get_diagnostico_principal_display|truncatechars:30|default:"N/A" }}</td>
+              
+              <!-- Nuevas columnas con campos de texto truncados -->
+              <td title="{{ reclamacion.descripcion_reclamo|escape }}">{{ reclamacion.descripcion_reclamo|truncatewords:5|default:"--" }}</td>
+              <td title="{{ reclamacion.observaciones_internas|escape }}">{{ reclamacion.observaciones_internas|truncatewords:5|default:"--" }}</td>
+              <td title="{{ reclamacion.observaciones_cliente|escape }}">{{ reclamacion.observaciones_cliente|truncatewords:5|default:"--" }}</td>
+
+              <td data-sort="{{ reclamacion.fecha_reclamo|date:'Y-m-d' }}">{{ reclamacion.fecha_reclamo|date:"d/m/Y" }}</td>
+              <td>{{ reclamacion.fecha_cierre_reclamo|date:"d/m/Y"|default:"--" }}</td>
+              <td>{{ reclamacion.usuario_asignado.get_full_name|default:"No asignado"|escape }}</td>
+
+              <!-- Columna para Documento de Soporte (CORREGIDA) -->
+              <td class="actions">
                 {% if reclamacion.documentos_adjuntos %}
-                  <a href="{{ reclamacion.documentos_adjuntos.url }}" class="action-icon file-popup-trigger" title="Ver Documento">📎</a>
+                  <a href="{{ reclamacion.documentos_adjuntos.url }}" class="action-icon file-popup-trigger" title="Ver Documento Adjunto">📎</a>
                 {% else %}
-                  -
+                  <span class="action-icon-placeholder" title="Sin documento">➖</span>
                 {% endif %}
               </td>
+
               <td>
-                {% if reclamacion.activo %}<span class="badge badge-success">Activa</span>
-                {% else %}<span class="badge badge-danger">Inactiva</span>{% endif %}
+                {% if reclamacion.activo %}
+                  <span class="badge badge-success">Activo</span>
+                {% else %}
+                  <span class="badge badge-danger">Inactivo</span>
+                {% endif %}
               </td>
               <td class="actions">
                 <div class="action-group">
@@ -77,7 +101,7 @@
                   <a href="{% url 'myapp:reclamacion_update' reclamacion.pk %}" class="action-icon" title="Editar">✏️</a>
                   {% endif %}
                   {% if perms.myapp.delete_reclamacion %}
-                  <a href="{% url 'myapp:reclamacion_delete' reclamacion.pk %}" class="action-icon delete-link" title="Eliminar" data-confirm="¿Está seguro?">❌</a>
+                  <a href="{% url 'myapp:reclamacion_delete' reclamacion.pk %}" class="action-icon delete-link" title="Eliminar" data-confirm="¿Está seguro de que desea eliminar esta reclamación?">❌</a>
                   {% endif %}
                 </div>
               </td>
@@ -97,7 +121,9 @@ $(document).ready(function() {
         language: { "url": "{% get_static_prefix %}es-ES.json" },
         "dom": "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>><'dt-layout-row'<'dt-layout-cell dt-full-width'tr>><'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
         "columnDefs": [{ "orderable": false, "targets": -1 }],
-        "order": [[ 5, "desc" ]]
+        // CORRECCIÓN: El índice de la columna de fecha ahora es 9
+        "order": [[ 9, "desc" ]], 
+        "scrollX": true
     });
 });
 </script>

@@ -2,10 +2,10 @@
 # Needed for dynamic model fetching if used in Meta or methods
 # Tus validadores
 from .validators import validate_past_date, validate_telefono_venezuela, validate_pasaporte
-# Donde defines NIVEL_ACCESO, TIPO_USUARIO, DEPARTAMENTO
 from .commons import CommonChoices, RAMO_ABREVIATURAS, RANGO_ETARIO_ABREVIATURAS
 import logging  # Para logging
 import uuid  # Para _generate_unique_username
+import hashlib
 from django.utils import timezone  # Para default=timezone.now en date_joined
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.apps import apps
@@ -280,207 +280,199 @@ class ModeloBase(models.Model):
 
 class UsuarioManager(BaseUserManager):
     def _generate_unique_username(self, base_username):
+        # Esta función auxiliar está perfecta, no necesita cambios.
         base_username_cleaned = "".join(
             filter(str.isalnum, base_username))[:20]
         base_part = base_username_cleaned[:20]
         unique_part = uuid.uuid4().hex[:6]
-        return (f"{base_part}_{unique_part}")[:150]
+        return f"{base_part}_{unique_part}"[:150]
 
-    def create_user(self, email, password=None, **extra_fields):
+    def _create_user(self, email, password, **extra_fields):
+        """
+        Método base privado para crear y guardar un usuario con un email y contraseña.
+        """
         if not email:
             raise ValueError("El correo electrónico es obligatorio.")
         email = self.normalize_email(email)
+
+        # Generar username si no se provee
         if 'username' not in extra_fields or not extra_fields.get('username'):
             base_username = email.split('@')[0]
             extra_fields['username'] = self._generate_unique_username(
                 base_username)
-        extra_fields.setdefault('nivel_acceso', 1)
-        extra_fields.setdefault('is_staff', False)
-        extra_fields.setdefault('is_superuser', False)
-        if 'tipo_usuario' not in extra_fields:
-            tipo_cliente = next(
-                (c[0] for c in CommonChoices.TIPO_USUARIO if c[0] == 'CLIENTE'), None)
-            extra_fields.setdefault('tipo_usuario', tipo_cliente or (
-                CommonChoices.TIPO_USUARIO[0][0] if CommonChoices.TIPO_USUARIO else "TIPO_DEFECTO"))
-        nivel = extra_fields.get('nivel_acceso')
-        is_staff = extra_fields.get('is_staff')
-        is_superuser = extra_fields.get('is_superuser')
-        if nivel == 5 and not (is_staff and is_superuser):
-            raise ValueError("Nivel 5 debe ser staff y superuser.")
-        if nivel == 4 and not is_staff:
-            raise ValueError("Nivel 4 debe ser staff.")
-        if nivel < 4 and is_staff:
-            raise ValueError(f"Nivel {nivel} no puede ser staff.")
-        if nivel < 5 and is_superuser:
-            raise ValueError(f"Nivel {nivel} no puede ser superuser.")
+
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
-        # El save() del modelo asignará grupo/permisos
+        # El método save() del modelo se encargará del resto
         user.save(using=self._db)
         return user
 
+    def create_user(self, email, password=None, **extra_fields):
+        """
+        Crea un usuario estándar.
+        """
+        # Forzamos los valores por defecto para un usuario no privilegiado.
+        extra_fields.setdefault('is_staff', False)
+        extra_fields.setdefault('is_superuser', False)
+        # El tipo de usuario por defecto será 'CLIENTE' si no se especifica otro.
+        extra_fields.setdefault('tipo_usuario', 'CLIENTE')
+        return self._create_user(email, password, **extra_fields)
+
     def create_superuser(self, email, password=None, **extra_fields):
-        extra_fields.setdefault('nivel_acceso', 5)
+        """
+        Crea un superusuario.
+        """
+        # Forzamos los valores que definen a un superusuario.
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('activo', True)
+        # El rol de un superusuario siempre será 'ADMIN'.
+        extra_fields['tipo_usuario'] = 'ADMIN'
+
         if extra_fields.get('is_staff') is not True:
             raise ValueError('Superuser debe tener is_staff=True.')
         if extra_fields.get('is_superuser') is not True:
             raise ValueError('Superuser debe tener is_superuser=True.')
-        if extra_fields.get('nivel_acceso') != 5:
-            raise ValueError('Superuser debe tener nivel_acceso=5.')
-        if 'tipo_usuario' not in extra_fields:
-            tipo_admin = next(
-                (c[0] for c in CommonChoices.TIPO_USUARIO if c[0] == 'ADMIN'), None)
-            extra_fields['tipo_usuario'] = tipo_admin or (
-                CommonChoices.TIPO_USUARIO[0][0] if CommonChoices.TIPO_USUARIO else "ADMIN_FALLBACK")
-        return self.create_user(email, password, **extra_fields)
 
+        return self._create_user(email, password, **extra_fields)
+
+
+# ===================================================================
+# ===              MODELO USUARIO CORREGIDO Y FINAL               ===
+# ===================================================================
 
 class Usuario(AbstractUser, ModeloBase):
     from encrypted_model_fields.fields import EncryptedEmailField, EncryptedDateField, EncryptedCharField, EncryptedTextField
 
-    # --- Indicar que los campos de AbstractUser no se usen directamente en la BD ---
-    # Django no creará columnas para estos en la tabla myapp_usuario.
-    # Seguirán existiendo en el objeto Python, pero no se persistirán directamente.
-    # Tú usarás primer_nombre, primer_apellido de ModeloBase.
+    # --- Campos de AbstractUser que no usamos ---
     first_name = None
     last_name = None
-    # ---------------------------------------------------------------------------
 
-    # Tus campos personalizados
+    # --- Campos Principales ---
     email = models.EmailField(
         "Correo Electrónico",
         unique=True,
         error_messages={
             'unique': "Este correo electrónico ya está registrado."},
-        help_text="Correo electrónico único.",
+        help_text="Correo electrónico único, usado para el login.",
         validators=[validate_email]
     )
-    nivel_acceso = models.PositiveIntegerField("Nivel de Acceso", choices=CommonChoices.NIVEL_ACCESO, default=1, validators=[
-                                               MinValueValidator(1), MaxValueValidator(5)], db_index=True, help_text="Define los permisos base.")
-    tipo_usuario = models.CharField("Tipo de Usuario", max_length=50, choices=CommonChoices.TIPO_USUARIO,
-                                    db_index=True, help_text="Clasificación funcional del usuario.")
-    activo = models.BooleanField("Cuenta Activa (Personalizado)", default=True,
-                                 help_text="Controla si el usuario puede iniciar sesión (fuente de verdad).")
-    fecha_nacimiento = EncryptedDateField(
-        "Fecha de Nacimiento",
-        validators=[validate_past_date],
-        null=True,
-        blank=True
+    # El campo 'username' de AbstractUser se mantiene por compatibilidad con Django,
+    # pero lo hacemos no editable y lo generamos automáticamente.
+    username = models.CharField(
+        "Nombre de usuario (interno)", max_length=150, unique=True,
+        help_text="Requerido. Generado automáticamente si se omite.",
+        error_messages={
+            'unique': "Un usuario con ese nombre de usuario ya existe."},
+        editable=False
     )
+
+    # --- NUESTRA FUENTE DE LA VERDAD PARA PERMISOS ---
+    tipo_usuario = models.CharField(
+        "Tipo de Usuario (Rol)",
+        max_length=50,
+        choices=CommonChoices.TIPO_USUARIO,
+        default='CLIENTE',  # Un default seguro
+        db_index=True,
+        help_text="Clasificación funcional que define los permisos del usuario."
+    )
+    activo = models.BooleanField(
+        "Cuenta Activa", default=True,
+        help_text="Controla si el usuario puede iniciar sesión. Desmarcar en lugar de borrar."
+    )
+    fecha_nacimiento = EncryptedDateField("Fecha de Nacimiento", validators=[
+                                          validate_past_date], null=True, blank=True)
     departamento = models.CharField(
         "Departamento", max_length=50, choices=CommonChoices.DEPARTAMENTO, blank=True, null=True, db_index=True)
-    telefono = EncryptedCharField(
-        "Teléfono",
-        validators=[validate_telefono_venezuela],
-        blank=True,
-        null=True
-    )
+    telefono = EncryptedCharField("Teléfono", validators=[
+                                  validate_telefono_venezuela], blank=True, null=True)
     direccion = EncryptedTextField("Dirección", blank=True, null=True)
+    intermediario = models.ForeignKey(
+        'Intermediario', on_delete=models.SET_NULL, blank=True, null=True,
+        related_name='usuarios_asignados', verbose_name="Intermediario Asociado", db_index=True
+    )
 
-    intermediario = models.ForeignKey('Intermediario', on_delete=models.SET_NULL, blank=True, null=True,
-                                      related_name='usuarios_asignados', verbose_name="Intermediario Asociado", db_index=True)
-    username = models.CharField("Nombre de usuario (interno)", max_length=150, unique=True, help_text="Requerido. Generado automáticamente si se omite.", error_messages={
-                                'unique': "Un usuario con ese nombre de usuario ya existe.", }, editable=False)
-
+    # --- Configuración del Modelo ---
     USERNAME_FIELD = 'email'
-    # Estos vienen de ModeloBase
     REQUIRED_FIELDS = ['primer_nombre', 'primer_apellido']
 
     objects = UsuarioManager()
-    all_objects = models.Manager()
+    all_objects = models.Manager()  # Para poder ver usuarios inactivos si es necesario
 
-    # Mapeo Nivel -> Nombre Grupo (si lo usas para _assign_group_based_on_level)
-    NIVEL_A_GRUPO_NOMBRE = {
-        1: "SMGP - Nivel 1 (Solo Ver)",
-        2: "SMGP - Nivel 2 (Ver y Crear)",
-        3: "SMGP - Nivel 3 (Ver, Crear, Editar)",
-        4: "SMGP - Nivel 4 (Gestión Total Datos)",
+    # Mapeo de Rol a Nombre de Grupo de Permisos
+    ROL_A_GRUPO_NOMBRE = {
+        'ADMIN': 'Rol - Administrador',
+        'INTERMEDIARIO': 'Rol - Intermediario',
+        'CLIENTE': 'Rol - Cliente',
+        'AUDITOR': 'Rol - Auditor',
     }
 
     def save(self, *args, **kwargs):
+        """
+        Sobrescribe el método save para sincronizar el estado y los permisos
+        basados en el `tipo_usuario`.
+        """
+        # 1. Sincronizar el estado `is_active` de Django con nuestro campo `activo`
         self.is_active = self.activo
 
+        # 2. Sincronizar los privilegios de staff/superuser basados en el rol
+        if self.tipo_usuario == 'ADMIN':
+            self.is_staff = True
+            self.is_superuser = True
+        else:
+            self.is_staff = False
+            self.is_superuser = False
+
+        # 3. Obtener el tipo de usuario anterior para detectar cambios
         is_new = self._state.adding
+        old_tipo_usuario = None
+        if not is_new:
+            try:
+                old_instance = Usuario.objects.only(
+                    'tipo_usuario').get(pk=self.pk)
+                old_tipo_usuario = old_instance.tipo_usuario
+            except Usuario.DoesNotExist:
+                pass  # El objeto aún no existe, se tratará como nuevo
 
-        if hasattr(self, 'nivel_acceso'):
-            if self.nivel_acceso == 5:
-                self.is_staff = True
-                self.is_superuser = True
-            elif self.nivel_acceso == 4:
-                self.is_staff = True
-                self.is_superuser = False
-            else:
-                self.is_staff = False
-                self.is_superuser = False
-
-            if self.is_superuser and self.nivel_acceso != 5:
-                self.nivel_acceso = 5
-                self.is_staff = True
-
-        if is_new and not self.username:
-            if hasattr(self.__class__.objects, '_generate_unique_username'):
-                self.username = self.__class__.objects._generate_unique_username(
-                    self.email.split('@')[0])
-            else:
-                self.username = self.email.split(
-                    '@')[0] + "_" + uuid.uuid4().hex[:4]
-
-        # Sincronizar los campos de nombre de AbstractUser con los de ModeloBase
-        # ANTES de llamar a super().save() para que AbstractUser.get_full_name() funcione
-        # si alguna parte de Django lo usa internamente.
-        # Esto es opcional si solo usas tu propio get_full_name().
-        # setattr(self, AbstractUser.first_name.field.name, self.primer_nombre or "")
-        # setattr(self, AbstractUser.last_name.field.name, self.primer_apellido or "")
-
+        # 4. Guardar el objeto en la base de datos
         super().save(*args, **kwargs)
 
-        if hasattr(self, '_assign_group_based_on_level'):
-            old_nivel_acceso_para_grupo = None
-            if not is_new and self.pk:
-                try:
-                    old_instance = type(self).objects.only(
-                        'nivel_acceso').get(pk=self.pk)
-                    old_nivel_acceso_para_grupo = old_instance.nivel_acceso
-                except type(self).DoesNotExist:
-                    logger.warning(
-                        f"Usuario PK {self.pk} no encontrado para obtener old_nivel_acceso en save().")
+        # 5. Sincronizar los grupos de permisos si es un usuario nuevo o su rol cambió
+        if is_new or (old_tipo_usuario != self.tipo_usuario):
+            self._assign_group_based_on_role()
 
-            nivel_actual = self.nivel_acceso
-            if is_new or (old_nivel_acceso_para_grupo is not None and old_nivel_acceso_para_grupo != nivel_actual):
-                self._assign_group_based_on_level(
-                    old_level_acceso=old_nivel_acceso_para_grupo)
-            elif old_nivel_acceso_para_grupo is None and not is_new and self.pk:
-                self._assign_group_based_on_level(old_level_acceso=None)
-
-    def _assign_group_based_on_level(self, old_level_acceso=None):
-        # Tu lógica de asignación de grupos
+    def _assign_group_based_on_role(self):
+        """
+        Añade al usuario al grupo correspondiente a su rol y lo elimina de los otros.
+        """
         if not self.pk:
             return
-        # Importar aquí para evitar circularidad
+
         from django.contrib.auth.models import Group
-        current_group_name = self.NIVEL_A_GRUPO_NOMBRE.get(self.nivel_acceso)
-        groups_managed_by_level = set(self.NIVEL_A_GRUPO_NOMBRE.values())
-        groups_to_remove = [g for g in self.groups.all(
-        ) if g.name in groups_managed_by_level and g.name != current_group_name]
-        if groups_to_remove:
-            self.groups.remove(*groups_to_remove)
-        if current_group_name:
+
+        current_group_name = self.ROL_A_GRUPO_NOMBRE.get(self.tipo_usuario)
+
+        # Eliminar al usuario de todos los grupos de roles gestionados por este sistema
+        self.groups.remove(
+            *Group.objects.filter(name__in=self.ROL_A_GRUPO_NOMBRE.values()))
+
+        # Si el rol tiene un grupo asociado (ej. no es ADMIN, que ya es superuser), lo añadimos.
+        if current_group_name and self.tipo_usuario != 'ADMIN':
             try:
                 group_obj, created = Group.objects.get_or_create(
                     name=current_group_name)
                 if created:
-                    logger.warning(
-                        f"Grupo '{current_group_name}' CREADO automáticamente.")
-                if not self.groups.filter(pk=group_obj.pk).exists():
-                    self.groups.add(group_obj)
+                    logger.warning(f"Grupo de rol '{current_group_name}' fue CREADO automáticamente. "
+                                   f"Ejecute 'manage.py setup_roles' para asignarle permisos.")
+                self.groups.add(group_obj)
+                logger.info(
+                    f"Usuario {self.email} añadido al grupo '{current_group_name}'.")
             except Exception as e:
                 logger.error(
-                    f"Error asignando/creando grupo '{current_group_name}': {e}", exc_info=True)
+                    f"Error asignando grupo '{current_group_name}' al usuario {self.email}: {e}", exc_info=True)
 
-    def get_full_name(self):  # Tu método personalizado
+    # --- Métodos de conveniencia (sin cambios) ---
+    def get_full_name(self):
         parts = [self.primer_apellido, self.segundo_apellido]
         apellidos = " ".join(p for p in parts if p).strip()
         parts = [self.primer_nombre, self.segundo_nombre]
@@ -489,7 +481,6 @@ class Usuario(AbstractUser, ModeloBase):
             return f"{apellidos}, {nombres}"
         return nombres or apellidos or self.email
 
-    # Sobrescribir get_short_name de AbstractUser para usar tu primer_nombre
     def get_short_name(self):
         return self.primer_nombre or self.email.split('@')[0]
 
@@ -500,11 +491,11 @@ class Usuario(AbstractUser, ModeloBase):
         verbose_name = "Usuario del Sistema"
         verbose_name_plural = "Usuarios del Sistema"
         indexes = [
-            models.Index(fields=['nivel_acceso', 'activo']),
+            models.Index(fields=['tipo_usuario', 'activo']),
             models.Index(fields=['departamento', 'activo']),
             models.Index(fields=['email'])
         ] + (ModeloBase.Meta.indexes if hasattr(ModeloBase, 'Meta') and hasattr(ModeloBase.Meta, 'indexes') else [])
-        ordering = ['primer_apellido', 'primer_nombre', 'email']
+        ordering = ['-date_joined']  # Orden por defecto seguro y no encriptado
 # ---------------------------
 # ContratoBase Corregido
 # ---------------------------
@@ -595,7 +586,7 @@ class ContratoBase(ModeloBase):
         verbose_name="Fecha de Emisión del Contrato",
         db_index=True,
         editable=True,
-        default=timezone.now,
+        default=django_timezone.now,
         help_text="Fecha y hora en que se emitió oficialmente el contrato."
     )
     fecha_inicio_vigencia = models.DateField(
@@ -906,11 +897,19 @@ class AfiliadoIndividual(ModeloBase):
         help_text="Tipo de documento de identidad principal del afiliado."
     )
     cedula = EncryptedCharField(
-        unique=True,
         verbose_name="Cédula de Identidad",
         help_text=(
             "Cédula de Identidad del afiliado. Formato: V-12345678 o E-8765432 (guion opcional)."),
         validators=[validate_cedula]
+    )
+    cedula_hash = models.CharField(
+        max_length=64,  # SHA-256 produce un hash de 64 caracteres hexadecimales
+        unique=True,    # Esta restricción SÍ se aplicará en la BD y será rápida
+        db_index=True,  # Indexar para búsquedas aún más rápidas
+        null=False,      # Temporalmente permitimos null para la migración
+        blank=True,
+        editable=False,
+        verbose_name="Hash de la Cédula (para búsquedas)"
     )
     estado_civil = models.CharField(
         max_length=50,
@@ -1064,40 +1063,42 @@ class AfiliadoIndividual(ModeloBase):
             timestamp = django_timezone.now().strftime("%H%M%S")
             return f"VAL-AFI-ERR-{mes_ano_str}-{timestamp}"
 
+    # --- MÉTODO 'save' CORREGIDO Y COMPLETO ---
     def save(self, *args, **kwargs):
+        # Generar el hash ANTES de cualquier otra cosa.
+        if self.cedula:
+            self.cedula_hash = hashlib.sha256(
+                self.cedula.encode('utf-8')).hexdigest()
+        else:
+            self.cedula_hash = None
 
+        # El resto de tu lógica de save original
         is_new = self._state.adding
-        # Generar/actualizar codigo_validacion si está vacío o si es una actualización
-        # y quieres que se regenere (esto último es opcional).
-        # Por ahora, solo si está vacío al crear.
         if is_new and not self.codigo_validacion:
-            # El PK no estará disponible aquí, así que el código tendrá "NVO"
-            # Se actualizará post-save si es necesario.
             self.codigo_validacion = self._generar_codigo_validacion()
-            self._cv_needs_update_post_save = True  # Flag para actualizar post-save
+            self._cv_needs_update_post_save = True
         else:
             self._cv_needs_update_post_save = False
 
         super().save(*args, **kwargs)
 
         if hasattr(self, '_cv_needs_update_post_save') and self._cv_needs_update_post_save and self.pk:
-            new_cv = self._generar_codigo_validacion()  # Ahora self.pk existe
-            if self.codigo_validacion != new_cv:  # Solo actualizar si es diferente
+            new_cv = self._generar_codigo_validacion()
+            if self.codigo_validacion != new_cv:
                 AfiliadoIndividual.objects.filter(
                     pk=self.pk).update(codigo_validacion=new_cv)
-                self.codigo_validacion = new_cv  # Actualizar instancia en memoria
-            del self._cv_needs_update_post_save  # Limpiar flag
+                self.codigo_validacion = new_cv
+            del self._cv_needs_update_post_save
 
     class Meta:
         verbose_name = "Afiliado Individual"
         verbose_name_plural = "Afiliados Individuales"
         indexes = [
-            models.Index(fields=['tipo_identificacion', 'cedula']),
             models.Index(fields=['primer_apellido', 'primer_nombre']),
             models.Index(fields=['fecha_nacimiento']),
             models.Index(fields=['fecha_ingreso']),
         ]
-        ordering = ['primer_apellido', 'primer_nombre']
+        ordering = ['-fecha_creacion']
 
     def __str__(self):
         return f"{self.primer_nombre} {self.primer_apellido} ({self.cedula})"
@@ -1162,13 +1163,21 @@ class AfiliadoColectivo(ModeloBase):
     )
 
     rif = EncryptedCharField(
-        unique=True,
         verbose_name="RIF",
         null=True,
         blank=True,
         default=None,
         validators=[validate_rif],
         help_text="RIF de la empresa. Formato Requerido: Letra-8Números-1Número (Ej: J-12345678-9).",
+    )
+    rif_hash = models.CharField(
+        max_length=64,
+        unique=True,
+        db_index=True,
+        null=False,     # Requerido para la 1ra migración
+        blank=True,
+        editable=False,
+        verbose_name="Hash del RIF (para búsquedas)"
     )
     tipo_empresa = models.CharField(
         max_length=50,
@@ -1239,21 +1248,28 @@ class AfiliadoColectivo(ModeloBase):
     all_objects = models.Manager()
 
     def save(self, *args, **kwargs):
-        is_new = self._state.adding
+        # --- 1. Generar hash para RIF ---
+        if self.rif:
+            self.rif_hash = hashlib.sha256(
+                self.rif.encode('utf-8')).hexdigest()
+        else:
+            self.rif_hash = None
+
+        # --- 2. Lógica original para llenar nombres ---
+        # No depende de si es nuevo o no, así que se puede ejecutar siempre.
         if not self.primer_nombre and self.razon_social:
             self.primer_nombre = self.razon_social[:100]
         if not self.primer_apellido:
             self.primer_apellido = "(Colectivo)"
 
+        # --- 3. Llamada final al save() de la clase padre ---
         super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = "Afiliado Colectivo"
         verbose_name_plural = "Afiliados Colectivos"
         indexes = [
-            models.Index(fields=['rif']),
             models.Index(fields=['razon_social']),
-            models.Index(fields=['rif', 'razon_social']),
             models.Index(fields=['activo']),
         ]
 
@@ -1538,7 +1554,7 @@ class ContratoIndividual(ContratoBase):
 
     def _generar_recibo_inicial_contrato(self):
         # print(f"    CI (PK:{self.pk or 'Nuevo'}) GENERANDO RECIBO INICIAL...")
-        fecha_em = self.fecha_emision or timezone.now()
+        fecha_em = self.fecha_emision or django_timezone.now()
         fecha_em_str_aa = fecha_em.strftime("%y%m%d")
 
         nc_parte = "SCN"
@@ -1559,52 +1575,10 @@ class ContratoIndividual(ContratoBase):
 
     def save(self, *args, **kwargs):
         is_new = self._state.adding
-        self._monto_total_pre_calculado_por_hijo = False  # Flag para ContratoBase
+        self._monto_total_pre_calculado_por_hijo = False
 
-        # --- MANEJO DE fecha_emision (DateTimeField) ---
-        if self.fecha_emision:  # Si fecha_emision ya tiene un valor
-            if timezone.is_naive(self.fecha_emision):
-                logger_model_save.warning(
-                    f"ContratoIndividual (PK: {self.pk or 'Nuevo'}, Num: {self.numero_contrato or 'N/A'}): "
-                    f"fecha_emision ({self.fecha_emision}) era naive. Haciéndola aware con current_timezone."
-                )
-                self.fecha_emision = timezone.make_aware(
-                    self.fecha_emision, timezone.get_current_timezone())
-        elif is_new:  # Si es nuevo y fecha_emision no fue provista, usar timezone.now()
-            logger_model_save.info(
-                f"ContratoIndividual (PK: {self.pk or 'Nuevo'}, Num: {self.numero_contrato or 'N/A'}): "
-                f"fecha_emision no provista y es nuevo. Usando timezone.now()."
-            )
-            self.fecha_emision = timezone.now()
-        # Si no es nuevo y fecha_emision es None, se permite (asumiendo que el campo permite null=True o blank=True)
-        # aunque para fecha_emision usualmente no sería el caso.
-
-        # --- INICIO DE MODIFICACIONES PARA GENERACIÓN DE CÓDIGOS ÚNICOS ---
-        if is_new:
-            if not self.numero_contrato:
-                self.numero_contrato = f"CONT-IND-{uuid.uuid4().hex[:12].upper()}"
-                logger_model_save.info(
-                    f"ContratoIndividual nuevo, numero_contrato generado (UUID): {self.numero_contrato}")
-
-            if not self.numero_poliza:
-                self.numero_poliza = f"POL-IND-{uuid.uuid4().hex[:12].upper()}"
-                logger_model_save.info(
-                    f"ContratoIndividual nuevo, numero_poliza generado (UUID): {self.numero_poliza}")
-
-            if not self.certificado:
-                self.certificado = f"CERT-IND-{uuid.uuid4().hex[:12].upper()}"
-                logger_model_save.info(
-                    f"ContratoIndividual nuevo, certificado generado (UUID): {self.certificado}")
-
-            if not self.numero_recibo:
-                # self.fecha_emision ya es aware aquí
-                fecha_recibo_str = (
-                    self.fecha_emision or timezone.now()).strftime("%y%m%d")
-                self.numero_recibo = f"REC-IND-{fecha_recibo_str}-{uuid.uuid4().hex[:10].upper()}"
-                logger_model_save.info(
-                    f"ContratoIndividual nuevo, numero_recibo generado (UUID): {self.numero_recibo}")
-        # --- FIN DE MODIFICACIONES PARA GENERACIÓN DE CÓDIGOS ÚNICOS ---
-
+        # --- 1. Sincronizar datos del Afiliado ---
+        # Es bueno hacerlo primero para que otros cálculos puedan usar los nombres.
         if self.afiliado:
             if is_new or not self.primer_nombre:
                 self.primer_nombre = self.afiliado.primer_nombre
@@ -1612,12 +1586,19 @@ class ContratoIndividual(ContratoBase):
                 self.primer_apellido = self.afiliado.primer_apellido
                 self.segundo_apellido = self.afiliado.segundo_apellido
 
-        # Asegurar que fecha_inicio_vigencia (DateField) se base en una fecha consciente si es necesario
+        # --- 2. Manejo de Fechas y Vigencia ---
+        # Asegurar que fecha_emision sea 'aware'
+        if self.fecha_emision and django_timezone.is_naive(self.fecha_emision):
+            self.fecha_emision = django_timezone.make_aware(
+                self.fecha_emision, django_timezone.get_current_timezone())
+        elif is_new and not self.fecha_emision:
+            self.fecha_emision = django_timezone.now()
+
+        # Establecer fecha de inicio si no existe
         if not self.fecha_inicio_vigencia and self.fecha_emision:
-            # self.fecha_emision esDateTimeField aware, .date() lo convierte a objeto date
             self.fecha_inicio_vigencia = self.fecha_emision.date()
 
-        # Sincronizar periodo_vigencia_meses y fecha_fin_vigencia (DateField)
+        # Sincronizar periodo_vigencia_meses y fecha_fin_vigencia
         if self.fecha_inicio_vigencia and relativedelta:
             if self.periodo_vigencia_meses and isinstance(self.periodo_vigencia_meses, int) and self.periodo_vigencia_meses > 0:
                 self.fecha_fin_vigencia = self.fecha_inicio_vigencia + \
@@ -1634,69 +1615,68 @@ class ContratoIndividual(ContratoBase):
                 self.periodo_vigencia_meses = max(1, meses_calculados)
             elif is_new:
                 self.periodo_vigencia_meses = 12
-                if self.fecha_inicio_vigencia:
-                    self.fecha_fin_vigencia = self.fecha_inicio_vigencia + \
-                        relativedelta(months=+12) - timedelta(days=1)
-                else:
-                    self.fecha_fin_vigencia = None
+                self.fecha_fin_vigencia = self.fecha_inicio_vigencia + \
+                    relativedelta(months=+12) - timedelta(days=1)
 
-        # dias_transcurridos_ingreso
+        # --- 3. Generación de Códigos Únicos para instancias nuevas ---
+        if is_new:
+            if not self.numero_contrato:
+                self.numero_contrato = f"CONT-IND-{uuid.uuid4().hex[:12].upper()}"
+            if not self.numero_poliza:
+                self.numero_poliza = f"POL-IND-{uuid.uuid4().hex[:12].upper()}"
+            if not self.certificado:
+                self.certificado = f"CERT-IND-{uuid.uuid4().hex[:12].upper()}"
+            if not self.numero_recibo:
+                fecha_recibo_str = (
+                    self.fecha_emision or django_timezone.now()).strftime("%y%m%d")
+                self.numero_recibo = f"REC-IND-{fecha_recibo_str}-{uuid.uuid4().hex[:10].upper()}"
+
+        # --- 4. Cálculos finales ---
         if self.afiliado and self.afiliado.fecha_ingreso and self.fecha_emision:
-            fecha_ing_afiliado = self.afiliado.fecha_ingreso  # DateField
-            # Convertir fecha_emision (DateTimeField aware) a objeto date para comparar
-            fecha_emi_contrato_date = self.fecha_emision.date()
-
-            if isinstance(fecha_ing_afiliado, date) and isinstance(fecha_emi_contrato_date, date):
-                self.dias_transcurridos_ingreso = (
-                    fecha_emi_contrato_date - fecha_ing_afiliado).days if fecha_emi_contrato_date >= fecha_ing_afiliado else 0
-            else:
-                # Esto no debería pasar si los tipos son correctos
-                self.dias_transcurridos_ingreso = None
-                logger_model_save.warning(
-                    f"ContratoIndividual {self.numero_contrato or self.pk or 'Nuevo'}: No se pudo calcular dias_transcurridos_ingreso. fecha_ing_afiliado: {fecha_ing_afiliado}, fecha_emi_contrato_date: {fecha_emi_contrato_date}")
+            self.dias_transcurridos_ingreso = (self.fecha_emision.date(
+            ) - self.afiliado.fecha_ingreso).days if self.fecha_emision.date() >= self.afiliado.fecha_ingreso else 0
         else:
             self.dias_transcurridos_ingreso = None
 
-        # La lógica de monto_total se maneja en ContratoBase.save() o si la sobreescribes aquí
-        # y activas el flag self._monto_total_pre_calculado_por_hijo = True
-
-        super().save(*args, **kwargs)  # Llama a ContratoBase.save()
+        # --- 5. Llamada final al save() de la clase padre ---
+        # ContratoBase.save() se encargará del cálculo de monto_total.
+        super().save(*args, **kwargs)
 
     def generate_contract_number(self):
         with transaction.atomic():  # Transacción atómica completa
             try:
-                current_date = timezone.now().strftime("%y%m%d")
+                current_date = django_timezone.now().strftime("%y%m%d")
                 seq_name = f'ci_{current_date}'
 
                 logger.debug(
                     f"[Generate Contract Num - Ind] Secuencia: {seq_name}")
                 next_val = get_next_value(seq_name, initial_value=1)
 
-                return f"CONT-IND-{timezone.now().strftime('%Y%m%d')}-{next_val:04d}"
+                return f"CONT-IND-{django_timezone.now().strftime('%Y%m%d')}-{next_val:04d}"
 
             except Exception as e:
                 logger.exception(
                     f"Error generando número de contrato individual: {e}")
-                timestamp = timezone.now().strftime("%Y%m%d%H%M%S")
+                timestamp = django_timezone.now().strftime("%Y%m%d%H%M%S")
                 unique_id = uuid.uuid4().hex[:6]  # ID más corto pero único
                 return f"ERR-CI-{timestamp}-{unique_id}"
 
     def generate_policy_number(self):
         with transaction.atomic():  # Transacción atómica completa
             try:
-                current_date = timezone.now().strftime("%y%m%d")
+                current_date = django_timezone.now().strftime("%y%m%d")
                 seq_name = f'pi_{current_date}'
 
                 logger.debug(
                     f"[Generate Policy Num - Ind] Secuencia: {seq_name}")
                 next_val = get_next_value(seq_name, initial_value=1)
 
-                return f"POL-IND-{timezone.now().strftime('%Y%m%d')}-{next_val:04d}"
+                return f"POL-IND-{django_timezone.now().strftime('%Y%m%d')}-{next_val:04d}"
 
             except Exception as e:
                 logger.exception(
                     f"Error generando número de póliza individual: {e}")
-                timestamp = timezone.now().strftime("%Y%m%d%H%M%S")
+                timestamp = django_timezone.now().strftime("%Y%m%d%H%M%S")
                 unique_id = uuid.uuid4().hex[:6]
                 return f"ERR-PI-{timestamp}-{unique_id}"
 
@@ -2002,7 +1982,7 @@ class ContratoColectivo(ContratoBase):
 
     def _generar_recibo_inicial_contrato(self):
         # print(f"    CC (PK:{self.pk or 'Nuevo'}) GENERANDO RECIBO INICIAL...")
-        fecha_em = self.fecha_emision or timezone.now()
+        fecha_em = self.fecha_emision or django_timezone.now()
         fecha_em_str_aa = fecha_em.strftime("%y%m%d")
 
         nc_parte = "SCN"
@@ -2050,66 +2030,22 @@ class ContratoColectivo(ContratoBase):
             return calculated_monto.quantize(Decimal("0.01"), ROUND_HALF_UP)
         return None
 
+# En la clase ContratoColectivo (models.py)
+
     def save(self, *args, **kwargs):
         is_new = self._state.adding
         self._monto_total_pre_calculado_por_hijo = False
 
-        # --- MANEJO DE fecha_emision (DateTimeField) ---
-        if self.fecha_emision:
-            if timezone.is_naive(self.fecha_emision):
-                logger_model_save.warning(
-                    f"ContratoColectivo (PK: {self.pk or 'Nuevo'}, Num: {self.numero_contrato or 'N/A'}): "
-                    f"fecha_emision ({self.fecha_emision}) era naive. Haciéndola aware con current_timezone."
-                )
-                self.fecha_emision = timezone.make_aware(
-                    self.fecha_emision, timezone.get_current_timezone())
-        elif is_new:
-            logger_model_save.info(
-                f"ContratoColectivo (PK: {self.pk or 'Nuevo'}, Num: {self.numero_contrato or 'N/A'}): "
-                f"fecha_emision no provista y es nuevo. Usando timezone.now()."
-            )
-            self.fecha_emision = timezone.now()
+        # --- 1. Manejo de Fechas y Vigencia ---
+        if self.fecha_emision and django_timezone.is_naive(self.fecha_emision):
+            self.fecha_emision = django_timezone.make_aware(
+                self.fecha_emision, django_timezone.get_current_timezone())
+        elif is_new and not self.fecha_emision:
+            self.fecha_emision = django_timezone.now()
 
-        # --- Generación de Códigos Únicos (como estaba) ---
-        if is_new:
-            if not self.numero_contrato:
-                self.numero_contrato = f"CONT-COL-{uuid.uuid4().hex[:12].upper()}"
-                logger_model_save.info(
-                    f"ContratoColectivo nuevo, numero_contrato generado (UUID): {self.numero_contrato}")
-            if not self.numero_poliza:
-                self.numero_poliza = f"POL-COL-{uuid.uuid4().hex[:12].upper()}"
-                logger_model_save.info(
-                    f"ContratoColectivo nuevo, numero_poliza generado (UUID): {self.numero_poliza}")
-            if not self.certificado:
-                self.certificado = f"CERT-COL-{uuid.uuid4().hex[:8].upper()}"
-                logger_model_save.info(
-                    f"ContratoColectivo nuevo, certificado generado (UUID): {self.certificado}")
-            if not self.numero_recibo:
-                fecha_recibo_str = (
-                    self.fecha_emision or timezone.now()).strftime("%y%m%d")
-                self.numero_recibo = f"REC-COL-{fecha_recibo_str}-{uuid.uuid4().hex[:10].upper()}"
-                logger_model_save.info(
-                    f"ContratoColectivo nuevo, numero_recibo generado (UUID): {self.numero_recibo}")
-            if not self.codigo_validacion:  # Asumo que este también debe ser único o generado
-                self.codigo_validacion = f"VAL-CCC-{uuid.uuid4().hex[:12].upper()}"
-                logger_model_save.info(
-                    f"ContratoColectivo nuevo, codigo_validacion generado (UUID): {self.codigo_validacion}")
-
-        # Llenar campos de ModeloBase
-        if not self.primer_nombre and self.razon_social:
-            parts = self.razon_social.split(maxsplit=1)
-            self.primer_nombre = parts[0][:100]
-            self.primer_apellido = f"(Colectivo {self.rif or ''})"[
-                :100] if len(parts) > 1 else "(Colectivo)"
-        elif not self.primer_nombre:  # Fallback si no hay razon_social
-            self.primer_nombre = "Colectivo Sin Razón Social"
-            self.primer_apellido = "(Colectivo)"
-
-        # Asegurar que fecha_inicio_vigencia (DateField) se base en una fecha consciente
         if not self.fecha_inicio_vigencia and self.fecha_emision and is_new:
             self.fecha_inicio_vigencia = self.fecha_emision.date()
 
-        # Sincronizar periodo_vigencia_meses y fecha_fin_vigencia (DateField)
         if self.fecha_inicio_vigencia and relativedelta:
             if self.periodo_vigencia_meses and isinstance(self.periodo_vigencia_meses, int) and self.periodo_vigencia_meses > 0:
                 self.fecha_fin_vigencia = self.fecha_inicio_vigencia + \
@@ -2129,18 +2065,42 @@ class ContratoColectivo(ContratoBase):
                 if self.fecha_inicio_vigencia:
                     self.fecha_fin_vigencia = self.fecha_inicio_vigencia + \
                         relativedelta(months=+12) - timedelta(days=1)
-                else:
-                    self.fecha_fin_vigencia = None
 
-        # Cálculo de monto_total específico para ContratoColectivo
+        # --- 2. Generación de Códigos Únicos para instancias nuevas ---
+        if is_new:
+            if not self.numero_contrato:
+                self.numero_contrato = f"CONT-COL-{uuid.uuid4().hex[:12].upper()}"
+            if not self.numero_poliza:
+                self.numero_poliza = f"POL-COL-{uuid.uuid4().hex[:12].upper()}"
+            if not self.certificado:
+                self.certificado = f"CERT-COL-{uuid.uuid4().hex[:8].upper()}"
+            if not self.numero_recibo:
+                fecha_recibo_str = (
+                    self.fecha_emision or django_timezone.now()).strftime("%y%m%d")
+                self.numero_recibo = f"REC-COL-{fecha_recibo_str}-{uuid.uuid4().hex[:10].upper()}"
+            if not self.codigo_validacion:
+                self.codigo_validacion = f"VAL-CCC-{uuid.uuid4().hex[:12].upper()}"
+
+        # --- 3. Llenar campos de ModeloBase ---
+        if not self.primer_nombre and self.razon_social:
+            parts = self.razon_social.split(maxsplit=1)
+            self.primer_nombre = parts[0][:100]
+            self.primer_apellido = f"(Colectivo {self.rif or ''})"[
+                :100] if len(parts) > 1 else "(Colectivo)"
+        elif not self.primer_nombre:
+            self.primer_nombre = "Colectivo Sin Razón Social"
+            self.primer_apellido = "(Colectivo)"
+
+        # --- 4. Cálculo de monto_total ---
         monto_colectivo_calculado = self._calculate_monto_total_colectivo()
         if monto_colectivo_calculado is not None:
             self.monto_total = monto_colectivo_calculado
             self._monto_total_pre_calculado_por_hijo = True
-        elif self.monto_total is None:  # Si no se pudo calcular y no se proveyó
+        elif self.monto_total is None:
             self.monto_total = Decimal('0.00')
 
-        super().save(*args, **kwargs)  # Llama a ContratoBase.save()
+        # --- 5. Llamada final al save() de la clase padre ---
+        super().save(*args, **kwargs)
 
     @classmethod
     def con_relaciones(cls):
@@ -2251,6 +2211,15 @@ class Intermediario(ModeloBase):
         null=True,
         help_text="Formato Requerido: Letra-8Números-1Número (Ej: J-12345678-9).",
         validators=[validate_rif]  # Asegúrate que validate_rif esté definido
+    )
+    rif_hash = models.CharField(
+        max_length=64,
+        # unique=True, # Comentado para la 1ra migración
+        db_index=True,
+        null=True,
+        blank=True,
+        editable=False,
+        verbose_name="Hash del RIF (para búsquedas)"
     )
     direccion_fiscal = EncryptedTextField(
         verbose_name="Dirección Fiscal",
@@ -2369,42 +2338,36 @@ class Intermediario(ModeloBase):
             })
 
     def save(self, *args, **kwargs):
+        # --- 1. Generar hash para RIF ---
+        # Se hace primero para asegurar que el hash esté listo antes de guardar.
+        if self.rif:
+            self.rif_hash = hashlib.sha256(
+                self.rif.encode('utf-8')).hexdigest()
+        else:
+            self.rif_hash = None
+
+        # --- 2. Lógica original para instancias nuevas ---
         is_new = self._state.adding
-
         if is_new and not self.codigo:
-            # ----- INICIO CAMBIO TEMPORAL Y DIRECTO PARA Intermediario.codigo -----
-            # Generar un código único usando UUID para evitar problemas con django-sequences
-            # para este modelo específico durante el seeding.
-
+            # Tu lógica de generación de código UUID
             prefijo_temp = "INT-"
-            # El max_length del campo 'codigo' es 15.
-            # "INT-" ocupa 4 caracteres.
-            # Quedan 15 - 4 = 11 caracteres para la parte del UUID.
             uuid_hex_length = 11
-
-            # Intentar generar un código único hasta que se encuentre uno que no exista
-            # (extremadamente improbable que haya colisión con UUID, pero es una buena práctica)
             max_attempts = 5
             for _ in range(max_attempts):
                 generated_code = f"{prefijo_temp}{uuid.uuid4().hex[:uuid_hex_length].upper()}"
-                # Usar all_objects para la verificación
                 if not Intermediario.all_objects.filter(codigo=generated_code).exists():
                     self.codigo = generated_code
                     break
             else:
-                # Si después de varios intentos no se encuentra uno único (casi imposible con UUID)
-                # recurrir a un UUID más largo y truncar, o lanzar un error.
-                # Por simplicidad para el seeder, si esto falla, es un problema mayor.
                 logger.error(
-                    f"No se pudo generar un código UUID único para Intermediario después de {max_attempts} intentos. Usando UUID completo truncado.")
-                self.codigo = uuid.uuid4().hex[:self._meta.get_field(
-                    'codigo').max_length]  # Trunca al max_length del campo
+                    f"No se pudo generar un código UUID único para Intermediario después de {max_attempts} intentos.")
+                self.codigo = uuid.uuid4(
+                ).hex[:self._meta.get_field('codigo').max_length]
 
             logger.info(
                 f"Intermediario nuevo (PK: {self.pk or 'Pre-save'}), código generado (UUID): {self.codigo}")
-            # ----- FIN CAMBIO TEMPORAL -----
 
-        # Lógica opcional para llenar nombres/apellidos (mantenla si la tienes)
+        # --- 3. Lógica original para llenar nombres ---
         if not self.primer_nombre and self.nombre_completo:
             parts = self.nombre_completo.split(maxsplit=1)
             self.primer_nombre = parts[0][:100]
@@ -2413,6 +2376,7 @@ class Intermediario(ModeloBase):
             else:
                 self.primer_apellido = "(Intermediario)"
 
+        # --- 4. Llamada final al save() de la clase padre ---
         super().save(*args, **kwargs)
 
     class Meta:
@@ -3355,13 +3319,13 @@ class RegistroComision(models.Model):
         # Esta verificación es más una medida de seguridad para actualizaciones o si auto_now_add se anula.
         # Si ya tiene un valor (ej. al actualizar o si se asignó antes de save)
         if self.fecha_calculo:
-            if timezone.is_naive(self.fecha_calculo):
+            if django_timezone.is_naive(self.fecha_calculo):
                 logger_model_save.warning(
                     f"RegistroComision (PK: {self.pk or 'Nuevo'}): "
                     f"fecha_calculo ({self.fecha_calculo}) era naive. Haciéndola aware."
                 )
-                self.fecha_calculo = timezone.make_aware(
-                    self.fecha_calculo, timezone.get_current_timezone())
+                self.fecha_calculo = django_timezone.make_aware(
+                    self.fecha_calculo, django_timezone.get_current_timezone())
         # No necesitamos un 'elif self._state.adding' aquí porque auto_now_add lo maneja
         # a menos que estés asignando explícitamente fecha_calculo en otro lugar antes de este save.
 

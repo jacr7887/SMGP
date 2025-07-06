@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% load static humanize %}
 
-{% block title %}Listado de Pagos{% endblock %}
+{% block title %}Pagos{% endblock %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 id="main-heading">💰 Listado de Pagos</h1>
+    <h1 id="main-heading">💰 Pagos</h1>
 
     <div class="header-actions">
       {% if perms.myapp.add_pago %}

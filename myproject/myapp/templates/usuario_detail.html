@@ -1,186 +1,103 @@
-{% extends "home.html" %}
+{% extends "base.html" %}
 {% load static %}
-{% load humanize %}
+
+{% block title %}Detalle: {{ usuario_detalle.get_full_name }}{% endblock %}
 
 {% block content %}
-<div class="container" role="main" aria-labelledby="main-heading">
-  <section>
-    <h1 id="main-heading">👤 Perfil de Usuario: {{ usuario_detalle.get_full_name|default:usuario_detalle.username|escape }}</h1>
-
-    {# --- Botones de Acción --- #}
-    <div class="detail-actions-container mb-4">
-      {% comment %} Comprobar si el usuario viendo el perfil es el mismo que el usuario logueado O si tiene permiso para cambiar CUALQUIER usuario {% endcomment %}
-      {% if request.user.pk == usuario_detalle.pk or perms.myapp.change_usuario %} {# Comparar por pk es más seguro #}
-        <a href="{% url 'myapp:usuario_update' usuario_detalle.pk %}" class="btn btn-success" aria-label="Editar este perfil">
-          ✏️ Editar Perfil
-        </a>
-      {% endif %}
-       {# Solo mostrar Eliminar si NO es el usuario mismo Y tiene permiso #}
-      {% if perms.myapp.delete_usuario and request.user.pk != usuario_detalle.pk %}
-        <a href="{% url 'myapp:usuario_delete' usuario_detalle.pk %}" class="btn btn-danger delete-link" aria-label="Eliminar este usuario">
-          ❌ Eliminar Usuario
-        </a>
-      {% endif %}
-      {# Botón Volver siempre visible si se accede desde la lista #}
-      {% if perms.myapp.view_usuario %}
-       <a href="{% url 'myapp:usuario_list' %}" class="nav_link" aria-label="Volver al listado de usuarios">
-        ⬅️ Volver al Listado de Usuarios
-      </a>
-      {% endif %}
-       <a href="{% url 'myapp:home' %}" class="nav_link" aria-label="Volver al inicio">
-        🏠 Volver a Inicio
-      </a>
-    </div>
-
-    {# --- Detalles del Usuario Agrupados --- #}
-    <div class="form-main-container"> {# Asumiendo que esta clase existe #}
-
-      {# --- Información Personal --- #}
-      <fieldset class="mb-4"> {# Asumiendo que esta clase existe #}
-        <legend>👤 Información Personal</legend>
-        <div class="dark-grid"> {# Asumiendo que esta clase existe #}
-            <div class="dark-group">
-                <span class="dark-label">👤 Nombre de Usuario:</span>
-                <span>{{ usuario_detalle.username|escape }}</span>
-            </div>
-            <div class="dark-group">
-                <span class="dark-label">📧 Correo Electrónico:</span>
-                <span>{{ usuario_detalle.email|escape }}</span>
-            </div>
-            <div class="dark-group">
-                <span class="dark-label">📛 Primer Nombre:</span>
-                <span>{{ usuario_detalle.primer_nombre|escape }}</span>
-            </div>
-            <div class="dark-group">
-                <span class="dark-label">📛 Segundo Nombre:</span>
-                <span>{{ usuario_detalle.segundo_nombre|escape|default:"-" }}</span>
-            </div>
-            <div class="dark-group">
-                <span class="dark-label">📛 Primer Apellido:</span>
-                <span>{{ usuario_detalle.primer_apellido|escape }}</span>
-            </div>
-            <div class="dark-group">
-                <span class="dark-label">📛 Segundo Apellido:</span>
-                <span>{{ usuario_detalle.segundo_apellido|escape|default:"-" }}</span>
-            </div>
-            <div class="dark-group">
-                <span class="dark-label">🗣️ Nombre Completo:</span>
-                <span>{{ usuario_detalle.get_full_name|escape }}</span>
-            </div>
-             <div class="dark-group">
-                <span class="dark-label">📅 Fecha Nacimiento:</span>
-                <span>{{ usuario_detalle.fecha_nacimiento|date:"d/m/Y"|default:"No especificada" }}</span>
-            </div>
-            <div class="dark-group">
-                <span class="dark-label">📞 Teléfono:</span>
-                <span>{{ usuario_detalle.telefono|escape|default:"-" }}</span>
-            </div>
-             <div class="dark-group" style="grid-column: span 2;">
-                <span class="dark-label">🏠 Dirección:</span>
-                <p style="margin:0;">{{ usuario_detalle.direccion|escape|linebreaksbr|default:"-" }}</p>
-            </div>
+<div class="container detail-view" role="main">
+    <header class="detail-header">
+        <h1>👤 Detalle de Usuario: {{ usuario_detalle.get_full_name }}</h1>
+        <div class="header-actions">
+            {% if perms.myapp.change_usuario %}
+            <a href="{% url 'myapp:usuario_update' usuario_detalle.pk %}" class="nav_link">✏️ Editar Usuario</a>
+            {% endif %}
+            {% if perms.myapp.delete_usuario %}
+            <a href="{% url 'myapp:usuario_delete' usuario_detalle.pk %}" class="nav_link delete-link" data-confirm="¿Está seguro de que desea eliminar a este usuario? Esta acción no se puede deshacer.">❌ Eliminar Usuario</a>
+            {% endif %}
         </div>
-      </fieldset>
+    </header>
 
-      {# --- Información de Cuenta y Roles --- #}
-      <fieldset class="mb-4">
-        <legend>🔑 Cuenta y Roles</legend>
-         <div class="dark-grid">
-            <div class="dark-group">
-                <span class="dark-label">💡 Estado Cuenta (SMGP):</span>
-                 {# Usar tu campo 'activo' para el estado de soft delete #}
-                 <span class="badge {% if usuario_detalle.activo %}badge-success{% else %}badge-danger{% endif %}">
-                     {{ usuario_detalle.activo|yesno:"Activa,Inactiva (Soft Delete)" }}
-                 </span>
-            </div>
-            <div class="dark-group">
-                <span class="dark-label">💡 Estado Cuenta (Django):</span>
-                 <span class="badge {% if usuario_detalle.is_active %}badge-success{% else %}badge-danger{% endif %}">
-                     {{ usuario_detalle.is_active|yesno:"Activa,Inactiva" }}
-                 </span>
-            </div>
-            <div class="dark-group">
-                <span class="dark-label">🏷️ Tipo de Usuario:</span>
-                {# Usar el display del contexto que ya calculaste en la vista #}
-                <span>{{ tipo_usuario_display|escape|default:"N/A" }}</span>
-            </div>
-            <div class="dark-group">
-                <span class="dark-label">📊 Nivel de Acceso:</span>
-                {# Usar el display del contexto #}
-                <span>{{ nivel_acceso_display|escape }} ({{ usuario_detalle.nivel_acceso }})</span>
-            </div>
-            <div class="dark-group">
-                <span class="dark-label">🏢 Departamento:</span>
-                {# Usar el display del contexto #}
-                <span>{{ departamento_display|escape|default:"No asignado" }}</span>
-            </div>
-            <div class="dark-group">
-                 <span class="dark-label">🤝 Intermediario Asociado:</span>
-                 <span>
-                 {% if usuario_detalle.intermediario %}
-                     {% if perms.myapp.view_intermediario %}
-                     <a href="{% url 'myapp:intermediario_detail' usuario_detalle.intermediario.pk %}">{{ usuario_detalle.intermediario.nombre_completo|escape }}</a>
-                     {% else %}
-                     {{ usuario_detalle.intermediario.nombre_completo|escape }}
-                     {% endif %}
-                 {% else %}
-                     No Asociado
-                 {% endif %}
-                 </span>
-             </div>
-             <div class="dark-group">
-                <span class="dark-label">🧑‍💼 Es Staff?:</span>
-                <span>{{ usuario_detalle.is_staff|yesno:"Sí,No" }}</span>
-            </div>
-             <div class="dark-group">
-                <span class="dark-label">👑 Es Superusuario?:</span>
-                <span>{{ usuario_detalle.is_superuser|yesno:"Sí,No" }}</span>
-            </div>
+    <div class="detail-grid">
+        <!-- Columna de Información Personal -->
+        <div class="detail-card">
+            <h2>Información Personal</h2>
+            <dl>
+                <dt>Primer Nombre</dt><dd>{{ usuario_detalle.primer_nombre|default:"--" }}</dd>
+                <dt>Segundo Nombre</dt><dd>{{ usuario_detalle.segundo_nombre|default:"--" }}</dd>
+                <dt>Primer Apellido</dt><dd>{{ usuario_detalle.primer_apellido|default:"--" }}</dd>
+                <dt>Segundo Apellido</dt><dd>{{ usuario_detalle.segundo_apellido|default:"--" }}</dd>
+                <dt>Fecha de Nacimiento</dt><dd>{{ usuario_detalle.fecha_nacimiento|date:"d/m/Y"|default:"No especificada" }}</dd>
+            </dl>
         </div>
-      </fieldset>
 
-      {# --- Fechas de Sistema --- #}
-      <fieldset class="mb-4"> {# Añadido mb-4 para consistencia #}
-        <legend>🗓️ Fechas del Sistema</legend>
-        <div class="dark-grid">
-             <div class="dark-group">
-               <span class="dark-label">➕ Fecha de Registro:</span>
-               <span>{{ usuario_detalle.date_joined|date:"d/m/Y H:i:s" }}</span>
-             </div>
-             <div class="dark-group">
-               <span class="dark-label">🚪 Último Inicio de Sesión:</span>
-               <span>{{ usuario_detalle.last_login|date:"d/m/Y H:i:s"|default:"Nunca" }}</span>
-             </div>
-             <div class="dark-group">
-                <span class="dark-label">🔄 Última Modificación:</span>
-                <span>{{ usuario_detalle.fecha_modificacion|date:"d/m/Y H:i:s" }}</span>
-              </div>
+        <!-- Columna de Información de Contacto -->
+        <div class="detail-card">
+            <h2>Información de Contacto</h2>
+            <dl>
+                <dt>Email (Login)</dt><dd>{{ usuario_detalle.email }}</dd>
+                <dt>Teléfono</dt><dd>{{ usuario_detalle.telefono|default:"No especificado" }}</dd>
+                <dt>Dirección</dt><dd>{{ usuario_detalle.direccion|default:"No especificada"|linebreaksbr }}</dd>
+            </dl>
         </div>
-      </fieldset>
 
-       {% if perms.auth.view_group or perms.auth.view_permission %}
-       <fieldset class="mt-4"> {# Asumiendo que esta clase existe #}
-           <legend>🛡️ Grupos y Permisos Asignados</legend>
-            <div class="dark-grid">
-                 {% if perms.auth.view_group %}
-                <div class="dark-group">
-                    <span class="dark-label">Grupos:</span>
-                    {# Iterar para mostrar como lista si son muchos #}
-                    {% if usuario_detalle.groups.all %}
-                        <ul>
-                        {% for group in usuario_detalle.groups.all %}
-                            <li>{{ group.name|escape }}</li>
-                        {% endfor %}
-                        </ul>
+        <!-- Columna de Roles y Estatus -->
+        <div class="detail-card">
+            <h2>Roles y Estatus del Sistema</h2>
+            <dl>
+                <dt>Nombre de Usuario (Interno)</dt><dd>{{ usuario_detalle.username }}</dd>
+                <dt>Rol Principal</dt>
+                <dd>
+                    {% if usuario_detalle.tipo_usuario == 'ADMIN' %}<span class="badge badge-danger">Administrador</span>
+                    {% elif usuario_detalle.tipo_usuario == 'INTERMEDIARIO' %}<span class="badge badge-primary">Intermediario</span>
+                    {% elif usuario_detalle.tipo_usuario == 'CLIENTE' %}<span class="badge badge-success">Cliente</span>
+                    {% elif usuario_detalle.tipo_usuario == 'AUDITOR' %}<span class="badge badge-dark">Auditor</span>
+                    {% else %}<span class="badge badge-secondary">{{ usuario_detalle.get_tipo_usuario_display }}</span>{% endif %}
+                </dd>
+                <dt>Estado de la Cuenta</dt>
+                <dd>
+                    {% if usuario_detalle.activo %}<span class="badge badge-success">Activa</span>
+                    {% else %}<span class="badge badge-danger">Inactiva</span>{% endif %}
+                </dd>
+                <dt>Intermediario Asociado</dt>
+                <dd>
+                    {% if usuario_detalle.intermediario %}
+                        <a href="{% url 'myapp:intermediario_detail' usuario_detalle.intermediario.pk %}">{{ usuario_detalle.intermediario.nombre_completo }}</a>
                     {% else %}
                         Ninguno
                     {% endif %}
-                </div>
-                 {% endif %}
-            </div>
-       </fieldset>
-       {% endif %}
+                </dd>
+                <dt>Departamento</dt><dd>{{ usuario_detalle.get_departamento_display|default:"No asignado" }}</dd>
+            </dl>
+        </div>
+
+        <!-- Columna de Permisos de Django -->
+        <div class="detail-card">
+            <h2>Permisos de Django</h2>
+            <dl>
+                <dt>¿Es Staff?</dt>
+                <dd>{% if usuario_detalle.is_staff %}✅ Sí{% else %}❌ No{% endif %}</dd>
+                <dt>¿Es Superusuario?</dt>
+                <dd>{% if usuario_detalle.is_superuser %}👑 Sí{% else %}❌ No{% endif %}</dd>
+                <dt>Grupos Asignados</dt>
+                <dd>
+                    {% for group in usuario_detalle.groups.all %}
+                        <span class="badge badge-system">{{ group.name }}</span>
+                    {% empty %}
+                        <span>Sin grupos asignados</span>
+                    {% endfor %}
+                </dd>
+            </dl>
+        </div>
     </div>
-  </section>
+
+    <div class="detail-card full-width">
+        <h2>Fechas de Auditoría</h2>
+        <dl class="dl-horizontal">
+            <dt>Fecha de Registro</dt><dd>{{ usuario_detalle.date_joined|date:"d/m/Y H:i:s" }}</dd>
+            <dt>Último Inicio de Sesión</dt><dd>{{ usuario_detalle.last_login|date:"d/m/Y H:i:s"|default:"Nunca" }}</dd>
+            <dt>Fecha de Creación (Registro Base)</dt><dd>{{ usuario_detalle.fecha_creacion|date:"d/m/Y H:i:s" }}</dd>
+            <dt>Última Modificación (Registro Base)</dt><dd>{{ usuario_detalle.fecha_modificacion|date:"d/m/Y H:i:s" }}</dd>
+        </dl>
+    </div>
 </div>
-{% endblock content %}
+{% endblock %}

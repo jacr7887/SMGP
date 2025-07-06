@@ -228,14 +228,21 @@ UserModel = get_user_model()
 class BaseTestCase(TestCase):
     @classmethod
     def setUpTestData(cls):
+        # --- CREACIÓN DE USUARIOS CORREGIDA ---
+        # Usamos el manager, que ya sabe que un superusuario es tipo 'ADMIN'
         cls.superuser = UserModel.objects.create_superuser(
-            email='admin@example.com', password='adminpassword',
-            primer_nombre='Admin', primer_apellido='User', tipo_usuario='ADMIN'
+            email='admin@example.com',
+            password='adminpassword',
+            primer_nombre='Admin',
+            primer_apellido='User'
+            # No es necesario pasar tipo_usuario='ADMIN', el manager lo hace.
         )
+        # Usamos el manager, que ya sabe que un usuario normal es tipo 'CLIENTE' por defecto.
         cls.normal_user = UserModel.objects.create_user(
-            email='user@example.com', password='userpassword',
-            primer_nombre='Normal', primer_apellido='User',
-            nivel_acceso=1, tipo_usuario='CLIENTE'
+            email='user@example.com',
+            password='userpassword',
+            primer_nombre='Normal',
+            primer_apellido='User'
         )
         try:
             content_type = ContentType.objects.get_for_model(LicenseInfo)
@@ -288,13 +295,16 @@ class UsuarioModelTests(BaseTestCase):
     def test_create_superuser(self):
         self.assertTrue(self.superuser.is_superuser)
         self.assertTrue(self.superuser.is_staff)
-        self.assertEqual(self.superuser.nivel_acceso, 5)
+        # --- ASEVERACIÓN CORREGIDA ---
+        self.assertEqual(self.superuser.tipo_usuario, 'ADMIN')
         self.assertEqual(str(self.superuser), "User, Admin")
 
     def test_create_normal_user(self):
         self.assertFalse(self.normal_user.is_superuser)
         self.assertFalse(self.normal_user.is_staff)
-        self.assertEqual(self.normal_user.nivel_acceso, 1)
+        # --- ASEVERACIÓN CORREGIDA ---
+        self.assertEqual(self.normal_user.tipo_usuario,
+                         'CLIENTE')  # El default del manager
         self.assertEqual(str(self.normal_user), "User, Normal")
 
     def test_get_full_name(self):

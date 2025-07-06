@@ -1,17 +1,12 @@
-{% extends "home.html" %}
+{% extends "base.html" %}
 {% load static %}
-{% load humanize %}
 
-{% block extra_head %}
-{# Solo cargamos el CSS base de DataTables. Los estilos ya están en styles.css #}
-{% endblock %}
-
-{% block title %}{{ title }}{% endblock %}
+{% block title %}Listado de Usuarios del Sistema{% endblock %}
 
 {% block content %}
 <div class="container" role="main" aria-labelledby="main-heading">
   <section>
-    <h1 id="main-heading">👥 {{ title }}</h1>
+    <h1 id="main-heading">👤 Listado de Usuarios del Sistema</h1>
 
     <div class="header-actions">
       {% if perms.myapp.add_usuario %}
@@ -22,73 +17,55 @@
     </div>
 
     <div class="table-container">
-      <table id="usuarios-table" class="data-table" style="width:100%">
+      <table id="usuarios-table" class="data-table" style="width:100%" data-custom-init="true">
         <thead>
           <tr>
-            {# --- CABECERAS COMPLETAS PARA USUARIO --- #}
             <th>Nombre Completo</th>
             <th>Email</th>
-            <th>Tipo</th>
-            <th>Nivel</th>
+            <th>Rol (Tipo)</th>
+            <th>Intermediario Asociado</th>
             <th>Departamento</th>
-            <th>Intermediario</th>
-            <th>Activo</th>
-            <th>Staff</th>
-            <th>Superusuario</th>
-            <th>Último Login</th>
-            <th>Fecha Registro</th>
-            <th>Acciones</th>
+            <th>Teléfono</th>
+            <th>Estado</th>
+            <th class="no-sort">Acciones</th>
           </tr>
         </thead>
         <tbody>
           {% for usuario in object_list %}
-            {% if usuario.decryption_error %}
-              <tr class="table-danger">
-                <td colspan="12">⚠️ Error al leer datos para el usuario con ID: {{ usuario.pk }}.</td>
-              </tr>
-            {% else %}
-              <tr>
-                {# --- CELDAS COMPLETAS PARA USUARIO --- #}
-                <td>{{ usuario.get_full_name|default:"N/A" }}</td>
-                <td>{{ usuario.email|default:"N/A" }}</td>
-                <td>{{ usuario.get_tipo_usuario_display }}</td>
-                <td>{{ usuario.get_nivel_acceso_display }}</td>
-                <td>{{ usuario.get_departamento_display|default:"-" }}</td>
-                <td>{{ usuario.intermediario.nombre_completo|default:"-" }}</td>
-                <td class="text-center">
-                  {% if usuario.activo %}
-                    <span class="badge badge-success">Sí</span>
-                  {% else %}
-                    <span class="badge badge-danger">No</span>
+            <tr>
+              <td><a href="{% url 'myapp:usuario_detail' usuario.pk %}">{{ usuario.get_full_name|default:usuario.username }}</a></td>
+              <td>{{ usuario.email|default:"N/A" }}</td>
+              
+              <td>
+                {% if usuario.tipo_usuario == 'ADMIN' %}<span class="badge badge-danger" title="Administrador del Sistema">Admin</span>
+                {% elif usuario.tipo_usuario == 'INTERMEDIARIO' %}<span class="badge badge-primary" title="Intermediario">Intermediario</span>
+                {% elif usuario.tipo_usuario == 'CLIENTE' %}<span class="badge badge-success" title="Cliente/Afiliado">Cliente</span>
+                {% elif usuario.tipo_usuario == 'AUDITOR' %}<span class="badge badge-dark" title="Auditor (Solo Lectura)">Auditor</span>
+                {% else %}<span class="badge badge-secondary">{{ usuario.get_tipo_usuario_display }}</span>{% endif %}
+              </td>
+
+              <td>{{ usuario.intermediario.nombre_completo|default:"--"|escape }}</td>
+              <td>{{ usuario.get_departamento_display|default:"--" }}</td>
+              <td>{{ usuario.telefono|default:"N/A" }}</td>
+              <td>
+                {% if usuario.activo %}
+                  <span class="badge badge-success">Activo</span>
+                {% else %}
+                  <span class="badge badge-danger">Inactivo</span>
+                {% endif %}
+              </td>
+              <td class="actions">
+                <div class="action-group">
+                  <a href="{% url 'myapp:usuario_detail' usuario.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
+                  {% if perms.myapp.change_usuario %}
+                  <a href="{% url 'myapp:usuario_update' usuario.pk %}" class="action-icon" title="Editar">✏️</a>
                   {% endif %}
-                </td>
-                <td class="text-center">
-                  {% if usuario.is_staff %}
-                    <span class="badge badge-info">Sí</span>
-                  {% else %}
-                    <span>No</span>
+                  {% if perms.myapp.delete_usuario %}
+                  <a href="{% url 'myapp:usuario_delete' usuario.pk %}" class="action-icon delete-link" title="Eliminar" data-confirm="¿Está seguro de que desea eliminar a este usuario?">❌</a>
                   {% endif %}
-                </td>
-                <td class="text-center">
-                  {% if usuario.is_superuser %}
-                    <span class="badge badge-warning">Sí</span>
-                  {% else %}
-                    <span>No</span>
-                  {% endif %}
-                </td>
-                <td>{{ usuario.last_login|date:"d/m/Y H:i"|default:"Nunca" }}</td>
-                <td>{{ usuario.date_joined|date:"d/m/Y" }}</td>
-                <td class="actions">
-                  <div class="action-group">
-                    <a href="{% url 'myapp:usuario_detail' usuario.pk %}" class="action-icon" title="Ver Detalles">👁️</a>
-                    <a href="{% url 'myapp:usuario_update' usuario.pk %}" class="action-icon" title="Editar">✏️</a>
-                    {% if request.user.pk != usuario.pk %} {# No permitir borrarse a uno mismo #}
-                    <a href="{% url 'myapp:usuario_delete' usuario.pk %}" class="action-icon delete-link" title="Eliminar">❌</a>
-                    {% endif %}
-                  </div>
-                </td>
-              </tr>
-            {% endif %}
+                </div>
+              </td>
+            </tr>
           {% endfor %}
         </tbody>
       </table>
@@ -98,5 +75,15 @@
 {% endblock content %}
 
 {% block extra_scripts %}
-
+<script>
+$(document).ready(function() {
+    $('#usuarios-table').DataTable({
+        language: { "url": "{% get_static_prefix %}es-ES.json" },
+        "dom": "<'dt-layout-row'<'dt-layout-cell dt-start'l><'dt-layout-cell dt-end'f>><'dt-layout-row'<'dt-layout-cell dt-full-width'tr>><'dt-layout-row'<'dt-layout-cell dt-start'i><'dt-layout-cell dt-end'p>>",
+        "columnDefs": [{ "orderable": false, "targets": -1 }],
+        "order": [[ 0, "asc" ]],
+        "scrollX": true
+    });
+});
+</script>
 {% endblock %}

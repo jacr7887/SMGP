@@ -55,14 +55,40 @@ def clear_graph_cache(backend_name: str = 'default') -> Optional[int]:
 
 
 # --- 6. Función Helper para la Lógica de un Contrato (sin cambios) ---
-def generar_facturas_para_contrato(contrato):
+
+@background(schedule=0, name='generar_factura_para_contrato_especifico')
+def generar_factura_para_contrato_especifico(contrato_id: int, tipo_contrato: str):
     """
-    Verifica si un contrato necesita una nueva factura y la crea si es necesario.
+    Verifica y genera una factura para UN SOLO contrato.
+    Esta es la tarea que se ejecuta en el worker.
     """
-    # (Tu código completo para esta función se mantiene aquí, sin cambios)
+    logger.info(f"Procesando {tipo_contrato} ID: {contrato_id}")
+
+    try:
+        if tipo_contrato == 'individual':
+            ContratoModel = ContratoIndividual
+        elif tipo_contrato == 'colectivo':
+            ContratoModel = ContratoColectivo
+        else:
+            logger.error(
+                f"Tipo de contrato desconocido '{tipo_contrato}' para ID {contrato_id}")
+            return
+
+        # REHIDRATACIÓN: Obtenemos el objeto desde la BD aquí.
+        # El ORM se encargará de desencriptar los campos.
+        contrato = ContratoModel.objects.get(pk=contrato_id)
+    except ContratoModel.DoesNotExist:
+        logger.error(
+            f"Contrato {tipo_contrato} con ID {contrato_id} no encontrado. La tarea finaliza.")
+        return
+
+    # --- Lógica de generación (la misma que tenías, ahora dentro de esta tarea) ---
     hoy = date.today()
-    if not hasattr(contrato, 'esta_vigente') or not contrato.esta_vigente:
-        return 0
+    if not contrato.esta_vigente:
+        logger.debug(
+            f"Contrato {contrato.numero_contrato} no está vigente. Omitiendo.")
+        return
+
     intervalo = None
     if contrato.forma_pago == 'MENSUAL':
         intervalo = relativedelta(months=1)
@@ -72,67 +98,99 @@ def generar_facturas_para_contrato(contrato):
         intervalo = relativedelta(months=6)
     elif contrato.forma_pago == 'ANUAL':
         intervalo = relativedelta(years=1)
+
     if not intervalo:
-        return 0
-    filtro_contrato = Q(contrato_individual=contrato) if isinstance(
-        contrato, ContratoIndividual) else Q(contrato_colectivo=contrato)
+        logger.debug(
+            f"Contrato {contrato.numero_contrato} con forma de pago no periódica. Omitiendo.")
+        return
+
+    filtro_contrato = Q(contrato_individual=contrato) if tipo_contrato == 'individual' else Q(
+        contrato_colectivo=contrato)
     ultima_factura = Factura.objects.filter(
         filtro_contrato).order_by('-vigencia_recibo_hasta').first()
+
     fecha_inicio_siguiente_factura = contrato.fecha_inicio_vigencia
     if ultima_factura:
         fecha_inicio_siguiente_factura = ultima_factura.vigencia_recibo_hasta + \
             timedelta(days=1)
+
+    if fecha_inicio_siguiente_factura > contrato.fecha_fin_vigencia:
+        logger.debug(
+            f"Contrato {contrato.numero_contrato} ha completado su ciclo de facturación. Omitiendo.")
+        return
+
+    # Verificar si ya es tiempo de generar la siguiente factura
     if fecha_inicio_siguiente_factura > hoy:
-        return 0
-    fecha_fin_siguiente_factura = fecha_inicio_siguiente_factura + \
-        intervalo - timedelta(days=1)
-    if fecha_fin_siguiente_factura > contrato.fecha_fin_vigencia:
-        fecha_fin_siguiente_factura = contrato.fecha_fin_vigencia
-    if fecha_inicio_siguiente_factura > fecha_fin_siguiente_factura:
-        return 0
+        logger.debug(
+            f"Aún no es tiempo de generar la siguiente factura para {contrato.numero_contrato}. Próxima: {fecha_inicio_siguiente_factura}")
+        return
+
+    fecha_fin_siguiente_factura = min(
+        fecha_inicio_siguiente_factura + intervalo - timedelta(days=1),
+        contrato.fecha_fin_vigencia
+    )
+
     if Factura.objects.filter(filtro_contrato, vigencia_recibo_desde=fecha_inicio_siguiente_factura).exists():
         logger.warning(
             f"Factura para contrato {contrato.numero_contrato} y período desde {fecha_inicio_siguiente_factura} ya existe. Omitiendo.")
-        return 0
+        return
+
     try:
+        # El acceso a .monto_cuota_estimada ahora funcionará porque el objeto fue rehidratado.
         monto_factura = contrato.monto_cuota_estimada
         if monto_factura is None or monto_factura <= 0:
             logger.error(
                 f"Error: Monto de cuota es None o cero para contrato {contrato.numero_contrato}. No se puede crear factura.")
-            return 0
+            return
+
         with transaction.atomic():
-            nueva_factura = Factura.objects.create(contrato_individual=contrato if isinstance(contrato, ContratoIndividual) else None, contrato_colectivo=contrato if isinstance(
-                contrato, ContratoColectivo) else None, monto=monto_factura, vigencia_recibo_desde=fecha_inicio_siguiente_factura, vigencia_recibo_hasta=fecha_fin_siguiente_factura, intermediario=contrato.intermediario, estatus_factura='GENERADA')
+            nueva_factura = Factura.objects.create(
+                contrato_individual=contrato if tipo_contrato == 'individual' else None,
+                contrato_colectivo=contrato if tipo_contrato == 'colectivo' else None,
+                monto=monto_factura,
+                vigencia_recibo_desde=fecha_inicio_siguiente_factura,
+                vigencia_recibo_hasta=fecha_fin_siguiente_factura,
+                intermediario=contrato.intermediario,  # Esto también funcionará
+                estatus_factura='GENERADA'
+            )
         logger.info(
-            f"ÉXITO: Factura {nueva_factura.numero_recibo} creada para contrato {contrato.numero_contrato} para el período {fecha_inicio_siguiente_factura} a {fecha_fin_siguiente_factura}.")
-        return 1
+            f"ÉXITO: Factura {nueva_factura.numero_recibo} creada para contrato {contrato.numero_contrato}.")
     except Exception as e:
         logger.error(
             f"Error creando factura para contrato {contrato.numero_contrato}: {e}", exc_info=True)
-        return 0
 
 
-# --- 7. Tarea Principal para la Automatización ---
 @background(schedule=0)
 def generar_facturas_periodicas_task():
     """
-    Tarea principal que se registrará y ejecutará en segundo plano.
+    Tarea orquestadora. Obtiene los IDs de los contratos y encola tareas individuales.
     """
+    logger.info("--- INICIANDO TAREA ORQUESTADORA: Generación de Facturas ---")
+
+    # Obtener solo los PKs, es mucho más eficiente
+    contratos_ind_ids = ContratoIndividual.objects.filter(
+        activo=True, estatus='VIGENTE'
+    ).exclude(forma_pago='CONTADO').values_list('pk', flat=True)
+
+    contratos_col_ids = ContratoColectivo.objects.filter(
+        activo=True, estatus='VIGENTE'
+    ).exclude(forma_pago='CONTADO').values_list('pk', flat=True)
+
+    # Encolar una tarea por cada contrato
+    for contrato_id in contratos_ind_ids:
+        generar_factura_para_contrato_especifico(contrato_id, 'individual')
+
+    for contrato_id in contratos_col_ids:
+        generar_factura_para_contrato_especifico(contrato_id, 'colectivo')
+
+    total_tareas_encoladas = len(contratos_ind_ids) + len(contratos_col_ids)
     logger.info(
-        "--- INICIANDO TAREA: Generación de Facturas (django-background-tasks) ---")
-    contratos_a_procesar = list(ContratoIndividual.objects.filter(activo=True, estatus='VIGENTE').exclude(forma_pago='CONTADO')) + \
-        list(ContratoColectivo.objects.filter(activo=True,
-             estatus='VIGENTE').exclude(forma_pago='CONTADO'))
-    total_facturas_creadas = 0
-    for contrato in contratos_a_procesar:
-        total_facturas_creadas += generar_facturas_para_contrato(contrato)
-    logger.info(
-        f"--- TAREA FINALIZADA: Se crearon {total_facturas_creadas} nuevas facturas. ---")
+        f"--- TAREA ORQUESTADORA FINALIZADA: Se encolaron {total_tareas_encoladas} tareas de facturación individuales. ---")
     print(
-        f"Tarea de facturación completada. Se crearon {total_facturas_creadas} facturas.")
+        f"Tarea orquestadora completada. Se encolaron {total_tareas_encoladas} tareas.")
 
 
-# --- 8. Función para Programar la Tarea desde el Shell ---
+# --- 7. Función para Programar la Tarea desde el Shell ---
 def programar_generador_de_facturas():
     """
     Se ejecuta una sola vez desde el shell para registrar la tarea en la base de datos.
@@ -148,7 +206,7 @@ def programar_generador_de_facturas():
         print(f"INFO: La tarea '{verbose_name}' ya estaba programada.")
 
 
-# --- 9. Bloque de ejecución directa ---
+# --- 8. Bloque de ejecución directa ---
 if __name__ == "__main__":
     import django
     import os
